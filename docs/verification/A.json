@@ -1,0 +1,23 @@
+{
+  "Success": true,
+  "NodeId": "01a0c2de-b239-7813-a02a-a0f6a8e51664",
+  "UserId": "01a0c2de-b21a-7e70-802b-dbec75a8d93b",
+  "Messages": [
+    {
+      "Id": "01a0c2de-b565-7cda-86cd-2d26d4a3192e",
+      "Text": "Xin ch\u00E0o t\u1EEB M\u00E1y B \uD83D\uDC4B\nTin nh\u1EAFn nhi\u1EC1u d\u00F2ng qua TCP, kh\u00F4ng c\u00F3 server ri\u00EAng.",
+      "Status": 2
+    },
+    {
+      "Id": "01a0c2de-b589-7558-ad53-055cc6908eb8",
+      "Text": "Xin ch\u00E0o t\u1EEB M\u00E1y A \uD83D\uDC4B\nTin nh\u1EAFn nhi\u1EC1u d\u00F2ng qua TCP, kh\u00F4ng c\u00F3 server ri\u00EAng.",
+      "Status": 2
+    }
+  ],
+  "Captures": [
+    "C:\\Users\\Admin\\source\\repos\\dattiphu2022\\LANChatAppByMrD\\.codex-temp\\two-instances-20260921-142928\\A.1240.png",
+    "C:\\Users\\Admin\\source\\repos\\dattiphu2022\\LANChatAppByMrD\\.codex-temp\\two-instances-20260921-142928\\A.1020.png",
+    "C:\\Users\\Admin\\source\\repos\\dattiphu2022\\LANChatAppByMrD\\.codex-temp\\two-instances-20260921-142928\\A.settings.png",
+    "C:\\Users\\Admin\\source\\repos\\dattiphu2022\\LANChatAppByMrD\\.codex-temp\\two-instances-20260921-142928\\A.diagnostics.png"
+  ]
+}

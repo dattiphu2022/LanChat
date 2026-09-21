@@ -1,0 +1,78 @@
+using LanChat.Domain;
+
+namespace LanChat.Application;
+
+public sealed class NodeOptions
+{
+    public string DataDirectory { get; set; } = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LanChat", "Data");
+    public int ServicePort { get; set; } = 54546;
+    public int DiscoveryPort { get; set; } = 54545;
+    public Guid ClusterId { get; set; }
+    public byte[] ClusterSecret { get; set; } = [];
+    public List<string> DiscoveryTargets { get; set; } = [];
+    public string InitialDisplayName { get; set; } = Environment.UserName;
+}
+
+public sealed record UserProfileDto(Guid Id, string DisplayName, string? FullName, string? Nickname,
+    string? Department, string? Position, string? Phone, string? StatusMessage);
+public sealed record DiscoveredPeerDto(Guid NodeId, Guid UserId, string DisplayName, string DeviceName,
+    string IPAddress, int ServicePort, NodeRole CurrentRole, long Term, int ProtocolVersion,
+    string ApplicationVersion, Guid ClusterId);
+public sealed record NodeInfoDto(Guid NodeId, string DeviceName, int ServicePort, UserProfileDto User,
+    int ProtocolVersion = 1, string ApplicationVersion = "0.1.0");
+public sealed record ChatMessageDto(Guid Id, Guid ClientMessageId, Guid ConversationId, Guid SenderUserId,
+    Guid RecipientUserId, Guid OriginNodeId, long OriginSequence, MessageKind Kind, string Text,
+    long CreatedAtTicks, long PhysicalTicks, int LogicalCounter);
+public sealed record ChatPushDto(NodeInfoDto Sender, ChatMessageDto Message);
+public sealed record ChatAckDto(Guid MessageId);
+public sealed record UserSummary(Guid UserId, string DisplayName, string? Department, string DeviceName,
+    string IPAddress, int ServicePort, Guid NodeId, long LastSeenTicks, PresenceStatus Presence);
+public sealed record ConversationSummary(Guid Id, Guid OtherUserId, string DisplayName, string Preview,
+    long LastMessageTicks, int UnreadCount, bool IsPinned, bool IsMuted, PresenceStatus Presence);
+public sealed record NetworkInfo(string Adapter, string Address, string Mask, int PrefixLength,
+    string Network, string Broadcast, string FirstHost, string LastHost, long HostCount, string? Gateway);
+public sealed record DiagnosticsSnapshot(NodeIdentity Identity, int OnlinePeers, int PendingMessages,
+    IReadOnlyList<UserSummary> Users, IReadOnlyList<NetworkInfo> Networks, string? NetworkError);
+
+public interface ILanScanner
+{
+    Task<IReadOnlyList<DiscoveredPeerDto>> ScanAsync(CancellationToken cancellationToken = default);
+}
+public interface ILocalNetworkInfoProvider { IReadOnlyList<NetworkInfo> GetNetworks(); }
+public interface IPeerTransport
+{
+    Task<NodeInfoDto> GetNodeInfoAsync(string address, int port, CancellationToken cancellationToken);
+    Task DeliverAsync(string address, int port, ChatPushDto message, CancellationToken cancellationToken);
+}
+public interface IChatStore
+{
+    Task InitializeAsync(CancellationToken ct = default);
+    Task<NodeIdentity> GetIdentityAsync(CancellationToken ct = default);
+    Task<LocalUserProfile> GetProfileAsync(CancellationToken ct = default);
+    Task SaveProfileAsync(LocalUserProfile profile, CancellationToken ct = default);
+    Task<NodeInfoDto> GetNodeInfoAsync(CancellationToken ct = default);
+    Task RememberPeerAsync(NodeInfoDto peer, string address, CancellationToken ct = default);
+    Task<IReadOnlyList<UserSummary>> GetUsersAsync(string search = "", CancellationToken ct = default);
+    Task<Guid> OpenDirectAsync(Guid userId, CancellationToken ct = default);
+    Task<IReadOnlyList<ConversationSummary>> GetConversationsAsync(string search = "", CancellationToken ct = default);
+    Task<IReadOnlyList<Message>> GetMessagesAsync(Guid conversationId, long? beforeTicks = null, CancellationToken ct = default, int limit = 200);
+    Task<Message> SaveOutgoingAsync(Guid recipientId, string text, CancellationToken ct = default);
+    Task ReceiveAsync(ChatPushDto push, string address, CancellationToken ct = default);
+    Task<IReadOnlyList<Message>> GetPendingAsync(CancellationToken ct = default);
+    Task SetDeliveryAsync(Guid id, bool delivered, CancellationToken ct = default);
+    Task SetConversationAsync(Guid id, bool? pin = null, bool? mute = null, bool markRead = false, CancellationToken ct = default);
+    Task<int> GetPendingCountAsync(CancellationToken ct = default);
+}
+public interface IChatService
+{
+    Task<Message> SendAsync(Guid recipientId, string text, CancellationToken ct = default);
+}
+public sealed class ChatService(IChatStore store) : IChatService
+{
+    public Task<Message> SendAsync(Guid recipientId, string text, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(text) || text.Length > 16000)
+            throw new ArgumentException("Tin nhắn cần có nội dung và không quá 16.000 ký tự.");
+        return store.SaveOutgoingAsync(recipientId, text.Trim(), ct);
+    }
+}

@@ -1,0 +1,8 @@
+**/bin/
+**/obj/
+.vs/
+.codex-temp/
+TestResults/
+artifacts/
+Data/
+*.user
