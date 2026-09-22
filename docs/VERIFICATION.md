@@ -77,3 +77,26 @@ Kiểm tra UI dùng **hai tiến trình cùng máy Windows**, còn failover/part
 Không coi các kết quả này là chứng nhận an toàn cho cụm lớn hoặc thành viên ác ý. Cluster chia sẻ credential và toàn lịch sử; không có E2EE, mã hóa DB, voter decommission hoặc control-log compaction. Xem [ACCEPTANCE.md](ACCEPTANCE.md) để nghiệm thu thực địa và [ARCHITECTURE.md](ARCHITECTURE.md) cho phạm vi thiết kế.
 
 Bằng chứng Phase 1 cũ giữ ở [VERIFICATION_PHASE1.md](VERIFICATION_PHASE1.md).
+
+## Cập nhật UX mở tệp — 22/09/2026
+
+Bấm tệp trong tin nhắn mở bằng ứng dụng mặc định của Windows; nếu chưa có local thì tự tải, kiểm tra SHA256, tạo bản giữ đúng tên/đuôi dưới Attachments/Open và chuyển sang thao tác mở. Bản mở local tách khỏi blob P2P, giữ các sửa đổi local khi bấm lại. Có progress/hủy khi chuẩn bị lâu và chặn bấm trùng trong lúc tải.
+
+- Build Debug và publish Release đạt; không đổi schema/migration.
+- Kiểm thử tập trung FileTransferTests: **7 passed / 0 failed**, gồm local, remote qua TLS, mở lại khi nguồn offline, giữ sửa đổi local mà blob không đổi, tệp trùng tên/tên không an toàn, tệp hỏng và hủy tải. Tổng số bài hiện có là 43; lần này chạy tập trung 7 bài liên quan, không chạy lại toàn bộ 43 bài.
+- Harness hai WinForms đạt tại `.codex-temp/two-instances-20260922-135229`: mỗi phiên gọi cùng handler bấm tệp 5 lần (4 tệp và mở lại một tệp), kiểm tra tên/đuôi, nội dung SHA256 và đường dẫn local tái sử dụng.
+- Harness thay riêng bước khởi chạy ứng dụng ngoài bằng bộ ghi nhận đường dẫn; chưa xác minh thủ công Word/Excel/PDF viewer trên máy người dùng. Bản Release dùng Windows shell với UseShellExecute và verb open.
+
+Bằng chứng: [verification/attachment-open/](verification/attachment-open/) gồm A.json, B.json và attachment-open.trx.
+
+## Ảnh trực tiếp và album — 22/09/2026
+
+- Build Debug và publish Release đạt, không cảnh báo/lỗi; không đổi schema/protocol.
+- Chạy lại **toàn bộ 43 kiểm thử: 43 passed, 0 failed, 0 skipped**, bao gồm 7 bài truyền/mở tệp; kết quả `image-gallery.trx`.
+- Harness hai tiến trình WinForms thật đạt tại `.codex-temp/two-instances-20260922-140952`. Mỗi phía gửi một tệp văn bản và hai PNG (ngang 800×450, dọc 450×800), kèm chú thích hai dòng; cùng nhận đủ 6 tệp và đối chiếu SHA256.
+- Trước khi mở gallery, cuộn qua các tin ảnh: xác nhận cả 4 thumbnail đã có bitmap và cả 4 blob nằm trong cache local, bao gồm ảnh từ phía kia tự tải qua TLS.
+- Mỗi phiên gọi handler bấm ảnh 4 lần; khung gallery chứa 4 ảnh của hai người gửi. Kiểm tra caption, giữ xuống dòng, phóng to thay đổi tỷ lệ, 100%, fit, chuyển ảnh và chuyển nhanh khi tác vụ trước chưa xong. Kết quả cuối không bị ảnh cũ ghi đè.
+- Chụp và xem ảnh chat ở 1240×800/1020×650, gallery ở 1080×800/780×580; kiểm tra tự động tất cả nút gallery không bị khuất. Cửa sổ nhỏ tự xuống hàng nút điều khiển.
+- Luồng tệp thường vẫn được gọi 3 lần mỗi phiên (hai tệp và mở lại), giữ đúng tên/đuôi và dùng lại đường dẫn local. Bước khởi chạy ứng dụng ngoài được thay bằng hook Debug như lần kiểm chứng trước.
+
+Bằng chứng: [verification/image-gallery/](verification/image-gallery/) gồm A.json, B.json, ảnh PNG và TRX. Đây là kiểm tra trên cùng một PC; chưa thao tác chuột thủ công, kiểm tra DPI khác nhau hoặc xác minh từng định dạng EXIF/GIF/TIFF và ảnh sát giới hạn lớn. Các mục nghiệm thu thực địa nằm trong [ACCEPTANCE.md](ACCEPTANCE.md).

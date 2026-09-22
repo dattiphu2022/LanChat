@@ -9,6 +9,9 @@ public sealed class MessageBubbleControl : UserControl
     private readonly Label _body = Theme.Label("");
     private readonly Label _state = Theme.Label("", 8);
     private readonly FlowLayoutPanel _files = new() { Dock = DockStyle.Fill, AutoScroll = true, WrapContents = false };
+    private readonly FlowLayoutPanel _pictures = new() { Dock = DockStyle.Fill, WrapContents = true };
+    private ChatImageService? _images;
+    private bool _updatingHeight;
     private readonly ContextMenuStrip _menu = new();
     private ChatMessage? _message;
     private bool _own;
@@ -18,11 +21,11 @@ public sealed class MessageBubbleControl : UserControl
     public MessageBubbleControl()
     {
         Size = new Size(400, 120); Padding = new Padding(12, 8, 12, 8);
-        var layout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3, Padding = new Padding(12) };
+        var layout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 4, Padding = new Padding(12) };
         layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100)); layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 0)); layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 24));
+        layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100)); layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 0)); layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 0)); layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 24));
         _body.AutoSize = false; _state.AutoSize = false;
-        layout.Controls.Add(_body, 0, 0); layout.Controls.Add(_files, 0, 1); layout.Controls.Add(_state, 0, 2); Controls.Add(layout);
+        layout.Controls.Add(_body, 0, 0); layout.Controls.Add(_pictures, 0, 1); layout.Controls.Add(_files, 0, 2); layout.Controls.Add(_state, 0, 3); Controls.Add(layout);
         foreach (var (caption, action) in new[] { ("Trả lời", "reply"), ("Sao chép", "copy"), ("Chuyển tiếp", "forward"), ("Sửa", "edit"), ("Thu hồi", "recall"), ("Xóa phía tôi", "delete") })
         {
             var item = _menu.Items.Add(caption); item.Tag = action;
@@ -35,13 +38,28 @@ public sealed class MessageBubbleControl : UserControl
         _menu.Opening += (_, _) => { foreach (ToolStripItem item in _menu.Items) item.Enabled = _message is not null && _message.Kind != MessageKind.System && ((string?)item.Tag == "delete" || (!_message.IsRecalled && ((string?)item.Tag is not ("edit" or "recall") || _own))); };
         ContextMenuStrip = _body.ContextMenuStrip = _state.ContextMenuStrip = _menu;
         Resize += (_, _) => UpdateHeight();
+        _pictures.ClientSizeChanged += (_, _) => UpdateHeight();
     }
+    public void ConfigureImages(ChatImageService images) => _images = images;
     private void UpdateHeight()
     {
+        if (_updatingHeight || Controls.Count == 0) return;
+        _updatingHeight = true;
+        try
+        {
+        var available = Math.Max(120, _pictures.ClientSize.Width > 0 ? _pictures.ClientSize.Width : Width - Padding.Horizontal - 30);
+        foreach (Control picture in _pictures.Controls) picture.Width = Math.Min(180, available - 8);
+        var columns = Math.Max(1, available / 188);
+        var picturesHeight = (_pictures.Controls.Count + columns - 1) / columns * 173;
+        var filesHeight = _files.Controls.Count > 0 ? 48 : 0;
+        ((TableLayoutPanel)Controls[0]).RowStyles[1].Height = picturesHeight;
+        ((TableLayoutPanel)Controls[0]).RowStyles[2].Height = filesHeight;
         var measured = TextRenderer.MeasureText(_body.Text, _body.Font, new Size(Math.Max(100, Width - Padding.Horizontal - 40), int.MaxValue),
             TextFormatFlags.WordBreak | TextFormatFlags.TextBoxControl | TextFormatFlags.NoPrefix);
-        var height = measured.Height + Padding.Vertical + 62 + (_files.Visible ? 48 : 0);
+        var height = measured.Height + Padding.Vertical + 62 + filesHeight + picturesHeight;
         if (Height != height) Height = height;
+        }
+        finally { _updatingHeight = false; }
     }
     public void Bind(ChatMessage m, bool own)
     {
@@ -64,15 +82,22 @@ public sealed class MessageBubbleControl : UserControl
         if (previous is null || !previous.Attachments.SequenceEqual(files) || previous.Message.IsRecalled != details.Message.IsRecalled)
         {
             foreach (Control c in _files.Controls.Cast<Control>().ToArray()) c.Dispose();
+            foreach (Control c in _pictures.Controls.Cast<Control>().ToArray()) c.Dispose();
             foreach (var file in files)
             {
+                if (_images is not null && ChatImageService.IsImage(file))
+                {
+                    var picture = new ImageThumbnailControl(file, _images); picture.Selected += f => FileRequested?.Invoke(f); _pictures.Controls.Add(picture); continue;
+                }
                 var link = new LinkLabel { Text = $"{(file.MimeType.StartsWith("image/") ? "▧" : "▤")} {file.FileName} ({file.FileSize / 1024d:N1} KB)", AutoSize = true, Margin = new Padding(4, 10, 12, 4) };
                 link.LinkClicked += (_, _) => FileRequested?.Invoke(file); _files.Controls.Add(link);
             }
         }
-        _files.Visible = files.Length > 0; ((TableLayoutPanel)Controls[0]).RowStyles[1].Height = _files.Visible ? 48 : 0;
+        _files.Visible = _files.Controls.Count > 0; _pictures.Visible = _pictures.Controls.Count > 0;
         Bind(details.Message, _own);
+        EnsureImagesLoaded();
     }
+    public void EnsureImagesLoaded() { foreach (var picture in _pictures.Controls.OfType<ImageThumbnailControl>()) picture.EnsureLoaded(); }
 }
 
 public sealed class MessageListControl : UserControl
@@ -81,13 +106,16 @@ public sealed class MessageListControl : UserControl
     private readonly Dictionary<Guid, MessageBubbleControl> _bubbles = [];
     private Guid? _conversation;
     private bool _resizing;
+    private ChatImageService? _images;
     public event Action<ChatMessage, string>? ActionRequested;
     public event Action<AttachmentDto>? FileRequested;
     public MessageListControl()
     {
         Dock = DockStyle.Fill; Controls.Add(_flow);
         _flow.ClientSizeChanged += (_, _) => ResizeItems();
+        _flow.Scroll += (_, _) => { foreach (var bubble in _bubbles.Values) bubble.EnsureImagesLoaded(); };
     }
+    public void ConfigureImages(ChatImageService images) { _images = images; foreach (var bubble in _bubbles.Values) bubble.ConfigureImages(images); }
     private void ResizeItems()
     {
         if (_resizing) return;
@@ -116,6 +144,7 @@ public sealed class MessageListControl : UserControl
             if (!_bubbles.TryGetValue(m.Id, out var bubble))
             {
                 bubble = new MessageBubbleControl(); bubble.ActionRequested += (m, a) => ActionRequested?.Invoke(m, a); bubble.FileRequested += f => FileRequested?.Invoke(f);
+                if (_images is not null) bubble.ConfigureImages(_images);
                 _bubbles.Add(m.Id, bubble); _flow.Controls.Add(bubble); newMessage = true;
             }
             bubble.Bind(m, m.SenderUserId == localUser); _flow.Controls.SetChildIndex(bubble, i);
@@ -123,7 +152,12 @@ public sealed class MessageListControl : UserControl
         ResizeItems(); _flow.ResumeLayout(true);
         if ((changedConversation || nearBottom) && newMessage && messages.Count > 0) _flow.ScrollControlIntoView(_bubbles[messages[^1].Id]);
     }
-    public void BindDetails(IEnumerable<MessageDetails> details) { foreach (var d in details) if (_bubbles.TryGetValue(d.Message.Id, out var bubble)) bubble.BindDetails(d); }
+    public void BindDetails(IEnumerable<MessageDetails> details)
+    {
+        var nearBottom = _flow.VerticalScroll.Value + _flow.ClientSize.Height >= _flow.VerticalScroll.Maximum - 60;
+        foreach (var d in details) if (_bubbles.TryGetValue(d.Message.Id, out var bubble)) bubble.BindDetails(d);
+        if (nearBottom && _flow.Controls.Count > 0) _flow.ScrollControlIntoView(_flow.Controls[^1]);
+    }
     public void FocusMessage(Guid id) { if (_bubbles.TryGetValue(id, out var bubble)) { _flow.ScrollControlIntoView(bubble); bubble.BorderStyle = BorderStyle.FixedSingle; } }
 }
 
@@ -149,7 +183,7 @@ public sealed class ChatInputControl : UserControl
         var attach = Theme.Button("＋"); attach.MinimumSize = new Size(50, 36); layout.Controls.Add(attach, 0, 0);
         layout.Controls.Add(_text, 1, 0); layout.Controls.Add(_send, 2, 0);
         root.Controls.Add(_context, 0, 0); root.Controls.Add(_previews, 0, 1); root.Controls.Add(layout, 0, 2); Controls.Add(root);
-        attach.Click += (_, _) => { using var dialog = new OpenFileDialog { Multiselect = true, Title = "Chọn tệp đính kèm" }; if (dialog.ShowDialog(this) == DialogResult.OK) AddFiles(dialog.FileNames); };
+        attach.Click += (_, _) => { using var dialog = new OpenFileDialog { Multiselect = true, Title = "Chọn ảnh hoặc tệp đính kèm", Filter = "Tất cả tệp|*.*|Ảnh|*.jpg;*.jpeg;*.png;*.gif;*.bmp;*.tif;*.tiff" }; if (dialog.ShowDialog(this) == DialogResult.OK) AddFiles(dialog.FileNames); };
         _context.LinkClicked += (_, _) => ResetContext();
         InstallDrop(this); InstallDrop(_text); InstallDrop(_previews);
         _send.Click += async (_, _) => await SendAsync();
@@ -240,6 +274,7 @@ public sealed class ChatViewControl : UserControl
         _input.Enabled = true;
     }
     public void Bind(Guid id, IReadOnlyList<ChatMessage> messages, Guid user) => _messages.Bind(id, messages, user);
+    public void ConfigureImages(ChatImageService images) => _messages.ConfigureImages(images);
     public void BindDetails(IEnumerable<MessageDetails> details) => _messages.BindDetails(details);
     public void SetContext(ChatMessage message, bool edit) => _input.SetContext(message, edit);
     public void ResetContext() => _input.ResetContext();

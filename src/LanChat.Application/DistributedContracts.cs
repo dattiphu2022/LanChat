@@ -74,6 +74,7 @@ public interface IFileTransferService
     Task<AttachmentDto> ImportLocalAsync(string path, CancellationToken ct = default);
     Task<string?> GetLocalPathAsync(string sha256, CancellationToken ct = default);
     Task<string> DownloadAsync(AttachmentDto file, IProgress<FileProgress>? progress = null, CancellationToken ct = default);
+    Task<string> PrepareOpenAsync(AttachmentDto file, IProgress<FileProgress>? progress = null, CancellationToken ct = default);
 }
 
 public sealed class FaultInjection

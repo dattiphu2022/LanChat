@@ -83,7 +83,7 @@ public static class ClusterConfigurationStore
 
 public static class ServiceRegistration
 {
-    public static IHost BuildHost(NodeOptions options)
+    public static IHost BuildHost(NodeOptions options, Action<IServiceCollection>? configure = null)
     {
         ValidateDataDirectory(options.DataDirectory);
         if (options.ServicePort is < 1024 or > 65535 || options.DiscoveryPort is < 1024 or > 65535)
@@ -126,6 +126,7 @@ public static class ServiceRegistration
         builder.Services.AddHostedService(x => x.GetRequiredService<ConsensusService>());
         builder.Services.AddHostedService(x => x.GetRequiredService<ReplicationBackgroundService>());
         builder.Services.AddHostedService<FallbackScanBackgroundService>();
+        configure?.Invoke(builder.Services);
         return builder.Build();
     }
     public static void ValidateDataDirectory(string directory)

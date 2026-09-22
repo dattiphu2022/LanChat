@@ -35,7 +35,7 @@ public sealed class PeerFileTransferService(NodeOptions options, IDistributedSto
             var target = BlobPath(hash); Directory.CreateDirectory(Path.GetDirectoryName(target)!);
             // Replace atomically with the verified copy, including recovery from a damaged local blob.
             File.Move(temp, target, true);
-            var mime = Path.GetExtension(path).ToLowerInvariant() switch { ".png" => "image/png", ".jpg" or ".jpeg" => "image/jpeg", ".gif" => "image/gif", ".bmp" => "image/bmp", ".pdf" => "application/pdf", ".txt" => "text/plain", _ => "application/octet-stream" };
+            var mime = Path.GetExtension(path).ToLowerInvariant() switch { ".png" => "image/png", ".jpg" or ".jpeg" => "image/jpeg", ".gif" => "image/gif", ".bmp" => "image/bmp", ".tif" or ".tiff" => "image/tiff", ".pdf" => "application/pdf", ".txt" => "text/plain", _ => "application/octet-stream" };
             logger.LogInformation("Imported local attachment {Bytes} bytes", info.Length);
             return new(Guid.CreateVersion7(), Guid.Empty, info.Name, mime, new FileInfo(target).Length, hash);
         }
@@ -44,6 +44,37 @@ public sealed class PeerFileTransferService(NodeOptions options, IDistributedSto
     public async Task<FileAvailability> HasFileAsync(string hash, CancellationToken ct)
     {
         var path = await GetLocalPathAsync(hash, ct); return new(path is not null, path is null ? 0 : new FileInfo(path).Length);
+    }
+    public async Task<string> PrepareOpenAsync(AttachmentDto file, IProgress<FileProgress>? progress = null, CancellationToken ct = default)
+    {
+        ct.ThrowIfCancellationRequested();
+        if (file.Id == Guid.Empty) throw new ArgumentException("Định danh tệp không hợp lệ.");
+        _ = BlobPath(file.Sha256);
+        var invalid = Path.GetInvalidFileNameChars();
+        var name = new string(file.FileName.Select(c => invalid.Contains(c) || c is '/' or '\\' ? '_' : c).ToArray()).Trim().TrimEnd('.');
+        if (string.IsNullOrWhiteSpace(name)) name = "attachment.bin";
+        var stem = name.Split('.')[0].ToUpperInvariant();
+        if (stem is "CON" or "PRN" or "AUX" or "NUL" ||
+            (stem.Length == 4 && (stem.StartsWith("COM", StringComparison.Ordinal) || stem.StartsWith("LPT", StringComparison.Ordinal)) && char.IsDigit(stem[3]))) name = "_" + name;
+        var directory = Path.Combine(options.DataDirectory, "Attachments", "Open", file.Id.ToString("N"));
+        var target = Path.Combine(directory, name);
+        // A named working copy gives Windows the original extension. Never open/edit the shared immutable blob.
+        // Keep an existing working copy, including edits made by the user's associated application.
+        if (File.Exists(target)) return target;
+        var blob = await DownloadAsync(file, progress, ct);
+        Directory.CreateDirectory(directory);
+        var temp = Path.Combine(directory, Guid.CreateVersion7() + ".part");
+        try
+        {
+            await using (var source = new FileStream(blob, FileMode.Open, FileAccess.Read, FileShare.Read, 65536, FileOptions.Asynchronous | FileOptions.SequentialScan))
+            await using (var destination = new FileStream(temp, FileMode.CreateNew, FileAccess.Write, FileShare.None, 65536, FileOptions.Asynchronous))
+                await source.CopyToAsync(destination, ct);
+            ct.ThrowIfCancellationRequested();
+            try { File.Move(temp, target); }
+            catch (IOException) when (File.Exists(target)) { /* Another click already prepared this attachment. */ }
+            return target;
+        }
+        finally { if (File.Exists(temp)) File.Delete(temp); }
     }
     public async Task<string> DownloadAsync(AttachmentDto file, IProgress<FileProgress>? progress = null, CancellationToken ct = default)
     {

@@ -10,6 +10,44 @@ public sealed class FileTransferTests
 {
     private static IFileTransferService Files(TestNode n) => n.Host.Services.GetRequiredService<IFileTransferService>();
     [Fact]
+    public async Task OpenLocalFilePreservesNameAndUserEditsWithoutChangingSharedBlob()
+    {
+        await using var node = new TestNode(Guid.NewGuid(), RandomNumberGenerator.GetBytes(32), "A"); await node.InitializeAsync();
+        var source = Path.Combine(node.Options.DataDirectory, "Báo cáo tháng 9.txt"); await File.WriteAllTextAsync(source, "Nội dung gốc");
+        var file = await Files(node).ImportLocalAsync(source); var path = await Files(node).PrepareOpenAsync(file);
+        Assert.Equal(file.FileName, Path.GetFileName(path)); Assert.Equal(".txt", Path.GetExtension(path));
+        Assert.StartsWith(Path.Combine(node.Options.DataDirectory, "Attachments", "Open"), path);
+        Assert.Equal("Nội dung gốc", await File.ReadAllTextAsync(path));
+        await File.WriteAllTextAsync(path, "Đã chỉnh sửa trên máy này");
+        Assert.Equal(path, await Files(node).PrepareOpenAsync(file)); Assert.Equal("Đã chỉnh sửa trên máy này", await File.ReadAllTextAsync(path));
+        Assert.Equal("Nội dung gốc", await File.ReadAllTextAsync((await Files(node).GetLocalPathAsync(file.Sha256))!));
+    }
+    [Fact]
+    public async Task OpenRemoteFileAutomaticallyDownloadsAndCanReopenWithoutSource()
+    {
+        var cluster = Guid.NewGuid(); var secret = RandomNumberGenerator.GetBytes(32);
+        await using var a = new TestNode(cluster, secret, "A"); await using var b = new TestNode(cluster, secret, "B");
+        await a.InitializeAsync(true); await b.InitializeAsync(); await b.Store.RememberPeerAsync(await a.Store.GetNodeInfoAsync(), "127.0.0.1");
+        var source = Path.Combine(a.Options.DataDirectory, "Tài liệu từ xa.txt"); await File.WriteAllTextAsync(source, "Tải rồi mở một lần bấm");
+        var file = await Files(a).ImportLocalAsync(source); Assert.Null(await Files(b).GetLocalPathAsync(file.Sha256));
+        var path = await Files(b).PrepareOpenAsync(file); Assert.Equal(file.FileName, Path.GetFileName(path));
+        Assert.Equal("Tải rồi mở một lần bấm", await File.ReadAllTextAsync(path)); Assert.NotNull(await Files(b).GetLocalPathAsync(file.Sha256));
+        await a.Host.StopAsync(); Assert.Equal(path, await Files(b).PrepareOpenAsync(file));
+    }
+    [Fact]
+    public async Task OpenCopiesSeparateIdenticallyNamedAttachmentsAndFlattenUnsafeNames()
+    {
+        await using var node = new TestNode(Guid.NewGuid(), RandomNumberGenerator.GetBytes(32), "A"); await node.InitializeAsync();
+        var source = Path.Combine(node.Options.DataDirectory, "report.txt"); await File.WriteAllTextAsync(source, "First"); var first = await Files(node).ImportLocalAsync(source);
+        await File.WriteAllTextAsync(source, "Second"); var second = await Files(node).ImportLocalAsync(source);
+        var firstPath = await Files(node).PrepareOpenAsync(first); var secondPath = await Files(node).PrepareOpenAsync(second);
+        Assert.NotEqual(firstPath, secondPath); Assert.Equal("First", await File.ReadAllTextAsync(firstPath)); Assert.Equal("Second", await File.ReadAllTextAsync(secondPath));
+        var unsafeName = first with { Id = Guid.NewGuid(), FileName = "../../report.txt" };
+        var safePath = await Files(node).PrepareOpenAsync(unsafeName);
+        Assert.Equal(Path.Combine(node.Options.DataDirectory, "Attachments", "Open", unsafeName.Id.ToString("N")), Path.GetDirectoryName(Path.GetFullPath(safePath)));
+        Assert.Equal(".txt", Path.GetExtension(safePath));
+    }
+    [Fact]
     public async Task MetadataReplicatesButBytesOnlyDownloadOnRequestAndCachedPeerCanServeThem()
     {
         var cluster = Guid.NewGuid(); var secret = RandomNumberGenerator.GetBytes(32);
@@ -37,7 +75,7 @@ public sealed class FileTransferTests
         await a.InitializeAsync(true); await b.InitializeAsync(); await b.Store.RememberPeerAsync(await a.Store.GetNodeInfoAsync(), "127.0.0.1");
         var source = Path.Combine(a.Options.DataDirectory, "source.txt"); await File.WriteAllTextAsync(source, "original"); var metadata = await Files(a).ImportLocalAsync(source);
         await File.WriteAllTextAsync((await Files(a).GetLocalPathAsync(metadata.Sha256))!, "tampered");
-        await Assert.ThrowsAsync<IOException>(() => Files(b).DownloadAsync(metadata));
+        await Assert.ThrowsAsync<IOException>(() => Files(b).PrepareOpenAsync(metadata));
         Assert.Null(await Files(b).GetLocalPathAsync(metadata.Sha256)); Assert.Empty(Directory.GetFiles(Path.Combine(b.Options.DataDirectory, "Attachments"), "*.part", SearchOption.AllDirectories));
         // Reimport repairs a damaged content-addressed local copy.
         await Files(a).ImportLocalAsync(source); Assert.Equal("original", await File.ReadAllTextAsync(await Files(b).DownloadAsync(metadata)));
@@ -50,7 +88,7 @@ public sealed class FileTransferTests
         await a.InitializeAsync(true); await b.InitializeAsync(); await b.Store.RememberPeerAsync(await a.Store.GetNodeInfoAsync(), "127.0.0.1");
         var source = Path.Combine(a.Options.DataDirectory, "large.bin"); await File.WriteAllBytesAsync(source, RandomNumberGenerator.GetBytes(4 * 1024 * 1024)); var metadata = await Files(a).ImportLocalAsync(source);
         using var cancel = new CancellationTokenSource();
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => Files(b).DownloadAsync(metadata, new CaptureProgress(_ => cancel.Cancel()), cancel.Token));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => Files(b).PrepareOpenAsync(metadata, new CaptureProgress(_ => cancel.Cancel()), cancel.Token));
         Assert.Null(await Files(b).GetLocalPathAsync(metadata.Sha256)); Assert.Empty(Directory.GetFiles(Path.Combine(b.Options.DataDirectory, "Attachments"), "*.part", SearchOption.AllDirectories));
     }
     [Fact]

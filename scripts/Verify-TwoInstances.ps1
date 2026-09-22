@@ -51,5 +51,5 @@ if ($reports[0].NodeId -eq $reports[1].NodeId -or $reports[0].UserId -eq $report
 $idsA = ($reports[0].Messages.Id | Sort-Object) -join ','
 $idsB = ($reports[1].Messages.Id | Sort-Object) -join ','
 if ($idsA -ne $idsB) { throw 'Hai instance chưa có cùng tin nhắn.' }
-if ($reports[0].GroupId -ne $reports[1].GroupId -or $reports.Where({$_.VerifiedFiles -ne 4}).Count -gt 0) { throw 'Kiểm tra nhóm/tệp chưa đạt.' }
-Write-Output "PASS: hai tiến trình WinForms, UDP discovery, TLS, sửa/trả lời/cảm xúc, kéo thả nhiều tệp, tải SHA256, chat nhóm. Kết quả: $OutputDirectory"
+if ($reports[0].GroupId -ne $reports[1].GroupId -or $reports.Where({$_.VerifiedFiles -ne 6 -or $_.VerifiedOpenRequests -ne 3 -or $_.VerifiedGalleries -ne 4 -or $_.InlineImagesLoaded -lt 2}).Count -gt 0) { throw 'Kiểm tra nhóm/tệp/ảnh chưa đạt.' }
+Write-Output "PASS: hai tiến trình WinForms, UDP discovery, TLS, sửa/trả lời/cảm xúc, kéo thả nhiều tệp, tải SHA256, ảnh inline, album/chú thích/zoom/chuyển nhanh, chat nhóm. Kết quả: $OutputDirectory"

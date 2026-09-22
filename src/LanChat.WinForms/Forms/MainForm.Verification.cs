@@ -42,22 +42,63 @@ public sealed partial class MainForm
             await MessageActionAsync(theirs, "react:👍"); await MessageActionAsync(theirs, "reply");
             var textFile = Path.ChangeExtension(reportPath, "attachment.txt"); await File.WriteAllTextAsync(textFile, "Tệp thử nghiệm của " + profile.DisplayName, deadline.Token);
             var imageFile = Path.ChangeExtension(reportPath, "attachment.png");
-            using (var bitmap = new Bitmap(128, 128)) { using var graphics = Graphics.FromImage(bitmap); graphics.Clear(Color.CornflowerBlue); graphics.DrawString(profile.DisplayName, Font, Brushes.White, new PointF(12, 50)); bitmap.Save(imageFile, ImageFormat.Png); }
-            ClientSize = new Size(1240, 800); _chat.DropForVerification([textFile, imageFile]); await Task.Delay(200, deadline.Token);
+            var portraitFile = Path.ChangeExtension(reportPath, "portrait.png");
+            using (var bitmap = new Bitmap(800, 450)) { using var graphics = Graphics.FromImage(bitmap); graphics.Clear(Color.CornflowerBlue); graphics.DrawString(profile.DisplayName + " · Ảnh ngang", Font, Brushes.White, new PointF(200, 200)); bitmap.Save(imageFile, ImageFormat.Png); }
+            using (var bitmap = new Bitmap(450, 800)) { using var graphics = Graphics.FromImage(bitmap); graphics.Clear(Color.SeaGreen); graphics.DrawString(profile.DisplayName + " · Ảnh dọc", Font, Brushes.White, new PointF(100, 350)); bitmap.Save(portraitFile, ImageFormat.Png); }
+            ClientSize = new Size(1240, 800); _chat.DropForVerification([textFile, imageFile, portraitFile]); await Task.Delay(200, deadline.Token);
             var previewPath = Path.ChangeExtension(reportPath, "drop-preview.png"); CaptureForm(this, previewPath); captures.Add(previewPath);
-            await _chat.SubmitForVerificationAsync("Trả lời kèm hai tệp");
+            await _chat.SubmitForVerificationAsync("Bộ ảnh của " + profile.DisplayName + "\nChú thích chung cho ảnh ngang và ảnh dọc.");
             AttachmentDto[] attachments;
             do { await Task.Delay(200, deadline.Token); messages = await _store.GetMessagesAsync(conversation, ct: deadline.Token); attachments = await Distributed.GetAttachmentsAsync(conversation, deadline.Token); }
-            while (messages.Count != 4 || attachments.Length != 4 || messages.Count(m => m.IsEdited) != 2);
+            while (messages.Count != 4 || attachments.Length != 6 || messages.Count(m => m.IsEdited) != 2);
+            static IEnumerable<Control> Descendants(Control parent) => parent.Controls.Cast<Control>().SelectMany(c => Descendants(c).Prepend(c));
+            var inlineImagesLoaded = 0;
+            await RefreshAsync();
+            foreach (var message in messages.Where(m => attachments.Any(f => f.MessageId == m.Id)))
+            {
+                _chat.FocusMessage(message.Id); await Task.Delay(300, deadline.Token);
+            }
+            do { await Task.Delay(200, deadline.Token); inlineImagesLoaded = Descendants(this).OfType<ImageThumbnailControl>().Count(c => c.HasImage); } while (inlineImagesLoaded != 4);
+            foreach (var file in attachments.Where(ChatImageService.IsImage))
+                if (await Files.GetLocalPathAsync(file.Sha256, deadline.Token) is null) throw new InvalidOperationException("Ảnh inline chưa tự tải về local.");
+            foreach (var size in new[] { new Size(1240, 800), new Size(1020, 650) })
+            {
+                ClientSize = size; await RefreshAsync(); _chat.FocusMessage(messages.Last(m => attachments.Any(f => f.MessageId == m.Id)).Id);
+                do { await Task.Delay(200, deadline.Token); inlineImagesLoaded = Descendants(this).OfType<ImageThumbnailControl>().Count(c => c.HasImage); } while (inlineImagesLoaded < 2);
+                var path = Path.ChangeExtension(reportPath, $"inline-images-{size.Width}.png"); CaptureForm(this, path); captures.Add(path);
+            }
+            var openedPaths = new List<string>();
+            var verifiedGalleries = 0;
+            _attachmentLaunchForVerification = path => openedPaths.Add(path);
+            _galleryForVerification = async (items, selected) =>
+            {
+                if (items.Length != 4 || items.Any(x => !x.Caption.Contains(x.Sender))) throw new InvalidOperationException("Album thiếu ảnh hoặc chú thích không đúng người gửi.");
+                using var gallery = new ImageGalleryForm(items, selected, _images, Files);
+                gallery.Show(this); await gallery.VerifyAsync();
+                if (verifiedGalleries == 0)
+                {
+                    foreach (var size in new[] { new Size(1080, 800), new Size(780, 580) })
+                    {
+                        gallery.ClientSize = size; await Task.Delay(300, deadline.Token); gallery.VerifyLayout();
+                        var path = Path.ChangeExtension(reportPath, $"gallery-{size.Width}.png"); CaptureForm(gallery, path); captures.Add(path);
+                    }
+                }
+                verifiedGalleries++; gallery.Close();
+            };
             foreach (var attachment in attachments)
             {
-                var path = await Files.DownloadAsync(attachment, ct: deadline.Token);
+                // Exercise the same click handler; capture the OS handoff without launching external user apps.
+                await OpenAttachmentAsync(attachment);
+                var path = ChatImageService.IsImage(attachment) ? await Files.DownloadAsync(attachment, ct: deadline.Token)
+                    : openedPaths.LastOrDefault() ?? throw new InvalidOperationException("Chưa chuyển tệp sang thao tác mở.");
+                if (!ChatImageService.IsImage(attachment) && Path.GetFileName(path) != attachment.FileName) throw new InvalidDataException("Tệp mở bị mất tên hoặc phần mở rộng.");
                 await using var input = File.OpenRead(path);
                 var hash = Convert.ToHexString(await System.Security.Cryptography.SHA256.HashDataAsync(input, deadline.Token));
                 if (!hash.Equals(attachment.Sha256, StringComparison.OrdinalIgnoreCase)) throw new InvalidDataException("Tệp nhận không khớp SHA256.");
             }
-            using (var viewer = new AttachmentForm(attachments.First(x => x.MimeType == "image/png"), Files))
-            { viewer.Show(this); await Task.Delay(350, deadline.Token); var path = Path.ChangeExtension(reportPath, "image-preview.png"); CaptureForm(viewer, path); captures.Add(path); viewer.Close(); }
+            await OpenAttachmentAsync(attachments.First(x => !ChatImageService.IsImage(x)));
+            if (openedPaths.Count != 3 || openedPaths[0] != openedPaths[^1]) throw new InvalidOperationException("Bấm lại chưa tái sử dụng tệp local.");
+            _attachmentLaunchForVerification = null; _galleryForVerification = null;
             if (profile.DisplayName.EndsWith("A", StringComparison.Ordinal))
             {
                 var command = new ControlCommand(Guid.CreateVersion7(), Domain.ControlCommandType.GroupCreated, profile.Id, Guid.CreateVersion7(), "Nhóm thử nghiệm LAN", Members: [profile.Id, other.UserId]);
@@ -86,7 +127,8 @@ public sealed partial class MainForm
             var identity = await _store.GetIdentityAsync(deadline.Token);
             await File.WriteAllTextAsync(reportPath, JsonSerializer.Serialize(new { Success = true, identity.NodeId, identity.UserId,
                 Messages = messages.Select(x => new { x.Id, x.Text, x.Status, x.IsEdited, x.ReplyToMessageId }).ToArray(),
-                GroupId = group.Id, GroupMessageIds = groupMessages.Select(x => x.Id).ToArray(), VerifiedFiles = attachments.Length,
+                GroupId = group.Id, GroupMessageIds = groupMessages.Select(x => x.Id).ToArray(), VerifiedFiles = attachments.Length, VerifiedOpenRequests = openedPaths.Count,
+                VerifiedGalleries = verifiedGalleries, InlineImagesLoaded = inlineImagesLoaded,
                 Consensus = await Consensus.GetStatusAsync(deadline.Token), Captures = captures }, new JsonSerializerOptions { WriteIndented = true }), deadline.Token);
             var partnerReport = Path.Combine(Path.GetDirectoryName(reportPath)!, profile.DisplayName.EndsWith("A", StringComparison.Ordinal) ? "B.json" : "A.json");
             while (!File.Exists(partnerReport)) await Task.Delay(200, deadline.Token);

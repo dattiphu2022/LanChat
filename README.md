@@ -11,7 +11,8 @@ Mở **`artifacts/LanChat-1.0/LanChat.WinForms.exe`**. Khi chuyển sang máy kh
 3. Máy khác nhập tên, dán cùng mã và chọn **Tham gia**. Các máy cần cùng LAN và cổng UDP discovery.
 4. Vào **Người dùng**, chọn tên để chat. Tin được lưu trước khi gửi ra mạng.
 5. Vào **Nhóm**, chọn thành viên và tạo nhóm. Chủ nhóm có thể đổi tên/ảnh, thêm/xóa thành viên, chuyển quyền và xóa nhóm.
-6. Kéo nhiều tệp vào khung chat hoặc bấm **＋**; kiểm tra preview rồi bấm **Gửi**. Bấm tên tệp trong tin nhắn để tải, xem ảnh hoặc **Lưu thành…**.
+6. Kéo nhiều ảnh/tệp vào khung chat hoặc bấm **＋**; kiểm tra preview rồi bấm **Gửi**. Nội dung nhập cùng ảnh là **chú thích chung** cho các ảnh trong lần gửi đó. **Ảnh hiện trực tiếp trong tin nhắn**; bấm ảnh mở khung xem lớn có chú thích và dải ảnh của cuộc trò chuyện. Dùng **Trước/Sau**, phím **← →** hoặc bấm hình thu nhỏ để chuyển ảnh; cuộn chuột để zoom, kéo để di chuyển, **Vừa khung/100%** để đổi tỷ lệ và **Esc** để đóng.
+   **Bấm tên tệp khác để mở bằng ứng dụng mặc định của Windows**. Nếu chưa có local, LanChat tự tải vào dữ liệu máy, kiểm tra SHA256 rồi mở. Tải lâu sẽ hiện tiến độ và nút Hủy. Trong khung xem ảnh có nút **Ứng dụng ngoài**; menu **File** vẫn có màn hình xem chi tiết và **Lưu thành…**.
 7. Nhấp phải tin nhắn để trả lời, sao chép, chuyển tiếp, cảm xúc, sửa, thu hồi hoặc xóa phía tôi. Tìm nội dung tại **Tìm tin nhắn**; nhấp đúp kết quả để xem vị trí trong lịch sử.
 
 **Enter** gửi, **Shift+Enter** xuống dòng. Tin đã đồng bộ nghĩa là có ít nhất một bản sao tại peer khác; “đã nhận” và “đã đọc” dựa trên receipt của người tham gia. Ghim, im lặng và xóa phía tôi chỉ áp dụng trên máy này.
@@ -91,7 +92,9 @@ Sửa cổng theo cấu hình. VLAN, Wi-Fi client isolation và policy broadcast
 - Mã mời chứa secret và chứng thư/khóa dùng chung của cluster. DPAPI CurrentUser bảo vệ chúng khi lưu local. Thành viên có mã mời được coi là tin cậy; không có chứng thực khóa riêng từng node hay chống thành viên ác ý giả danh. SQLite và tệp đính kèm chưa mã hóa khi lưu.
 - Các máy nên đồng bộ giờ: envelope có cửa sổ thời gian 120 giây. HLC và sequence giải quyết thứ tự/đồng bộ; không thay thế kiểm tra giờ của xác thực.
 - Không tự loại voter offline vì việc đó làm sai quorum. Nếu mất vĩnh viễn đa số voter, cần phục hồi máy/dữ liệu đã có; chưa có công cụ quản trị loại voter hoặc khôi phục cưỡng bức.
-- Binary chỉ ở máy đã gửi/tải. Không còn nguồn trực tuyến thì vẫn giữ metadata, báo chưa tải được. Tối đa 20 tệp/tin, 20 GB/tệp; streaming, progress, hủy, SHA256, tệp tạm và đổi tên nguyên tử. Xem trước ảnh tối đa 20 MB.
+- Binary chỉ ở máy đã gửi/tải. Không còn nguồn trực tuyến thì vẫn giữ metadata, báo chưa tải được. Tối đa 20 ảnh/tệp mỗi tin, 20 GB/tệp; streaming, progress, hủy, SHA256, tệp tạm và đổi tên nguyên tử.
+- Ảnh JPEG/PNG/GIF/BMP/TIFF đang nằm trong vùng chat hiển thị sẽ tự tải về cache local để tạo hình thu nhỏ (tối đa 20 MB/ảnh, hai tác vụ ảnh đồng thời). Ảnh lớn hơn cần bấm để tải/xem. Khung xem lớn hỗ trợ tối đa 100 MB và 40 megapixel; ảnh vượt giới hạn có thể mở bằng **Ứng dụng ngoài**. GIF/TIFF chỉ hiển thị khung/trang đầu. Ảnh đã tải có thể xem lại khi máy gửi offline. Khung xem dùng ảnh gốc đã gửi; sửa chú thích bằng thao tác sửa tin nhắn.
+- Tệp mở bằng ứng dụng ngoài giữ tên/đuôi gốc trong `Data/Attachments/Open/<AttachmentId>/`. Lần bấm sau dùng lại bản local này, kể cả khi nguồn offline. Chỉnh sửa bằng Word/Excel chỉ thay đổi bản mở local, không tự gửi lại hoặc thay đổi blob gốc mà các peer tải xuống. Muốn chia sẻ nội dung đã sửa, gửi lại tệp đó.
 - Chưa có compaction/snapshot control log, retention hoặc benchmark cụm lớn. Bản hiện tại phù hợp đánh giá trong mạng nội bộ tin cậy trước khi nghiệm thu thực tế.
 - Log cuốn trong `Data/Logs`, tối đa 14 tệp, 5 MB/tệp; không ghi secret hoặc nội dung chat.
 - Sao lưu cả thư mục khi app đã đóng. DPAPI gắn với tài khoản Windows; không coi bản sao cluster.json là mã mời cho máy khác.

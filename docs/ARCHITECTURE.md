@@ -80,7 +80,13 @@ ImportLocalAsync copy streaming vào tệp tạm, tính SHA256 và lưu theo has
 
 Buffer 64 KB, idle timeout, cancellation và progress; tệp hỏng hoặc đứt giữa chừng không được công bố thành bản hoàn chỉnh. Thử peer tiếp theo nếu nguồn lỗi. Máy đã tải có thể phục vụ lại cho máy khác. Binary không tự replicate; không có nguồn thì giữ nguyên metadata.
 
-Preview trước gửi là local thumbnail; ảnh nhận được xem trong AttachmentForm sau khi tải. Không tự chạy tệp nhận được.
+Preview trước gửi là local thumbnail; menu File giữ AttachmentForm để xem ảnh và lưu thành. Bấm tệp không phải ảnh trong tin nhắn gọi PrepareOpenAsync: dùng lại bản mở local, hoặc kiểm tra/tải blob rồi tạo bản có tên và phần mở rộng gốc dưới Attachments/Open/<AttachmentId>. WinForms dùng Windows shell mở bản này bằng ứng dụng mặc định. Chỉ mở ứng dụng ngoài theo thao tác bấm của người dùng; nhận metadata không tự mở ứng dụng.
+
+Bản mở tách khỏi blob theo hash để Word/Excel có thể sửa local mà không làm hỏng nguồn P2P. Lần bấm sau giữ nguyên sửa đổi local. Copy streaming qua tệp tạm rồi rename, xử lý tên không hợp lệ và tách thư mục theo attachment để các tệp trùng tên không ghi đè nhau. UI bỏ qua bấm trùng khi đang chuẩn bị, hiện progress/hủy nếu quá 350 ms, và thông báo khi Windows chưa có ứng dụng mặc định.
+
+**Ảnh trong chat:** MessageBubble tạo ImageThumbnailControl cho JPEG/PNG/GIF/BMP/TIFF. Khi control nằm trong vùng hiển thị, ChatImageService chủ động gọi DownloadAsync để lấy blob local đã kiểm tra hash, rồi giải mã/tạo thumbnail trên tác vụ nền; không tải ảnh chỉ vì nhận metadata. Giới hạn hai tác vụ đồng thời, tự tải thumbnail cho tệp tối đa 20 MB; giải mã tối đa 100 MB/40 megapixel và xử lý EXIF orientation. Bitmap thuộc control và được giải phóng khi đổi cuộc trò chuyện/đóng cửa sổ.
+
+Bấm ảnh truy vấn metadata ảnh thuộc cuộc trò chuyện (loại tin thu hồi/xóa phía tôi), lấy nội dung tin làm caption và sắp xếp theo HLC. ImageGalleryForm hiển thị từng ảnh trong ImageViewportControl (fit, 100%, zoom theo vị trí con trỏ, pan), kèm caption, số thứ tự và tối đa chín thumbnail lân cận; nút/phím mũi tên duyệt toàn bộ danh sách. Chuyển ảnh hủy tác vụ cũ, kiểm tra generation trước khi gán bitmap để kết quả cũ không ghi đè ảnh mới. Caption dùng Message.Text hiện có nên không đổi schema/protocol. Nút Ứng dụng ngoài sử dụng PrepareOpenAsync như tệp thường.
 
 ## Bảo mật và lưu trữ
 

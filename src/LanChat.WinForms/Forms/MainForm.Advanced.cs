@@ -2,11 +2,19 @@ using LanChat.Application;
 using LanChat.Domain;
 using LanChat.WinForms.Controls;
 using Microsoft.Extensions.DependencyInjection;
+using System.Diagnostics;
+using System.ComponentModel;
 
 namespace LanChat.WinForms.Forms;
 
 public sealed partial class MainForm
 {
+    private readonly HashSet<Guid> _openingAttachments = [];
+    private readonly ChatImageService _images;
+#if DEBUG
+    private Action<string>? _attachmentLaunchForVerification;
+    private Func<GalleryImage[], Guid, Task>? _galleryForVerification;
+#endif
     private IDistributedStore Distributed => _services.GetRequiredService<IDistributedStore>();
     private IConsensusService Consensus => _services.GetRequiredService<IConsensusService>();
     private IFileTransferService Files => _services.GetRequiredService<IFileTransferService>();
@@ -47,7 +55,45 @@ public sealed partial class MainForm
     }
     private async Task OpenAttachmentAsync(AttachmentDto file)
     {
-        using var viewer = new AttachmentForm(file, Files); viewer.ShowDialog(this); await Task.CompletedTask;
+        if (ChatImageService.IsImage(file)) { await OpenImageGalleryAsync(file); return; }
+        if (!_openingAttachments.Add(file.Id)) return;
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
+        using var progressForm = new AttachmentOpenProgressForm(file.FileName, cancellation);
+        try
+        {
+            var prepare = Files.PrepareOpenAsync(file, new Progress<FileProgress>(progressForm.Report), cancellation.Token);
+            // Cached files open directly; display progress only when preparation takes noticeable time.
+            if (await Task.WhenAny(prepare, Task.Delay(350, cancellation.Token)) != prepare && !cancellation.IsCancellationRequested)
+                progressForm.Show(this);
+            var path = await prepare;
+            cancellation.Token.ThrowIfCancellationRequested();
+#if DEBUG
+            if (_attachmentLaunchForVerification is not null) _attachmentLaunchForVerification(path);
+            else
+#endif
+                Process.Start(new ProcessStartInfo(path) { UseShellExecute = true, Verb = "open", WorkingDirectory = Path.GetDirectoryName(path) });
+        }
+        catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { }
+        catch (Win32Exception ex) when (ex.NativeErrorCode is 1155 or 31)
+        { throw new InvalidOperationException("Windows chưa có ứng dụng mặc định để mở loại tệp này. Hãy cài hoặc chọn ứng dụng phù hợp rồi bấm lại tệp.", ex); }
+        finally { progressForm.Close(); _openingAttachments.Remove(file.Id); }
+    }
+    private async Task<GalleryImage[]> GetGalleryAsync(AttachmentDto selected)
+    {
+        var detail = await Distributed.GetMessageDetailsAsync(selected.MessageId, _lifetime.Token);
+        var files = (await Distributed.GetAttachmentsAsync(detail.Message.ConversationId, _lifetime.Token)).Where(ChatImageService.IsImage).ToLookup(x => x.MessageId);
+        var messages = await Distributed.GetMessageDetailsBatchAsync(files.Select(g => g.Key).ToArray(), _lifetime.Token);
+        return messages.OrderBy(x => x.Message.PhysicalTicks).ThenBy(x => x.Message.LogicalCounter).ThenBy(x => x.Message.OriginNodeId).ThenBy(x => x.Message.Id)
+            .SelectMany(m => files[m.Message.Id].OrderBy(x => x.Id).Select(f => new GalleryImage(f, m.Message.Text, m.SenderName ?? "", m.Message.CreatedAtTicks))).ToArray();
+    }
+    private async Task OpenImageGalleryAsync(AttachmentDto file)
+    {
+        var items = await GetGalleryAsync(file);
+        if (!items.Any(x => x.File.Id == file.Id)) throw new InvalidOperationException("Ảnh đã bị thu hồi hoặc không còn trong cuộc trò chuyện.");
+#if DEBUG
+        if (_galleryForVerification is not null) { await _galleryForVerification(items, file.Id); return; }
+#endif
+        using var gallery = new ImageGalleryForm(items, file.Id, _images, Files); gallery.ShowDialog(this);
     }
     private async Task SearchMessagesAsync()
     {
@@ -62,6 +108,7 @@ public sealed partial class MainForm
     {
         var attachments = await Distributed.GetAttachmentsAsync(ct: _lifetime.Token);
         using var select = new SelectionForm("Tệp trong các cuộc trò chuyện", attachments.Select(x => new SelectionItem(x.Id, $"{x.FileName} · {x.FileSize / 1024d:N1} KB")));
-        if (select.ShowDialog(this) == DialogResult.OK && select.SelectedId is { } id) await OpenAttachmentAsync(attachments.Single(x => x.Id == id));
+        if (select.ShowDialog(this) == DialogResult.OK && select.SelectedId is { } id)
+        { using var viewer = new AttachmentForm(attachments.Single(x => x.Id == id), Files); viewer.ShowDialog(this); }
     }
 }

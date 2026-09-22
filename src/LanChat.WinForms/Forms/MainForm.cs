@@ -36,9 +36,10 @@ public sealed partial class MainForm : Form
     private Dictionary<Guid, int>? _lastUnread;
     private readonly NavigationItemControl _messageNav = new() { Caption = "✉  Tin nhắn", Active = true };
     private readonly NavigationItemControl _usersNav = new() { Caption = "●  Người dùng" };
-    public MainForm(IChatStore store, IChatService chatService, ILanScanner scanner, IServiceProvider services, NetworkHealth health)
+    public MainForm(IChatStore store, IChatService chatService, ILanScanner scanner, IServiceProvider services, NetworkHealth health, ChatImageService images)
     {
         _store = store; _chatService = chatService; _scanner = scanner; _services = services; _health = health;
+        _images = images; _chat.ConfigureImages(images);
         Text = "LanChat — Chat nội bộ"; ClientSize = new Size(1240, 800); MinimumSize = new Size(1020, 650);
         StartPosition = FormStartPosition.CenterScreen; Font = new Font("Segoe UI", 10); BackColor = Theme.Canvas;
         var root = Theme.Stack(3); root.RowStyles.Add(new RowStyle(SizeType.Absolute, 64)); root.RowStyles.Add(new RowStyle(SizeType.Percent, 100)); root.RowStyles.Add(new RowStyle(SizeType.Absolute, 28));

@@ -36,6 +36,12 @@ Bản đã được kiểm thử tự động và chạy hai tiến trình trên
 
 - [ ] Kéo nhiều tệp Explorer vào ChatView/ChatInput; có tên, size, preview và remove; chưa bấm Gửi thì chưa phát metadata.
 - [ ] Tải ảnh/tài liệu từ A sang B; xem progress, hủy giữa chừng và tải lại.
+- [ ] Gửi nhiều ảnh kèm chú thích nhiều dòng: ảnh hiện ngay trong chat của A/B, ảnh từ xa tự lưu local khi xuất hiện trong vùng xem.
+- [ ] Bấm ảnh mở đúng ảnh đã chọn; caption giữ xuống dòng, tên người gửi và số thứ tự chính xác. Chuyển bằng thumbnail/Trước/Sau/phím mũi tên qua các lần gửi khác nhau.
+- [ ] Zoom bằng cuộn chuột/nút, kéo ảnh đã phóng to, Vừa khung/100%, Esc đóng; đổi nhanh ảnh và đóng khi đang tải không bị ảnh cũ ghi đè hoặc lỗi ứng dụng.
+- [ ] Thử ảnh gửi không kèm chữ, JPEG xoay EXIF, GIF, ảnh hỏng và ảnh vượt giới hạn; ảnh không tải được có thể thử lại, tệp lớn có thể mở bằng ứng dụng ngoài.
+- [ ] Bấm tên tệp ngay trong tin nhắn: local mở bằng ứng dụng mặc định; remote tự tải, kiểm tra hash và mở, không cần bấm Tải.
+- [ ] Bấm lại khi máy gửi offline vẫn mở bản local; chỉnh sửa bản mở không làm thay đổi blob gốc phục vụ P2P.
 - [ ] B đã tải có thể phục vụ cho C khi A offline.
 - [ ] Không còn nguồn online thì hiện lỗi rõ, metadata vẫn còn.
 - [ ] Đối chiếu SHA256 với tệp gốc; thử nguồn bị hỏng và đường truyền ngắt.

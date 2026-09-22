@@ -64,7 +64,7 @@ internal sealed class StartupForm : Form
                     using var upgrade = new ClusterUpgradeForm(options);
                     if (upgrade.ShowDialog(this) != DialogResult.OK) { Close(); return; }
                 }
-                _host = ServiceRegistration.BuildHost(options);
+                _host = ServiceRegistration.BuildHost(options, services => services.AddSingleton<Controls.ChatImageService>());
                 await _host.Services.GetRequiredService<IChatStore>().InitializeAsync();
                 await _host.StartAsync();
                 var main = ActivatorUtilities.CreateInstance<MainForm>(_host.Services);

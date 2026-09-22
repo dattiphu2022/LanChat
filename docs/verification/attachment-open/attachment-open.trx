@@ -1,0 +1,70 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TestRun id="9a2d4395-3585-48a9-8b56-e13efa39180d" name="Admin@ADMIN-PC 2026-09-22 13:51:33" runUser="ADMIN-PC\Admin" xmlns="http://microsoft.com/schemas/VisualStudio/TeamTest/2010">
+  <Times creation="2026-09-22T13:51:33.4559522+07:00" queuing="2026-09-22T13:51:33.4559523+07:00" start="2026-09-22T13:51:31.6399870+07:00" finish="2026-09-22T13:51:35.5061631+07:00" />
+  <TestSettings name="default" id="ce175844-142f-4948-bdfb-efedb9a159fe">
+    <Deployment runDeploymentRoot="Admin_ADMIN-PC_2026-09-22_13_51_33" />
+  </TestSettings>
+  <Results>
+    <UnitTestResult executionId="4e80cef2-02ab-4ce7-a898-a898f3cb38d8" testId="2b76c3d0-b96b-da06-c13a-74150ffffa39" testName="LanChat.Tests.FileTransferTests.OpenRemoteFileAutomaticallyDownloadsAndCanReopenWithoutSource" computerName="ADMIN-PC" duration="00:00:00.3810015" startTime="2026-09-22T13:51:34.9981697+07:00" endTime="2026-09-22T13:51:35.3792511+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="4e80cef2-02ab-4ce7-a898-a898f3cb38d8" />
+    <UnitTestResult executionId="efe7a31c-9a8b-4be7-9ac4-1cbb3a9da829" testId="83402c37-bdba-7fb5-13d8-fb13e5b47b0d" testName="LanChat.Tests.FileTransferTests.HashPathTraversalAndMissingSourceAreRejected" computerName="ADMIN-PC" duration="00:00:00.0812225" startTime="2026-09-22T13:51:33.0061658+07:00" endTime="2026-09-22T13:51:33.0822781+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="efe7a31c-9a8b-4be7-9ac4-1cbb3a9da829" />
+    <UnitTestResult executionId="9ecc074a-1ff1-47bd-a744-0a32dc86224c" testId="a41b455a-d8a0-1c4c-57e7-713abdc11e57" testName="LanChat.Tests.FileTransferTests.CorruptSourceIsRejectedAndTemporaryFileIsRemoved" computerName="ADMIN-PC" duration="00:00:00.2870601" startTime="2026-09-22T13:51:34.7107772+07:00" endTime="2026-09-22T13:51:34.9980250+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="9ecc074a-1ff1-47bd-a744-0a32dc86224c" />
+    <UnitTestResult executionId="e409413e-5494-47fd-b532-df969e8cbb28" testId="8530870c-2275-6712-7ff6-fd7ab756d38f" testName="LanChat.Tests.FileTransferTests.CancellationDuringStreamingRemovesPartialDownload" computerName="ADMIN-PC" duration="00:00:00.2804678" startTime="2026-09-22T13:51:34.4301709+07:00" endTime="2026-09-22T13:51:34.7106360+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="e409413e-5494-47fd-b532-df969e8cbb28" />
+    <UnitTestResult executionId="4937fc48-d6ff-438c-ba1e-aa33a6edb67b" testId="175bf2da-59f9-da3c-ab7a-e371189de00d" testName="LanChat.Tests.FileTransferTests.OpenLocalFilePreservesNameAndUserEditsWithoutChangingSharedBlob" computerName="ADMIN-PC" duration="00:00:00.9131642" startTime="2026-09-22T13:51:32.0819340+07:00" endTime="2026-09-22T13:51:33.0002140+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="4937fc48-d6ff-438c-ba1e-aa33a6edb67b" />
+    <UnitTestResult executionId="932a6b7c-caff-41d9-b6d4-9a8bcf355606" testId="e68193d9-977f-9ba4-77ab-6a16cc9d9582" testName="LanChat.Tests.FileTransferTests.OpenCopiesSeparateIdenticallyNamedAttachmentsAndFlattenUnsafeNames" computerName="ADMIN-PC" duration="00:00:00.0730410" startTime="2026-09-22T13:51:35.3794279+07:00" endTime="2026-09-22T13:51:35.4528109+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="932a6b7c-caff-41d9-b6d4-9a8bcf355606" />
+    <UnitTestResult executionId="9fb3f45d-c793-44c2-ae4b-c011be1a9212" testId="5d76854e-acb7-bd82-1883-087d320dd5cd" testName="LanChat.Tests.FileTransferTests.MetadataReplicatesButBytesOnlyDownloadOnRequestAndCachedPeerCanServeThem" computerName="ADMIN-PC" duration="00:00:01.3473689" startTime="2026-09-22T13:51:33.0826638+07:00" endTime="2026-09-22T13:51:34.4299149+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="9fb3f45d-c793-44c2-ae4b-c011be1a9212" />
+  </Results>
+  <TestDefinitions>
+    <UnitTest name="LanChat.Tests.FileTransferTests.OpenRemoteFileAutomaticallyDownloadsAndCanReopenWithoutSource" storage="c:\users\admin\source\repos\dattiphu2022\lanchatappbymrd\tests\lanchat.tests\bin\debug\net9.0\lanchat.tests.dll" id="2b76c3d0-b96b-da06-c13a-74150ffffa39">
+      <Execution id="4e80cef2-02ab-4ce7-a898-a898f3cb38d8" />
+      <TestMethod codeBase="C:\Users\Admin\source\repos\dattiphu2022\LANChatAppByMrD\tests\LanChat.Tests\bin\Debug\net9.0\LanChat.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="LanChat.Tests.FileTransferTests" name="OpenRemoteFileAutomaticallyDownloadsAndCanReopenWithoutSource" />
+    </UnitTest>
+    <UnitTest name="LanChat.Tests.FileTransferTests.HashPathTraversalAndMissingSourceAreRejected" storage="c:\users\admin\source\repos\dattiphu2022\lanchatappbymrd\tests\lanchat.tests\bin\debug\net9.0\lanchat.tests.dll" id="83402c37-bdba-7fb5-13d8-fb13e5b47b0d">
+      <Execution id="efe7a31c-9a8b-4be7-9ac4-1cbb3a9da829" />
+      <TestMethod codeBase="C:\Users\Admin\source\repos\dattiphu2022\LANChatAppByMrD\tests\LanChat.Tests\bin\Debug\net9.0\LanChat.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="LanChat.Tests.FileTransferTests" name="HashPathTraversalAndMissingSourceAreRejected" />
+    </UnitTest>
+    <UnitTest name="LanChat.Tests.FileTransferTests.CorruptSourceIsRejectedAndTemporaryFileIsRemoved" storage="c:\users\admin\source\repos\dattiphu2022\lanchatappbymrd\tests\lanchat.tests\bin\debug\net9.0\lanchat.tests.dll" id="a41b455a-d8a0-1c4c-57e7-713abdc11e57">
+      <Execution id="9ecc074a-1ff1-47bd-a744-0a32dc86224c" />
+      <TestMethod codeBase="C:\Users\Admin\source\repos\dattiphu2022\LANChatAppByMrD\tests\LanChat.Tests\bin\Debug\net9.0\LanChat.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="LanChat.Tests.FileTransferTests" name="CorruptSourceIsRejectedAndTemporaryFileIsRemoved" />
+    </UnitTest>
+    <UnitTest name="LanChat.Tests.FileTransferTests.CancellationDuringStreamingRemovesPartialDownload" storage="c:\users\admin\source\repos\dattiphu2022\lanchatappbymrd\tests\lanchat.tests\bin\debug\net9.0\lanchat.tests.dll" id="8530870c-2275-6712-7ff6-fd7ab756d38f">
+      <Execution id="e409413e-5494-47fd-b532-df969e8cbb28" />
+      <TestMethod codeBase="C:\Users\Admin\source\repos\dattiphu2022\LANChatAppByMrD\tests\LanChat.Tests\bin\Debug\net9.0\LanChat.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="LanChat.Tests.FileTransferTests" name="CancellationDuringStreamingRemovesPartialDownload" />
+    </UnitTest>
+    <UnitTest name="LanChat.Tests.FileTransferTests.OpenCopiesSeparateIdenticallyNamedAttachmentsAndFlattenUnsafeNames" storage="c:\users\admin\source\repos\dattiphu2022\lanchatappbymrd\tests\lanchat.tests\bin\debug\net9.0\lanchat.tests.dll" id="e68193d9-977f-9ba4-77ab-6a16cc9d9582">
+      <Execution id="932a6b7c-caff-41d9-b6d4-9a8bcf355606" />
+      <TestMethod codeBase="C:\Users\Admin\source\repos\dattiphu2022\LANChatAppByMrD\tests\LanChat.Tests\bin\Debug\net9.0\LanChat.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="LanChat.Tests.FileTransferTests" name="OpenCopiesSeparateIdenticallyNamedAttachmentsAndFlattenUnsafeNames" />
+    </UnitTest>
+    <UnitTest name="LanChat.Tests.FileTransferTests.MetadataReplicatesButBytesOnlyDownloadOnRequestAndCachedPeerCanServeThem" storage="c:\users\admin\source\repos\dattiphu2022\lanchatappbymrd\tests\lanchat.tests\bin\debug\net9.0\lanchat.tests.dll" id="5d76854e-acb7-bd82-1883-087d320dd5cd">
+      <Execution id="9fb3f45d-c793-44c2-ae4b-c011be1a9212" />
+      <TestMethod codeBase="C:\Users\Admin\source\repos\dattiphu2022\LANChatAppByMrD\tests\LanChat.Tests\bin\Debug\net9.0\LanChat.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="LanChat.Tests.FileTransferTests" name="MetadataReplicatesButBytesOnlyDownloadOnRequestAndCachedPeerCanServeThem" />
+    </UnitTest>
+    <UnitTest name="LanChat.Tests.FileTransferTests.OpenLocalFilePreservesNameAndUserEditsWithoutChangingSharedBlob" storage="c:\users\admin\source\repos\dattiphu2022\lanchatappbymrd\tests\lanchat.tests\bin\debug\net9.0\lanchat.tests.dll" id="175bf2da-59f9-da3c-ab7a-e371189de00d">
+      <Execution id="4937fc48-d6ff-438c-ba1e-aa33a6edb67b" />
+      <TestMethod codeBase="C:\Users\Admin\source\repos\dattiphu2022\LANChatAppByMrD\tests\LanChat.Tests\bin\Debug\net9.0\LanChat.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="LanChat.Tests.FileTransferTests" name="OpenLocalFilePreservesNameAndUserEditsWithoutChangingSharedBlob" />
+    </UnitTest>
+  </TestDefinitions>
+  <TestEntries>
+    <TestEntry testId="2b76c3d0-b96b-da06-c13a-74150ffffa39" executionId="4e80cef2-02ab-4ce7-a898-a898f3cb38d8" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="83402c37-bdba-7fb5-13d8-fb13e5b47b0d" executionId="efe7a31c-9a8b-4be7-9ac4-1cbb3a9da829" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="a41b455a-d8a0-1c4c-57e7-713abdc11e57" executionId="9ecc074a-1ff1-47bd-a744-0a32dc86224c" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="8530870c-2275-6712-7ff6-fd7ab756d38f" executionId="e409413e-5494-47fd-b532-df969e8cbb28" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="175bf2da-59f9-da3c-ab7a-e371189de00d" executionId="4937fc48-d6ff-438c-ba1e-aa33a6edb67b" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="e68193d9-977f-9ba4-77ab-6a16cc9d9582" executionId="932a6b7c-caff-41d9-b6d4-9a8bcf355606" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="5d76854e-acb7-bd82-1883-087d320dd5cd" executionId="9fb3f45d-c793-44c2-ae4b-c011be1a9212" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+  </TestEntries>
+  <TestLists>
+    <TestList name="Results Not in a List" id="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestList name="All Loaded Results" id="19431567-8539-422a-85d7-44ee4e166bda" />
+  </TestLists>
+  <ResultSummary outcome="Completed">
+    <Counters total="7" executed="7" passed="7" failed="0" error="0" timeout="0" aborted="0" inconclusive="0" passedButRunAborted="0" notRunnable="0" notExecuted="0" disconnected="0" warning="0" completed="0" inProgress="0" pending="0" />
+    <Output>
+      <StdOut>[xUnit.net 00:00:00.00] xUnit.net VSTest Adapter v3.0.2+dd36e86129 (64-bit .NET 9.0.19)&#xD;
+[xUnit.net 00:00:00.08]   Discovering: LanChat.Tests&#xD;
+[xUnit.net 00:00:00.11]   Discovered:  LanChat.Tests&#xD;
+[xUnit.net 00:00:00.12]   Starting:    LanChat.Tests&#xD;
+[xUnit.net 00:00:03.51]   Finished:    LanChat.Tests&#xD;
+</StdOut>
+    </Output>
+  </ResultSummary>
+</TestRun>
