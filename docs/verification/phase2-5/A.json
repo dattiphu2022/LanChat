@@ -1,0 +1,66 @@
+{
+  "Success": true,
+  "NodeId": "ab845060-a1d5-4d70-9782-2a118c7c567b",
+  "UserId": "01a0c7c8-33b0-7ea6-923a-32a6ab28b08f",
+  "Messages": [
+    {
+      "Id": "01a0c7c8-3a5c-74be-825d-8786540de2c4",
+      "Text": "N\u1ED9i dung \u0111\u00E3 s\u1EEDa t\u1EEB M\u00E1y B",
+      "Status": 2,
+      "IsEdited": true,
+      "ReplyToMessageId": null
+    },
+    {
+      "Id": "01a0c7c8-3aa6-7dd6-b85a-3b3bb0e3e16f",
+      "Text": "N\u1ED9i dung \u0111\u00E3 s\u1EEDa t\u1EEB M\u00E1y A",
+      "Status": 2,
+      "IsEdited": true,
+      "ReplyToMessageId": null
+    },
+    {
+      "Id": "01a0c7c8-472f-76d4-a23e-3df0a0bf2d69",
+      "Text": "Tr\u1EA3 l\u1EDDi k\u00E8m hai t\u1EC7p",
+      "Status": 2,
+      "IsEdited": false,
+      "ReplyToMessageId": "01a0c7c8-3aa6-7dd6-b85a-3b3bb0e3e16f"
+    },
+    {
+      "Id": "01a0c7c8-4931-76a1-b451-738f91c8576b",
+      "Text": "Tr\u1EA3 l\u1EDDi k\u00E8m hai t\u1EC7p",
+      "Status": 2,
+      "IsEdited": false,
+      "ReplyToMessageId": "01a0c7c8-3a5c-74be-825d-8786540de2c4"
+    }
+  ],
+  "GroupId": "01a0c7c8-4eed-77bc-9fd2-dc4e18d4d6c0",
+  "GroupMessageIds": [
+    "01a0c7c8-4eed-7385-9f36-d0ba42e156bb",
+    "01a0c7c8-6199-7370-bcbf-3b3480b16024",
+    "01a0c7c8-6803-7c92-b1bc-19a7d1f5f901"
+  ],
+  "VerifiedFiles": 4,
+  "Consensus": {
+    "Role": 2,
+    "Term": 1,
+    "LeaderNodeId": "ab845060-a1d5-4d70-9782-2a118c7c567b",
+    "HasQuorum": true,
+    "Voters": [
+      "ab845060-a1d5-4d70-9782-2a118c7c567b",
+      "01a0c7c8-33cf-7420-ac5b-fb1ef929fde9"
+    ],
+    "JointVoters": null,
+    "CommitIndex": 4,
+    "LastLeaderHeartbeatTicks": 639256549966080726,
+    "StatusText": "Leader \u00B7 k\u1EBFt n\u1ED1i \u0111\u1EA7y \u0111\u1EE7"
+  },
+  "Captures": [
+    "C:\\Users\\Admin\\source\\repos\\dattiphu2022\\LANChatAppByMrD\\.codex-temp\\two-instances-20260922-132257\\A.1240.png",
+    "C:\\Users\\Admin\\source\\repos\\dattiphu2022\\LANChatAppByMrD\\.codex-temp\\two-instances-20260922-132257\\A.1020.png",
+    "C:\\Users\\Admin\\source\\repos\\dattiphu2022\\LANChatAppByMrD\\.codex-temp\\two-instances-20260922-132257\\A.drop-preview.png",
+    "C:\\Users\\Admin\\source\\repos\\dattiphu2022\\LANChatAppByMrD\\.codex-temp\\two-instances-20260922-132257\\A.image-preview.png",
+    "C:\\Users\\Admin\\source\\repos\\dattiphu2022\\LANChatAppByMrD\\.codex-temp\\two-instances-20260922-132257\\A.group-chat.png",
+    "C:\\Users\\Admin\\source\\repos\\dattiphu2022\\LANChatAppByMrD\\.codex-temp\\two-instances-20260922-132257\\A.groups.png",
+    "C:\\Users\\Admin\\source\\repos\\dattiphu2022\\LANChatAppByMrD\\.codex-temp\\two-instances-20260922-132257\\A.settings.png",
+    "C:\\Users\\Admin\\source\\repos\\dattiphu2022\\LANChatAppByMrD\\.codex-temp\\two-instances-20260922-132257\\A.diagnostics.png"
+  ]
+}

@@ -10,6 +10,7 @@ public sealed class SetupForm : Form
     private readonly TextBox _code = new() { Dock = DockStyle.Fill, Multiline = true, ScrollBars = ScrollBars.Vertical };
     public string DisplayName => _name.Text.Trim();
     public string Invitation { get; private set; } = "";
+    public bool IsCreator { get; private set; }
     public SetupForm()
     {
         Text = "Bắt đầu với LanChat"; StartPosition = FormStartPosition.CenterScreen; ClientSize = new Size(640, 420);
@@ -33,6 +34,7 @@ public sealed class SetupForm : Form
         {
             if (DisplayName.Length == 0) throw new ArgumentException("Vui lòng nhập tên hiển thị.");
             Invitation = create ? ClusterConfigurationStore.CreateInvitation() : _code.Text.Trim();
+            IsCreator = create;
             ClusterConfigurationStore.ParseInvitation(Invitation); DialogResult = DialogResult.OK;
         }
         catch (ArgumentException ex) { MessageBox.Show(this, ex.Message, "Kiểm tra thông tin"); }

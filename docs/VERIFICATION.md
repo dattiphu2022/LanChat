@@ -1,55 +1,79 @@
-# Kết quả kiểm chứng Phase 1
+# Kết quả kiểm chứng Phase 1–5
 
-Ngày kiểm chứng: **21/09/2026**, Windows, SDK **10.0.400**, target **net9.0/net9.0-windows**, Desktop Runtime **9.0.19**.
+Ngày kiểm chứng: **22/09/2026**. Windows, SDK **10.0.400**, target **net9.0 / net9.0-windows**, Desktop Runtime **9.0.19**.
 
-## Build và migration
+## Kết quả
 
-- `dotnet build LanChat.sln --no-restore`: đạt, **0 warning / 0 error**.
-- `dotnet publish src/LanChat.WinForms -c Release --no-restore --self-contained false -o artifacts/Phase1`: đạt; EXE và dependencies đã tạo.
-- `dotnet ef migrations has-pending-model-changes --project src/LanChat.Infrastructure --no-build`: không có thay đổi model chưa tạo migration.
-- Có hai migration: `InitialPhase1`, `LocalReadState`. Kiểm thử khởi tạo mới, WAL/index, nâng từ schema đầu lên schema sau và giữ UserId/NodeId đều đạt.
+| Nội dung | Kết quả |
+|---|---|
+| Build Debug và Release | Đạt, 0 warning / 0 error |
+| Automated tests | **40 passed / 0 failed / 0 skipped** |
+| Migration/model | 3 migration, không còn thay đổi model chưa tạo migration |
+| Publish | artifacts/LanChat-1.0/LanChat.WinForms.exe cùng dependencies |
+| Khởi động gói Release | MainForm mở thành công trên dữ liệu mẫu riêng, đóng sạch, exit code 0 |
+| Hai tiến trình WinForms | UDP discovery, TLS, chat hai chiều, nhóm và tệp đạt |
+| Ảnh giao diện | Đã xem ảnh chat, resize, preview kéo thả, ảnh nhận, nhóm, settings và diagnostics |
 
-## Automated tests
+Lệnh kiểm chứng chính:
 
-`dotnet test tests/LanChat.Tests --no-restore --logger "trx;LogFileName=phase1.trx"`: **23 passed / 0 failed / 0 skipped**.
+```powershell
+dotnet build LanChat.sln --no-restore
+dotnet build LanChat.sln -c Release --no-restore
+dotnet test tests/LanChat.Tests --no-restore --logger "trx;LogFileName=all-phases.trx" --results-directory TestResults
+dotnet ef migrations has-pending-model-changes --project src/LanChat.Infrastructure --no-build
+dotnet publish src/LanChat.WinForms -c Release --no-restore --self-contained false -o artifacts/LanChat-1.0
+pwsh -NoProfile -File scripts/Verify-TwoInstances.ps1 -UseBroadcast
+```
 
-Các nhóm kiểm thử:
+## Phạm vi bài kiểm thử
 
-- Network range /24, /25, /26, /27, /28; thêm /16, /31, /32, mask không liên tục; bỏ IP chính máy/network/broadcast.
-- DirectConversation identity ổn định, tách theo cluster; HLC tiến qua clock từ xa.
-- HMAC sai secret/tamper/replay bị loại, frame quá lớn bị chặn trước cấp phát payload.
-- Migrate SQLite, WAL và unique index; giữ identity khi đổi tên/restart; nâng schema không mất hồ sơ.
-- Nhận trùng chỉ một message, payload khác nhưng trùng identity bị từ chối.
-- UDP discovery thật và TCP chat hai chiều không có server riêng.
-- Network failure: tin còn LocalPending trong DB, restart rồi TCP hoạt động lại thì tự giao thành công.
-- Cluster khác không lấy được NodeInfo/không nhập dữ liệu.
-- Offline user còn trong danh bạ; đổi IP/tên không đổi direct conversation.
-- 20 lần gửi local đồng thời có sequence riêng.
-- Scanner dùng TCP thật và hỗ trợ cancellation.
-- Tin đến muộn với CreatedAt cũ vẫn được tính unread sau khi đã mark-read tin trước.
+- Network range /24, /25, /26, /27, /28, /16, /31, /32 và mask không hợp lệ.
+- HLC, định danh direct conversation, message identity/sequence bền vững và ghi đồng thời.
+- Migration/WAL/index; nâng schema Phase 1 có tin cũ, giữ UserId/NodeId/message/ghim, tạo event và FTS một lần.
+- Duplicate/out-of-order event, cursor không vượt gap, trigger cấm sửa/xóa event.
+- Edit/recall hội tụ; receipt/read, reaction add/remove, reply/forward; chặn sửa/thu hồi tin người khác.
+- FTS không dấu, cập nhật sau sửa/thu hồi; xóa phía tôi không ảnh hưởng peer.
+- Node D khôi phục **215 tin** A/B qua nhiều trang TLS, thứ tự và MessageIds giống nhau; không trở thành thành viên hội thoại A/B. Truy vấn cửa sổ 101 tin quanh kết quả tìm kiếm.
+- Outbox/retry, dữ liệu tồn tại khi mạng lỗi và tiếp tục sau restart.
+- Ba voter với majority/joint membership, tạo nhóm, chat nhóm; cô lập leader, đa số bầu lại, thiểu số không đổi nhóm, chat local vẫn lưu và đồng bộ sau nối lại.
+- Hai candidate xin phiếu cùng term: chỉ một được chấp nhận; vote tồn tại sau restart; candidate có log cũ bị từ chối.
+- Tạo/đổi tên/ảnh/thành viên/chủ nhóm/xóa nhóm; kiểm tra quyền chủ nhóm và nhóm đã xóa không gửi tiếp.
+- Binary không tự replicate cùng metadata; tải TLS streaming, progress, SHA256, hủy giữa chừng và dọn tệp tạm.
+- Từ chối tệp bị hỏng; nhập lại sửa blob local; peer đã tải phục vụ lại khi không biết nguồn gốc.
+- Chặn hash/path không hợp lệ; nguồn không có báo lỗi và giữ metadata.
+- TLS certificate khác bị chặn; cùng certificate nhưng HMAC secret sai vẫn bị từ chối.
+- DPAPI bảo vệ credential trong cluster.json; mã mời giữ bootstrap, cấu hình giữ port và cho phép CLI override.
+- Database không đổi sang cluster khác; UNC storage bị từ chối.
 
-TRX trên máy phát triển: `tests/LanChat.Tests/TestResults/phase1.trx`. Các test dùng DB/thư mục riêng trong `%TEMP%/LanChat.Tests`, không tác động dữ liệu sử dụng thật.
+Test failover dùng thời gian rút ngắn (timeout 2 giây, heartbeat 200 ms) để chạy nhanh. Runtime mặc định dùng timeout 15 giây cộng probe/discovery/jitter, heartbeat 2 giây. Chưa đo thời gian failover thực tế trên ba PC vật lý.
 
-## Hai tiến trình WinForms
+## Hai tiến trình giao diện thật
 
-Đã chạy thành công hai chế độ:
+Lần broadcast đạt: **.codex-temp/two-instances-20260922-132257**.
 
-1. UDP loopback có target tường minh, hai cổng UDP khác nhau — kiểm tra độc lập với broadcast policy.
-2. **UDP broadcast mặc định, cùng discovery port, không cấu hình endpoint peer** — hai tiến trình tự tìm thấy nhau.
+- Hai EXE, hai SQLite/thư mục, TCP port riêng, NodeId/UserId khác nhau.
+- Discovery UDP broadcast tự tìm nhau, không khai báo endpoint peer.
+- Gửi từ cùng handler của nút Gửi, sửa tin qua composer, reply và reaction qua handler tương ứng.
+- Kiểm tra DragEnter/DragDrop với hai tệp local: chưa gửi ngay, có preview.
+- Hai phía cùng 4 tin trực tiếp, metadata 4 tệp, tải và đối chiếu SHA256 của cả 4 tệp.
+- Một nhóm được commit, cả hai máy gửi và nhận tin nhóm.
+- Quorum ổn định: 2 voters, Joint=null, term=1, commit index=4 trong báo cáo mẫu.
+- Chụp chat ở 1240×800 và 1020×650, preview file/ảnh, nhóm, settings, diagnostics.
+- Các tiến trình do harness tạo tự thoát; không dừng tiến trình sử dụng thật.
 
-Lần broadcast thành công: `.codex-temp/two-instances-20260921-142928`.
+Bằng chứng trong [verification/phase2-5/](verification/phase2-5/): A.json, B.json, all-phases.trx và ảnh PNG. Không sao chép cluster.json, secret hoặc database vào thư mục bằng chứng.
 
-- Hai EXE process, hai thư mục dữ liệu/SQLite/NodeId/UserId, TCP port riêng.
-- Hai phía tự thấy peer, mở conversation và gửi “Xin chào từ Máy A/B” qua cùng handler gửi của UI.
-- Hai DB cùng hai MessageIds, đều Delivered, pending=0.
-- Đã render và xem ảnh ở client size **1240×800** và **1020×650**.
-- Harness kiểm tra navigation, message bubbles và ô nhập hiện diện, kích thước đủ và không bị che bởi parent.
-- Đã xem cửa sổ Settings và Diagnostics. Các tiến trình do harness tạo tự thoát, không còn giữ cổng.
-
-Ảnh và báo cáo được lưu trong [verification/](verification/). Báo cáo chỉ chứa định danh và tin mẫu; không chứa secret/mã mời.
+Đã xem:
+- [Chat nhóm](verification/phase2-5/A.group-chat.png)
+- [Preview trước gửi](verification/phase2-5/A.drop-preview.png)
+- [Ảnh đã tải](verification/phase2-5/B.image-preview.png)
+- [Quản lý nhóm](verification/phase2-5/A.groups.png)
+- [Chẩn đoán](verification/phase2-5/A.diagnostics.png)
 
 ## Giới hạn của bằng chứng
 
-Kiểm tra trên **hai tiến trình của cùng một máy Windows**, chưa trực tiếp chạy trên hai PC vật lý. Firewall, Wi-Fi client isolation, VLAN và topology tại nơi triển khai cần kiểm tra theo [ACCEPTANCE.md](ACCEPTANCE.md).
+Kiểm tra UI dùng **hai tiến trình cùng máy Windows**, còn failover/partition dùng **ba host riêng và SQLite riêng trong integration test**. Chưa chạy ba PC vật lý, kiểm thử dài ngày, DPI đa dạng hay tải tệp 20 GB. Thao tác kéo thả được đưa qua WinForms DragEnter/DragDrop trong harness; chưa thao tác chuột kéo trực tiếp từ Explorer. Các nút quản trị nhóm có kiểm thử nghiệp vụ; chưa click thủ công hết mọi nút và thông báo desktop.
 
-Leader/election/quorum/partition/full-history replication/file transfer chưa được triển khai hoặc kiểm thử; đây là phạm vi các phase sau. Bản publish Release được build thành công; harness gửi/nhận và chụp UI chạy trên Debug vì hook kiểm thử đã bị loại khỏi Release.
+Không coi các kết quả này là chứng nhận an toàn cho cụm lớn hoặc thành viên ác ý. Cluster chia sẻ credential và toàn lịch sử; không có E2EE, mã hóa DB, voter decommission hoặc control-log compaction. Xem [ACCEPTANCE.md](ACCEPTANCE.md) để nghiệm thu thực địa và [ARCHITECTURE.md](ARCHITECTURE.md) cho phạm vi thiết kế.
+
+Bằng chứng Phase 1 cũ giữ ở [VERIFICATION_PHASE1.md](VERIFICATION_PHASE1.md).

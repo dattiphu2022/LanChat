@@ -41,6 +41,7 @@ public sealed class PeerNode
     public long LastSeenTicks { get; set; }
     public NodeRole Role { get; set; }
     public long Term { get; set; }
+    public string ApplicationVersion { get; set; } = "";
 }
 
 public sealed class Conversation
@@ -50,6 +51,7 @@ public sealed class Conversation
     public bool IsPinned { get; set; }
     public bool IsMuted { get; set; }
     public long LastReadTicks { get; set; }
+    public string Title { get; set; } = "";
 }
 
 public sealed class ConversationMember
@@ -78,6 +80,11 @@ public sealed class Message
     public int RetryCount { get; set; }
     public long NextRetryTicks { get; set; }
     public string? LastError { get; set; }
+    public Guid? ReplyToMessageId { get; set; }
+    public Guid? ForwardedFromMessageId { get; set; }
+    public bool IsEdited { get; set; }
+    public bool IsRecalled { get; set; }
+    public bool IsDeletedLocal { get; set; }
 }
 
 public sealed class LocalSettings
@@ -89,6 +96,8 @@ public sealed class LocalSettings
     public long LastSequence { get; set; }
     public long PhysicalTicks { get; set; }
     public int LogicalCounter { get; set; }
+    public long EventSequence { get; set; }
+    public Guid ClusterId { get; set; }
 }
 
 public static class DirectConversation

@@ -22,8 +22,8 @@ internal static class Program
                 switch (args[i])
                 {
                     case "--data-dir": options.DataDirectory = Path.GetFullPath(Value()); break;
-                    case "--port": options.ServicePort = int.Parse(Value()); break;
-                    case "--discovery-port": options.DiscoveryPort = int.Parse(Value()); break;
+                    case "--port": options.ServicePort = int.Parse(Value()); options.OverrideServicePort = true; break;
+                    case "--discovery-port": options.DiscoveryPort = int.Parse(Value()); options.OverrideDiscoveryPort = true; break;
                     case "--discovery-target": options.DiscoveryTargets.Add(Value()); break;
                     case "--display-name": options.InitialDisplayName = Value(); break;
 #if DEBUG
@@ -32,6 +32,7 @@ internal static class Program
                     default: throw new ArgumentException("Tham số không hỗ trợ: " + args[i]);
                 }
             }
+            ServiceRegistration.ValidateDataDirectory(options.DataDirectory);
             Directory.CreateDirectory(options.DataDirectory);
             using var dataLock = new FileStream(Path.Combine(options.DataDirectory, "instance.lock"), FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
             System.Windows.Forms.Application.Run(new StartupForm(options, verificationReport));
@@ -56,7 +57,12 @@ internal sealed class StartupForm : Form
                     using var setup = new SetupForm();
                     if (setup.ShowDialog(this) != DialogResult.OK) { Close(); return; }
                     options.InitialDisplayName = setup.DisplayName;
-                    await ClusterConfigurationStore.SaveAsync(options, setup.Invitation);
+                    await ClusterConfigurationStore.SaveAsync(options, setup.Invitation, creator: setup.IsCreator);
+                }
+                if (options.TlsCertificatePfx.Length == 0 || options.BootstrapNodeId == Guid.Empty)
+                {
+                    using var upgrade = new ClusterUpgradeForm(options);
+                    if (upgrade.ShowDialog(this) != DialogResult.OK) { Close(); return; }
                 }
                 _host = ServiceRegistration.BuildHost(options);
                 await _host.Services.GetRequiredService<IChatStore>().InitializeAsync();

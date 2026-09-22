@@ -10,6 +10,7 @@ using LanChat.Application;
 using LanChat.Domain;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace LanChat.Infrastructure;
 
@@ -74,12 +75,12 @@ public sealed record NetworkEnvelope(Guid RequestId, Guid ClusterId, Guid Source
 
 public sealed class WireProtocol(NodeOptions options)
 {
-    public const int MaxFrame = 128 * 1024;
+    public const int MaxFrame = 4 * 1024 * 1024;
     private readonly Dictionary<Guid, long> _seen = [];
     private readonly object _gate = new();
     public byte[] Encode<T>(Guid source, string type, T payload, Guid? requestId = null)
     {
-        var envelope = new NetworkEnvelope(requestId ?? Guid.CreateVersion7(), options.ClusterId, source, 1, type,
+        var envelope = new NetworkEnvelope(requestId ?? Guid.CreateVersion7(), options.ClusterId, source, 2, type,
             DateTimeOffset.UtcNow.ToUnixTimeSeconds(), JsonSerializer.Serialize(payload), "");
         return JsonSerializer.SerializeToUtf8Bytes(envelope with { Mac = Convert.ToBase64String(Sign(envelope)) });
     }
@@ -90,7 +91,7 @@ public sealed class WireProtocol(NodeOptions options)
     {
         if (bytes.Length > MaxFrame) throw new InvalidDataException("Gói tin quá lớn.");
         var value = JsonSerializer.Deserialize<NetworkEnvelope>(bytes) ?? throw new InvalidDataException("Gói tin rỗng.");
-        if (value.ClusterId != options.ClusterId || value.ProtocolVersion != 1 || value.SourceNodeId == Guid.Empty ||
+        if (value.ClusterId != options.ClusterId || value.ProtocolVersion != 2 || value.SourceNodeId == Guid.Empty ||
             value.RequestId == Guid.Empty || Math.Abs((double)DateTimeOffset.UtcNow.ToUnixTimeSeconds() - value.SentAtSeconds) > 120 ||
             !CryptographicOperations.FixedTimeEquals(Sign(value), Convert.FromBase64String(value.Mac)))
             throw new InvalidDataException("Gói tin không xác thực hoặc khác phiên bản.");
@@ -121,17 +122,18 @@ public sealed class WireProtocol(NodeOptions options)
     }
 }
 
-public sealed class PeerTransport(WireProtocol wire, IChatStore store) : IPeerTransport
+public sealed class PeerTransport(WireProtocol wire, IChatStore store, FaultInjection faults, ClusterTls tls) : IPeerTransport, IClusterTransport
 {
     private async Task<NetworkEnvelope> RequestAsync<T>(string address, int port, string type, T body, CancellationToken ct)
     {
-        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct); timeout.CancelAfter(TimeSpan.FromSeconds(4));
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct); timeout.CancelAfter(TimeSpan.FromSeconds(type == "ControlProposal" ? 8 : 4));
         using var client = new TcpClient(AddressFamily.InterNetwork) { NoDelay = true };
         await client.ConnectAsync(IPAddress.Parse(address), port, timeout.Token);
+        await using var stream = await tls.ConnectAsync(client.GetStream(), timeout.Token);
         var identity = await store.GetIdentityAsync(timeout.Token);
         var requestId = Guid.CreateVersion7();
-        await WireProtocol.WriteAsync(client.GetStream(), wire.Encode(identity.NodeId, type, body, requestId), timeout.Token);
-        var response = wire.Decode(await WireProtocol.ReadAsync(client.GetStream(), timeout.Token), false);
+        await WireProtocol.WriteAsync(stream, wire.Encode(identity.NodeId, type, body, requestId), timeout.Token);
+        var response = wire.Decode(await WireProtocol.ReadAsync(stream, timeout.Token), false);
         if (response.RequestId != requestId || response.MessageType != type + "Response") throw new InvalidDataException("Phản hồi không khớp.");
         return response;
     }
@@ -147,6 +149,13 @@ public sealed class PeerTransport(WireProtocol wire, IChatStore store) : IPeerTr
         var response = await RequestAsync(address, port, "ChatPush", message, cancellationToken);
         if (WireProtocol.Payload<ChatAckDto>(response).MessageId != message.Message.Id) throw new InvalidDataException("ACK không khớp.");
     }
+    public async Task<T> CallAsync<T>(PeerEndpoint peer, string type, object payload, CancellationToken ct)
+    {
+        faults.ThrowIfBlocked(peer.NodeId);
+        var response = await RequestAsync(peer.Address, peer.Port, type, payload, ct);
+        if (peer.NodeId != Guid.Empty && response.SourceNodeId != peer.NodeId) throw new InvalidDataException("Endpoint đã đổi định danh.");
+        return WireProtocol.Payload<T>(response);
+    }
 }
 
 public sealed class NetworkHealth
@@ -155,7 +164,7 @@ public sealed class NetworkHealth
 }
 
 public sealed class PeerConnectionManager(NodeOptions options, WireProtocol wire, IChatStore store,
-    ILogger<PeerConnectionManager> logger, NetworkHealth health) : BackgroundService
+    ILogger<PeerConnectionManager> logger, NetworkHealth health, IServiceProvider services, FaultInjection faults, ClusterTls tls) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -188,15 +197,38 @@ public sealed class PeerConnectionManager(NodeOptions options, WireProtocol wire
         using (client)
         using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct))
         {
-            timeout.CancelAfter(TimeSpan.FromSeconds(5));
+            timeout.CancelAfter(TimeSpan.FromSeconds(10));
             try
             {
-                var stream = client.GetStream(); var request = wire.Decode(await WireProtocol.ReadAsync(stream, timeout.Token));
+                await using var stream = await tls.AcceptAsync(client.GetStream(), timeout.Token);
+                var request = wire.Decode(await WireProtocol.ReadAsync(stream, timeout.Token));
+                faults.ThrowIfBlocked(request.SourceNodeId);
                 var identity = await store.GetIdentityAsync(timeout.Token);
                 object response;
                 switch (request.MessageType)
                 {
                     case "NodeInfo": response = await store.GetNodeInfoAsync(timeout.Token); break;
+                    case "Digest": response = await services.GetRequiredService<IDistributedStore>().GetDigestAsync(timeout.Token); break;
+                    case "EventRange": response = await services.GetRequiredService<IDistributedStore>().GetEventRangeAsync(WireProtocol.Payload<EventRangeRequest>(request), timeout.Token); break;
+                    case "EventPush":
+                        if (faults.PauseReplication) throw new IOException("Replication paused.");
+                        response = await services.GetRequiredService<IDistributedStore>().ImportEventsAsync(WireProtocol.Payload<EventBatch>(request), timeout.Token); break;
+                    case "Vote": response = await services.GetRequiredService<ConsensusService>().VoteAsync(WireProtocol.Payload<VoteRequest>(request), request.SourceNodeId, timeout.Token); break;
+                    case "Append": response = await services.GetRequiredService<ConsensusService>().AppendAsync(WireProtocol.Payload<AppendRequest>(request), request.SourceNodeId, timeout.Token); break;
+                    case "ConsensusStatus": response = await services.GetRequiredService<IConsensusService>().GetStatusAsync(timeout.Token); break;
+                    case "ControlProposal": response = await services.GetRequiredService<ConsensusService>().ProposeRemoteAsync(WireProtocol.Payload<ControlCommand>(request), request.SourceNodeId, timeout.Token); break;
+                    case "FileAvailability": response = await services.GetRequiredService<PeerFileTransferService>().HasFileAsync(WireProtocol.Payload<FileRequest>(request).Sha256, timeout.Token); break;
+                    case "FileDownload":
+                        var files = services.GetRequiredService<PeerFileTransferService>(); var hash = WireProtocol.Payload<FileRequest>(request).Sha256;
+                        var availability = await files.HasFileAsync(hash, timeout.Token);
+                        await WireProtocol.WriteAsync(stream, wire.Encode(identity.NodeId, "FileDownloadResponse", availability, request.RequestId), timeout.Token);
+                        if (availability.Available)
+                        {
+                            timeout.CancelAfter(TimeSpan.FromMinutes(30));
+                            await using var input = new FileStream((await files.GetLocalPathAsync(hash, timeout.Token))!, FileMode.Open, FileAccess.Read, FileShare.Read, 65536, FileOptions.Asynchronous | FileOptions.SequentialScan);
+                            await input.CopyToAsync(stream, timeout.Token);
+                        }
+                        return;
                     case "ChatPush":
                         var push = WireProtocol.Payload<ChatPushDto>(request);
                         if (push.Sender.NodeId != request.SourceNodeId) throw new InvalidDataException("Sai định danh người gửi.");
@@ -208,7 +240,7 @@ public sealed class PeerConnectionManager(NodeOptions options, WireProtocol wire
                 }
                 await WireProtocol.WriteAsync(stream, wire.Encode(identity.NodeId, request.MessageType + "Response", response, request.RequestId), timeout.Token);
             }
-            catch (Exception ex) when (ex is IOException or SocketException or JsonException or FormatException or OperationCanceledException or ArgumentException or NullReferenceException)
+            catch (Exception ex) when (ex is IOException or SocketException or JsonException or FormatException or OperationCanceledException or ArgumentException or NullReferenceException or System.Security.Authentication.AuthenticationException)
             { logger.LogDebug("Peer request rejected: {ErrorType}", ex.GetType().Name); }
             catch (Exception ex) { logger.LogError(ex, "Peer request failed"); }
             finally { slots.Release(); }
@@ -243,7 +275,7 @@ public sealed class LanScanner(ILocalNetworkInfoProvider networks, IPeerTranspor
                         result.Add(new(info.NodeId, info.User.Id, info.User.DisplayName, info.DeviceName, address,
                             info.ServicePort, NodeRole.Follower, 0, info.ProtocolVersion, info.ApplicationVersion, options.ClusterId));
                     }
-                    catch (Exception ex) when (ex is IOException or SocketException or OperationCanceledException or JsonException or FormatException) { }
+                    catch (Exception ex) when (ex is IOException or SocketException or OperationCanceledException or JsonException or FormatException or System.Security.Authentication.AuthenticationException) { }
                 });
             logger.LogInformation("LAN scan completed: {Count} peers", result.Count);
             return result.ToArray();

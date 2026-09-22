@@ -14,6 +14,13 @@ $secret = [byte[]]::new(32)
 [Security.Cryptography.RandomNumberGenerator]::Fill($secret)
 $protected = [Convert]::ToBase64String([Security.Cryptography.ProtectedData]::Protect($secret, $null, [Security.Cryptography.DataProtectionScope]::CurrentUser))
 $cluster = [Guid]::NewGuid().ToString()
+$bootstrap = [Guid]::NewGuid().ToString()
+$key = [Security.Cryptography.ECDsa]::Create([Security.Cryptography.ECCurve+NamedCurves]::nistP256)
+$request = [Security.Cryptography.X509Certificates.CertificateRequest]::new("CN=LanChat verification $cluster", $key, [Security.Cryptography.HashAlgorithmName]::SHA256)
+$certificate = $request.CreateSelfSigned([DateTimeOffset]::UtcNow.AddDays(-1), [DateTimeOffset]::UtcNow.AddYears(1))
+$pfx = $certificate.Export([Security.Cryptography.X509Certificates.X509ContentType]::Pfx)
+$protectedPfx = [Convert]::ToBase64String([Security.Cryptography.ProtectedData]::Protect($pfx, $null, [Security.Cryptography.DataProtectionScope]::CurrentUser))
+$certificate.Dispose(); $key.Dispose()
 function Get-FreePort([bool]$Udp) {
     if ($Udp) { $socket = [Net.Sockets.UdpClient]::new(0); $port = $socket.Client.LocalEndPoint.Port; $socket.Dispose(); return $port }
     $socket = [Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback, 0); $socket.Start(); $port = $socket.LocalEndpoint.Port; $socket.Stop(); return $port
@@ -27,7 +34,7 @@ $processes = @()
 foreach ($entry in @(@{Name='A'; Tcp=$tcpA; Udp=$udpA; Target=$udpB}, @{Name='B'; Tcp=$tcpB; Udp=$udpB; Target=$udpA})) {
     $data = Join-Path $OutputDirectory $entry.Name
     New-Item -ItemType Directory -Path $data -Force | Out-Null
-    @{ClusterId=$cluster; ProtectedSecret=$protected; ServicePort=$entry.Tcp; DiscoveryPort=$entry.Udp} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $data 'cluster.json') -Encoding utf8
+    @{ClusterId=$cluster; ProtectedSecret=$protected; ServicePort=$entry.Tcp; DiscoveryPort=$entry.Udp; BootstrapNodeId=$bootstrap; ProtectedTlsPfx=$protectedPfx; InitialNodeId=$(if ($entry.Name -eq 'A') { $bootstrap } else { $null })} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $data 'cluster.json') -Encoding utf8
     $report = Join-Path $OutputDirectory ($entry.Name + '.json')
     $arguments = @('--data-dir', ('"' + $data + '"'), '--port', $entry.Tcp, '--discovery-port', $entry.Udp,
         '--display-name', ('"Máy ' + $entry.Name + '"'), '--verify-ui', ('"' + $report + '"'))
@@ -35,7 +42,7 @@ foreach ($entry in @(@{Name='A'; Tcp=$tcpA; Udp=$udpA; Target=$udpB}, @{Name='B'
     $processes += Start-Process -FilePath $exe -ArgumentList $arguments -PassThru -WindowStyle Hidden
 }
 foreach ($process in $processes) {
-    if (-not $process.WaitForExit(60000)) { throw "Instance $($process.Id) chưa thoát; kiểm tra cửa sổ lỗi. Script không tự tắt tiến trình." }
+    if (-not $process.WaitForExit(120000)) { throw "Instance $($process.Id) chưa thoát; kiểm tra cửa sổ lỗi. Script không tự tắt tiến trình." }
     if ($process.ExitCode -ne 0) { throw "Instance thất bại: exit $($process.ExitCode). Xem report trong $OutputDirectory" }
 }
 $reports = @('A', 'B') | ForEach-Object { Get-Content -LiteralPath (Join-Path $OutputDirectory ($_ + '.json')) -Raw | ConvertFrom-Json }
@@ -44,4 +51,5 @@ if ($reports[0].NodeId -eq $reports[1].NodeId -or $reports[0].UserId -eq $report
 $idsA = ($reports[0].Messages.Id | Sort-Object) -join ','
 $idsB = ($reports[1].Messages.Id | Sort-Object) -join ','
 if ($idsA -ne $idsB) { throw 'Hai instance chưa có cùng tin nhắn.' }
-Write-Output "PASS: hai tiến trình WinForms, UDP discovery, TCP hai chiều, pending=0. Kết quả: $OutputDirectory"
+if ($reports[0].GroupId -ne $reports[1].GroupId -or $reports.Where({$_.VerifiedFiles -ne 4}).Count -gt 0) { throw 'Kiểm tra nhóm/tệp chưa đạt.' }
+Write-Output "PASS: hai tiến trình WinForms, UDP discovery, TLS, sửa/trả lời/cảm xúc, kéo thả nhiều tệp, tải SHA256, chat nhóm. Kết quả: $OutputDirectory"

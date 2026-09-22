@@ -72,7 +72,7 @@ public sealed class ConversationItemControl : UserControl
         _model = c; _avatar.Text = string.Concat(c.DisplayName.Take(1)).ToUpperInvariant();
         _title.Text = c.DisplayName + (c.UnreadCount > 0 ? $"  ({c.UnreadCount})" : "");
         _preview.Text = c.Preview.ReplaceLineEndings(" ");
-        _meta.Text = $"{(c.Presence == PresenceStatus.Online ? "● Online" : "○ Offline")}  {(c.IsPinned ? "◆ " : "")}{(c.IsMuted ? "Im lặng  " : "")}" +
+        _meta.Text = $"{(c.Kind == ConversationKind.Group ? "♧ Nhóm" : c.Presence == PresenceStatus.Online ? "● Online" : "○ Offline")}  {(c.IsPinned ? "◆ " : "")}{(c.IsMuted ? "Im lặng  " : "")}" +
             (c.LastMessageTicks > 0 ? new DateTime(c.LastMessageTicks, DateTimeKind.Utc).ToLocalTime().ToString("HH:mm") : "");
         BackColor = active ? Color.FromArgb(228, 237, 255) : Color.White;
     }

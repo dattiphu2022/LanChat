@@ -12,7 +12,7 @@ public sealed partial class MainForm
     // Explicit debug-only integration harness: uses two separate processes and isolated data directories.
     internal async Task VerifyUiAsync(string reportPath)
     {
-        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(40));
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(110));
         var captures = new List<string>();
         try
         {
@@ -37,6 +37,42 @@ public sealed partial class MainForm
                 await File.WriteAllTextAsync(Path.ChangeExtension(reportPath, $"{size.Width}.layout.json"), JsonSerializer.Serialize(Describe(this), new JsonSerializerOptions { WriteIndented = true }));
                 VerifyVisibleControls();
             }
+            var own = messages.Single(m => m.SenderUserId == profile.Id); var theirs = messages.Single(m => m.SenderUserId != profile.Id);
+            await MessageActionAsync(own, "edit"); await _chat.SubmitForVerificationAsync("Nội dung đã sửa từ " + profile.DisplayName);
+            await MessageActionAsync(theirs, "react:👍"); await MessageActionAsync(theirs, "reply");
+            var textFile = Path.ChangeExtension(reportPath, "attachment.txt"); await File.WriteAllTextAsync(textFile, "Tệp thử nghiệm của " + profile.DisplayName, deadline.Token);
+            var imageFile = Path.ChangeExtension(reportPath, "attachment.png");
+            using (var bitmap = new Bitmap(128, 128)) { using var graphics = Graphics.FromImage(bitmap); graphics.Clear(Color.CornflowerBlue); graphics.DrawString(profile.DisplayName, Font, Brushes.White, new PointF(12, 50)); bitmap.Save(imageFile, ImageFormat.Png); }
+            ClientSize = new Size(1240, 800); _chat.DropForVerification([textFile, imageFile]); await Task.Delay(200, deadline.Token);
+            var previewPath = Path.ChangeExtension(reportPath, "drop-preview.png"); CaptureForm(this, previewPath); captures.Add(previewPath);
+            await _chat.SubmitForVerificationAsync("Trả lời kèm hai tệp");
+            AttachmentDto[] attachments;
+            do { await Task.Delay(200, deadline.Token); messages = await _store.GetMessagesAsync(conversation, ct: deadline.Token); attachments = await Distributed.GetAttachmentsAsync(conversation, deadline.Token); }
+            while (messages.Count != 4 || attachments.Length != 4 || messages.Count(m => m.IsEdited) != 2);
+            foreach (var attachment in attachments)
+            {
+                var path = await Files.DownloadAsync(attachment, ct: deadline.Token);
+                await using var input = File.OpenRead(path);
+                var hash = Convert.ToHexString(await System.Security.Cryptography.SHA256.HashDataAsync(input, deadline.Token));
+                if (!hash.Equals(attachment.Sha256, StringComparison.OrdinalIgnoreCase)) throw new InvalidDataException("Tệp nhận không khớp SHA256.");
+            }
+            using (var viewer = new AttachmentForm(attachments.First(x => x.MimeType == "image/png"), Files))
+            { viewer.Show(this); await Task.Delay(350, deadline.Token); var path = Path.ChangeExtension(reportPath, "image-preview.png"); CaptureForm(viewer, path); captures.Add(path); viewer.Close(); }
+            if (profile.DisplayName.EndsWith("A", StringComparison.Ordinal))
+            {
+                var command = new ControlCommand(Guid.CreateVersion7(), Domain.ControlCommandType.GroupCreated, profile.Id, Guid.CreateVersion7(), "Nhóm thử nghiệm LAN", Members: [profile.Id, other.UserId]);
+                ControlResult result;
+                do { await Task.Delay(500, deadline.Token); result = await Consensus.ProposeAsync(command, deadline.Token); } while (!result.Success);
+            }
+            GroupSummary[] groups;
+            do { await Task.Delay(250, deadline.Token); groups = await Distributed.GetGroupsAsync(deadline.Token); } while (groups.Length == 0);
+            var group = groups[0]; await SelectConversationAsync(group.Id, Guid.Empty); await _chat.SubmitForVerificationAsync("Xin chào nhóm từ " + profile.DisplayName);
+            IReadOnlyList<Domain.Message> groupMessages;
+            do { await Task.Delay(200, deadline.Token); groupMessages = await _store.GetMessagesAsync(group.Id, ct: deadline.Token); } while (groupMessages.Count < 3);
+            await RefreshAsync(); await Task.Delay(300, deadline.Token);
+            var groupPath = Path.ChangeExtension(reportPath, "group-chat.png"); CaptureForm(this, groupPath); captures.Add(groupPath);
+            using (var manager = ActivatorUtilities.CreateInstance<GroupsForm>(_services))
+            { manager.Show(this); await Task.Delay(500, deadline.Token); var path = Path.ChangeExtension(reportPath, "groups.png"); CaptureForm(manager, path); captures.Add(path); manager.Close(); }
             using (var settings = ActivatorUtilities.CreateInstance<SettingsForm>(_services))
             {
                 settings.Show(this); await Task.Delay(350, deadline.Token);
@@ -49,7 +85,11 @@ public sealed partial class MainForm
             }
             var identity = await _store.GetIdentityAsync(deadline.Token);
             await File.WriteAllTextAsync(reportPath, JsonSerializer.Serialize(new { Success = true, identity.NodeId, identity.UserId,
-                Messages = messages.Select(x => new { x.Id, x.Text, x.Status }).ToArray(), Captures = captures }, new JsonSerializerOptions { WriteIndented = true }), deadline.Token);
+                Messages = messages.Select(x => new { x.Id, x.Text, x.Status, x.IsEdited, x.ReplyToMessageId }).ToArray(),
+                GroupId = group.Id, GroupMessageIds = groupMessages.Select(x => x.Id).ToArray(), VerifiedFiles = attachments.Length,
+                Consensus = await Consensus.GetStatusAsync(deadline.Token), Captures = captures }, new JsonSerializerOptions { WriteIndented = true }), deadline.Token);
+            var partnerReport = Path.Combine(Path.GetDirectoryName(reportPath)!, profile.DisplayName.EndsWith("A", StringComparison.Ordinal) ? "B.json" : "A.json");
+            while (!File.Exists(partnerReport)) await Task.Delay(200, deadline.Token);
         }
         catch (Exception ex)
         {

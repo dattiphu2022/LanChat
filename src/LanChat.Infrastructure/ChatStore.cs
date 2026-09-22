@@ -4,10 +4,10 @@ using Microsoft.EntityFrameworkCore;
 
 namespace LanChat.Infrastructure;
 
-public sealed class ChatStore(IDbContextFactory<ChatDbContext> factory, NodeOptions options) : IChatStore, IDisposable
+public sealed partial class ChatStore(IDbContextFactory<ChatDbContext> factory, NodeOptions options, NodeRuntimeState runtime, FaultInjection faults) : IChatStore, IDistributedStore, IDisposable
 {
     private readonly SemaphoreSlim _write = new(1, 1);
-    private async Task<T> WriteAsync<T>(Func<ChatDbContext, Task<T>> action, CancellationToken ct)
+    internal async Task<T> WriteAsync<T>(Func<ChatDbContext, Task<T>> action, CancellationToken ct)
     {
         await _write.WaitAsync(ct);
         try
@@ -36,10 +36,11 @@ public sealed class ChatStore(IDbContextFactory<ChatDbContext> factory, NodeOpti
             {
                 var user = new LocalUserProfile { Id = Guid.CreateVersion7(), DisplayName = options.InitialDisplayName };
                 db.Users.Add(user);
-                db.Settings.Add(new LocalSettings { Id = Guid.CreateVersion7(), NodeId = Guid.CreateVersion7(), UserId = user.Id, CreatedAtTicks = DateTime.UtcNow.Ticks });
+                db.Settings.Add(new LocalSettings { Id = Guid.CreateVersion7(), NodeId = options.InitialNodeId ?? Guid.CreateVersion7(), UserId = user.Id, CreatedAtTicks = DateTime.UtcNow.Ticks, ClusterId = options.ClusterId });
             }
             return true;
         }, ct);
+        await InitializeDistributedAsync(ct);
     }
 
     public async Task<NodeIdentity> GetIdentityAsync(CancellationToken ct = default)
@@ -63,6 +64,7 @@ public sealed class ChatStore(IDbContextFactory<ChatDbContext> factory, NodeOpti
             var local = await db.Settings.SingleAsync(ct);
             if (profile.Id != local.UserId) throw new InvalidOperationException("Không thể đổi định danh người dùng.");
             db.Users.Update(profile);
+            await EmitAsync(db, local, ReplicationEventType.UserProfileUpdated, profile.Id, null, ToProfile(profile), ct);
             return true;
         }, ct);
     }
@@ -70,13 +72,16 @@ public sealed class ChatStore(IDbContextFactory<ChatDbContext> factory, NodeOpti
     {
         var identity = await GetIdentityAsync(ct);
         var p = await GetProfileAsync(ct);
+        await using var db = await factory.CreateDbContextAsync(ct);
+        var state = await db.Cluster.AsNoTracking().SingleOrDefaultAsync(ct);
         return new(identity.NodeId, identity.DeviceName, options.ServicePort,
-            new(p.Id, p.DisplayName, p.FullName, p.Nickname, p.Department, p.Position, p.Phone, p.StatusMessage));
+            new(p.Id, p.DisplayName, p.FullName, p.Nickname, p.Department, p.Position, p.Phone, p.StatusMessage),
+            Role: runtime.Role, Term: state?.CurrentTerm ?? 0);
     }
 
     private static async Task UpsertPeerAsync(ChatDbContext db, NodeInfoDto peer, string address, CancellationToken ct)
     {
-        if (peer.ProtocolVersion != 1 || peer.NodeId == Guid.Empty || peer.User.Id == Guid.Empty ||
+        if (peer.ProtocolVersion != 2 || peer.NodeId == Guid.Empty || peer.User.Id == Guid.Empty ||
             peer.ServicePort is < 1024 or > 65535 || string.IsNullOrWhiteSpace(peer.User.DisplayName) || peer.User.DisplayName.Length > 100)
             throw new InvalidDataException("Thông tin peer không hợp lệ.");
         var known = await db.Peers.SingleOrDefaultAsync(x => x.NodeId == peer.NodeId, ct);
@@ -87,6 +92,7 @@ public sealed class ChatStore(IDbContextFactory<ChatDbContext> factory, NodeOpti
         }
         known.UserId = peer.User.Id; known.DeviceName = peer.DeviceName;
         known.IPAddress = address; known.ServicePort = peer.ServicePort; known.LastSeenTicks = DateTime.UtcNow.Ticks;
+        known.Role = peer.Role; known.Term = peer.Term; known.ApplicationVersion = peer.ApplicationVersion;
         var user = await db.Users.SingleOrDefaultAsync(x => x.Id == peer.User.Id, ct);
         if (user is null) { user = new LocalUserProfile { Id = peer.User.Id }; db.Users.Add(user); }
         user.DisplayName = peer.User.DisplayName; user.FullName = peer.User.FullName; user.Nickname = peer.User.Nickname;
@@ -136,17 +142,29 @@ public sealed class ChatStore(IDbContextFactory<ChatDbContext> factory, NodeOpti
     {
         var users = (await GetUsersAsync(search, ct)).ToDictionary(x => x.UserId);
         await using var db = await factory.CreateDbContextAsync(ct);
+        var local = (await db.Settings.SingleAsync(ct)).UserId;
         var conversations = await db.Conversations.AsNoTracking().ToListAsync(ct);
         var members = await db.Members.AsNoTracking().ToListAsync(ct);
         var result = new List<ConversationSummary>();
         foreach (var c in conversations)
         {
+            if (!members.Any(x => x.ConversationId == c.Id && x.UserId == local)) continue;
+            if (c.Kind == ConversationKind.Group)
+            {
+                var group = await db.Groups.AsNoTracking().SingleOrDefaultAsync(x => x.Id == c.Id && !x.IsDeleted, ct);
+                if (group is null || (search.Length > 0 && !group.Name.Contains(search, StringComparison.OrdinalIgnoreCase))) continue;
+                var groupLast = await db.Messages.AsNoTracking().Where(x => x.ConversationId == c.Id && !x.IsDeletedLocal)
+                    .OrderByDescending(x => x.PhysicalTicks).ThenByDescending(x => x.LogicalCounter).ThenByDescending(x => x.OriginNodeId).ThenByDescending(x => x.Id).FirstOrDefaultAsync(ct);
+                var groupUnread = await db.Messages.CountAsync(x => x.ConversationId == c.Id && x.SenderUserId != local && !x.IsRead && !x.IsDeletedLocal, ct);
+                result.Add(new(c.Id, Guid.Empty, group.Name, groupLast?.Text ?? "Nhóm mới", groupLast?.CreatedAtTicks ?? 0, groupUnread,
+                    c.IsPinned, c.IsMuted, PresenceStatus.Unknown, ConversationKind.Group)); continue;
+            }
             var otherId = members.FirstOrDefault(x => x.ConversationId == c.Id && users.ContainsKey(x.UserId))?.UserId;
             if (otherId is null) continue;
             var u = users[otherId.Value];
-            var last = await db.Messages.AsNoTracking().Where(x => x.ConversationId == c.Id)
+            var last = await db.Messages.AsNoTracking().Where(x => x.ConversationId == c.Id && !x.IsDeletedLocal)
                 .OrderByDescending(x => x.PhysicalTicks).ThenByDescending(x => x.LogicalCounter).ThenByDescending(x => x.OriginNodeId).ThenByDescending(x => x.Id).FirstOrDefaultAsync(ct);
-            var unread = await db.Messages.CountAsync(x => x.ConversationId == c.Id && x.SenderUserId == u.UserId && !x.IsRead, ct);
+            var unread = await db.Messages.CountAsync(x => x.ConversationId == c.Id && x.SenderUserId == u.UserId && !x.IsRead && !x.IsDeletedLocal, ct);
             result.Add(new(c.Id, u.UserId, u.DisplayName, last?.Text ?? "Bắt đầu trò chuyện", last?.CreatedAtTicks ?? 0, unread, c.IsPinned, c.IsMuted, u.Presence));
         }
         return result.OrderByDescending(x => x.IsPinned).ThenByDescending(x => x.LastMessageTicks).ToArray();
@@ -154,7 +172,7 @@ public sealed class ChatStore(IDbContextFactory<ChatDbContext> factory, NodeOpti
     public async Task<IReadOnlyList<Message>> GetMessagesAsync(Guid conversationId, long? beforeTicks = null, CancellationToken ct = default, int limit = 200)
     {
         await using var db = await factory.CreateDbContextAsync(ct);
-        var query = db.Messages.AsNoTracking().Where(x => x.ConversationId == conversationId);
+        var query = db.Messages.AsNoTracking().Where(x => x.ConversationId == conversationId && !x.IsDeletedLocal);
         if (beforeTicks.HasValue) query = query.Where(x => x.PhysicalTicks < beforeTicks.Value);
         var page = await query.OrderByDescending(x => x.PhysicalTicks).ThenByDescending(x => x.LogicalCounter)
             .ThenByDescending(x => x.OriginNodeId).ThenByDescending(x => x.Id).Take(Math.Max(1, limit)).ToListAsync(ct);
@@ -170,7 +188,10 @@ public sealed class ChatStore(IDbContextFactory<ChatDbContext> factory, NodeOpti
             SenderUserId = s.UserId, RecipientUserId = recipientId, OriginNodeId = s.NodeId, OriginSequence = ++s.LastSequence,
             Kind = MessageKind.Text, Text = text, CreatedAtTicks = DateTime.UtcNow.Ticks, PhysicalTicks = s.PhysicalTicks,
             LogicalCounter = s.LogicalCounter, Status = MessageStatus.LocalPending, IsRead = true };
-        db.Messages.Add(message); return message;
+        db.Messages.Add(message);
+        await db.SaveChangesAsync(ct);
+        await EmitMessageAsync(db, s, message, null, ct);
+        return message;
     }, ct);
 
     public async Task ReceiveAsync(ChatPushDto push, string address, CancellationToken ct = default)
@@ -239,7 +260,13 @@ public sealed class ChatStore(IDbContextFactory<ChatDbContext> factory, NodeOpti
             if (markRead)
             {
                 c.LastReadTicks = DateTime.UtcNow.Ticks;
-                await db.Messages.Where(x => x.ConversationId == id && !x.IsRead).ExecuteUpdateAsync(x => x.SetProperty(m => m.IsRead, true), ct);
+                var s = await db.Settings.SingleAsync(ct);
+                var unread = await db.Messages.Where(x => x.ConversationId == id && !x.IsRead).ToListAsync(ct);
+                foreach (var m in unread)
+                {
+                    m.IsRead = true;
+                    await EmitAsync(db, s, ReplicationEventType.ReceiptUpdated, m.Id, id, new ReceiptChange(true, DateTime.UtcNow.Ticks), ct);
+                }
             }
             return true;
         }, ct);

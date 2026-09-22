@@ -7,10 +7,18 @@ public sealed class NodeOptions
     public string DataDirectory { get; set; } = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LanChat", "Data");
     public int ServicePort { get; set; } = 54546;
     public int DiscoveryPort { get; set; } = 54545;
+    public bool OverrideServicePort { get; set; }
+    public bool OverrideDiscoveryPort { get; set; }
     public Guid ClusterId { get; set; }
     public byte[] ClusterSecret { get; set; } = [];
     public List<string> DiscoveryTargets { get; set; } = [];
     public string InitialDisplayName { get; set; } = Environment.UserName;
+    public Guid BootstrapNodeId { get; set; }
+    public Guid? InitialNodeId { get; set; }
+    public byte[] TlsCertificatePfx { get; set; } = [];
+    public TimeSpan LeaderTimeout { get; set; } = TimeSpan.FromSeconds(15);
+    public TimeSpan HeartbeatInterval { get; set; } = TimeSpan.FromSeconds(2);
+    public TimeSpan ReconciliationInterval { get; set; } = TimeSpan.FromSeconds(25);
 }
 
 public sealed record UserProfileDto(Guid Id, string DisplayName, string? FullName, string? Nickname,
@@ -19,7 +27,7 @@ public sealed record DiscoveredPeerDto(Guid NodeId, Guid UserId, string DisplayN
     string IPAddress, int ServicePort, NodeRole CurrentRole, long Term, int ProtocolVersion,
     string ApplicationVersion, Guid ClusterId);
 public sealed record NodeInfoDto(Guid NodeId, string DeviceName, int ServicePort, UserProfileDto User,
-    int ProtocolVersion = 1, string ApplicationVersion = "0.1.0");
+    int ProtocolVersion = 2, string ApplicationVersion = "1.0.0", NodeRole Role = NodeRole.Follower, long Term = 0);
 public sealed record ChatMessageDto(Guid Id, Guid ClientMessageId, Guid ConversationId, Guid SenderUserId,
     Guid RecipientUserId, Guid OriginNodeId, long OriginSequence, MessageKind Kind, string Text,
     long CreatedAtTicks, long PhysicalTicks, int LogicalCounter);
@@ -28,7 +36,7 @@ public sealed record ChatAckDto(Guid MessageId);
 public sealed record UserSummary(Guid UserId, string DisplayName, string? Department, string DeviceName,
     string IPAddress, int ServicePort, Guid NodeId, long LastSeenTicks, PresenceStatus Presence);
 public sealed record ConversationSummary(Guid Id, Guid OtherUserId, string DisplayName, string Preview,
-    long LastMessageTicks, int UnreadCount, bool IsPinned, bool IsMuted, PresenceStatus Presence);
+    long LastMessageTicks, int UnreadCount, bool IsPinned, bool IsMuted, PresenceStatus Presence, ConversationKind Kind = ConversationKind.Direct);
 public sealed record NetworkInfo(string Adapter, string Address, string Mask, int PrefixLength,
     string Network, string Broadcast, string FirstHost, string LastHost, long HostCount, string? Gateway);
 public sealed record DiagnosticsSnapshot(NodeIdentity Identity, int OnlinePeers, int PendingMessages,

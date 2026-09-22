@@ -3,6 +3,7 @@ using LanChat.Application;
 using LanChat.Domain;
 using LanChat.Infrastructure;
 using LanChat.WinForms.Controls;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace LanChat.WinForms.Forms;
 
@@ -16,13 +17,16 @@ public sealed class SettingsForm : Form
     private readonly TextBox _network = new() { Multiline = true, ReadOnly = true, Dock = DockStyle.Fill, ScrollBars = ScrollBars.Both };
     private readonly TextBox _cluster = new() { Multiline = true, ReadOnly = true, Dock = DockStyle.Fill };
     private string? _avatarPath;
-    public SettingsForm(IChatStore store, NodeOptions options, ILocalNetworkInfoProvider networks)
+    public SettingsForm(IChatStore store, NodeOptions options, ILocalNetworkInfoProvider networks, IConsensusService consensus, ILanScanner scanner, IServiceProvider services)
     {
         _store = store; _options = options; _networks = networks;
         Text = "Cài đặt LanChat"; StartPosition = FormStartPosition.CenterParent; ClientSize = new Size(740, 640); MinimumSize = new Size(650, 600); Font = new Font("Segoe UI", 10);
         var tabs = new TabControl { Dock = DockStyle.Fill };
         var profile = new TabPage("Hồ sơ"); var network = new TabPage("Mạng"); var cluster = new TabPage("Mạng chat"); var storage = new TabPage("Lưu trữ");
-        tabs.TabPages.AddRange([profile, network, cluster, storage]); Controls.Add(tabs);
+        var diagnostics = new TabPage("Chẩn đoán");
+        tabs.TabPages.AddRange([profile, network, cluster, storage, diagnostics]); Controls.Add(tabs);
+        var showDiagnostics = Theme.Button("Mở chẩn đoán mạng chat"); diagnostics.Controls.Add(showDiagnostics);
+        showDiagnostics.Click += (_, _) => { using var form = ActivatorUtilities.CreateInstance<ClusterDiagnosticsForm>(services); form.ShowDialog(this); };
         var fields = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 10, Padding = new Padding(14) };
         fields.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 145)); fields.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         var labels = new[] { ("DisplayName", "Tên hiển thị *"), ("FullName", "Họ và tên"), ("Nickname", "Biệt danh"), ("Department", "Đơn vị"),
@@ -36,7 +40,10 @@ public sealed class SettingsForm : Form
         var save = Theme.Button("Lưu hồ sơ"); fields.Controls.Add(save, 1, 8); profile.Controls.Add(fields);
         avatar.Click += (_, _) => { using var picker = new OpenFileDialog { Filter = "Ảnh|*.jpg;*.jpeg;*.png;*.bmp" }; if (picker.ShowDialog(this) == DialogResult.OK) _avatarPath = picker.FileName; };
         save.Click += async (_, _) => await SaveAsync(save);
-        network.Controls.Add(_network);
+        var networkLayout = Theme.Stack(2); networkLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100)); networkLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 52));
+        var scan = Theme.Button("Quét mạng"); networkLayout.Controls.Add(_network, 0, 0); networkLayout.Controls.Add(scan, 0, 1); network.Controls.Add(networkLayout);
+        var scanLifetime = new CancellationTokenSource(); FormClosed += (_, _) => scanLifetime.Cancel();
+        scan.Click += async (_, _) => { scan.Enabled = false; try { var peers = await scanner.ScanAsync(scanLifetime.Token); if (!IsDisposed) MessageBox.Show(this, $"Đã tìm thấy {peers.Count} thiết bị."); } catch (OperationCanceledException) { } catch (Exception ex) { if (!IsDisposed) MessageBox.Show(this, ex.Message); } finally { if (!IsDisposed) scan.Enabled = true; } };
         var clusterLayout = Theme.Stack(3); clusterLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 150)); clusterLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 50)); clusterLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         clusterLayout.Controls.Add(_cluster, 0, 0);
         var showCode = Theme.Button("Hiện mã mời tham gia"); clusterLayout.Controls.Add(showCode, 0, 1);
@@ -54,8 +61,9 @@ public sealed class SettingsForm : Form
                 _fields["DisplayName"].Text = _profile.DisplayName; _fields["FullName"].Text = _profile.FullName; _fields["Nickname"].Text = _profile.Nickname;
                 _fields["Department"].Text = _profile.Department; _fields["Position"].Text = _profile.Position; _fields["Phone"].Text = _profile.Phone; _fields["StatusMessage"].Text = _profile.StatusMessage;
                 var id = await store.GetIdentityAsync();
-                _cluster.Text = $"Cluster: {options.ClusterId}\r\nNode: {id.NodeId}\r\nUser: {id.UserId}\r\nChat trực tiếp giữa các máy trong mạng nội bộ.";
-                _network.Text = $"TCP: {options.ServicePort}   UDP: {options.DiscoveryPort}\r\n\r\n" + string.Join("\r\n\r\n", networks.GetNetworks().Select(n =>
+                var state = await consensus.GetStatusAsync();
+                _cluster.Text = $"Cluster: {options.ClusterId}\r\nNode: {id.NodeId}\r\nUser: {id.UserId}\r\nLeader: {state.LeaderNodeId}\r\nPeers đã biết: {(await store.GetUsersAsync()).Count} · Dữ liệu được đồng bộ giữa các máy.";
+                _network.Text = $"TCP/TLS: {options.ServicePort}   UDP: {options.DiscoveryPort}\r\nLeader: {state.LeaderNodeId}\r\nRole: {state.Role} · Term: {state.Term}\r\n\r\n" + string.Join("\r\n\r\n", networks.GetNetworks().Select(n =>
                     $"{n.Adapter}\r\nIPv4: {n.Address}/{n.PrefixLength}\r\nMask: {n.Mask}\r\nNetwork: {n.Network}    Broadcast: {n.Broadcast}\r\nHosts: {n.FirstHost} → {n.LastHost}\r\nGateway: {n.Gateway}"));
             }
             catch (Exception ex) { MessageBox.Show(this, ex.Message, "Không tải được cài đặt"); }

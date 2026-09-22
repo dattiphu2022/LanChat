@@ -1,29 +1,37 @@
 # LanChat — Chat nội bộ P2P bằng .NET 9 WinForms
 
-Phase 1 đã triển khai: mỗi instance có SQLite và UserId/NodeId riêng, tự tìm peer trong cùng cluster, chat trực tiếp qua TCP, lưu tin trước khi gửi và tự thử lại khi người nhận kết nối lại. Không có server cố định, không dùng giao diện web, không cần Internet khi chạy.
+Đã triển khai Phase 1–5: chat trực tiếp/nhóm, tự bầu điều phối, lịch sử và sự kiện đồng bộ giữa các máy, làm việc khi mất kết nối, tệp P2P, tìm kiếm, TLS/HMAC và chẩn đoán. Ứng dụng chạy hoàn toàn trong LAN, giao diện WinForms native; mỗi máy có SQLite riêng.
 
-## Mở bản đã build
+## Mở bản chạy
 
-Trên máy Windows đã có **.NET 9 Desktop Runtime**, mở:
+Mở **`artifacts/LanChat-1.0/LanChat.WinForms.exe`**. Khi chuyển sang máy khác, sao chép **toàn bộ thư mục** `artifacts/LanChat-1.0`. Bản này cần **.NET 9 Desktop Runtime** trên Windows.
 
-```text
-artifacts\Phase1\LanChat.WinForms.exe
-```
+1. Máy đầu tiên nhập tên và chọn **Tạo mạng chat**.
+2. Vào **Cài đặt → Mạng chat → Hiện mã mời tham gia**, chia sẻ mã cho người được phép tham gia.
+3. Máy khác nhập tên, dán cùng mã và chọn **Tham gia**. Các máy cần cùng LAN và cổng UDP discovery.
+4. Vào **Người dùng**, chọn tên để chat. Tin được lưu trước khi gửi ra mạng.
+5. Vào **Nhóm**, chọn thành viên và tạo nhóm. Chủ nhóm có thể đổi tên/ảnh, thêm/xóa thành viên, chuyển quyền và xóa nhóm.
+6. Kéo nhiều tệp vào khung chat hoặc bấm **＋**; kiểm tra preview rồi bấm **Gửi**. Bấm tên tệp trong tin nhắn để tải, xem ảnh hoặc **Lưu thành…**.
+7. Nhấp phải tin nhắn để trả lời, sao chép, chuyển tiếp, cảm xúc, sửa, thu hồi hoặc xóa phía tôi. Tìm nội dung tại **Tìm tin nhắn**; nhấp đúp kết quả để xem vị trí trong lịch sử.
 
-Khi chuyển sang máy khác, sao chép **toàn bộ thư mục** `artifacts\Phase1`, không chỉ tệp EXE. Đây là bản framework-dependent, chưa kèm runtime.
+**Enter** gửi, **Shift+Enter** xuống dòng. Tin đã đồng bộ nghĩa là có ít nhất một bản sao tại peer khác; “đã nhận” và “đã đọc” dựa trên receipt của người tham gia. Ghim, im lặng và xóa phía tôi chỉ áp dụng trên máy này.
 
-1. Máy A: nhập tên, chọn **Tạo mạng chat**.
-2. Trong **Cài đặt → Mạng chat → Hiện mã mời tham gia**, sao chép mã và cung cấp cho máy B.
-3. Máy B: nhập tên, dán mã, chọn **Tham gia**. Hai máy cần cùng mạng LAN và cùng cổng discovery.
-4. Mở **Người dùng**, chọn người cần chat. UDP discovery chạy mỗi 5 giây.
-5. Nhập tin, bấm **Gửi** hoặc Enter. Shift+Enter xuống dòng. Tin chưa giao được có trạng thái **Chưa đồng bộ**; nhận ACK sau khi máy kia lưu DB thì đổi sang **Đã nhận**.
-6. Nếu không thấy người dùng, chọn **Quét lại mạng**. Nút đổi thành **Dừng quét** trong lúc quét TCP.
+Nên có **ít nhất 3 máy đã tham gia ổn định** để chịu được một máy mất kết nối mà vẫn thay đổi nhóm được. Với 2 voter, cần cả hai cho quorum. Khi thiếu quorum, chat vẫn lưu local và đồng bộ qua các peer còn kết nối; các thay đổi cấu trúc nhóm bị từ chối.
 
-Không cần nhập IP server. Mỗi máy cần tạo dữ liệu riêng; không sao chép database của A sang B.
+## Nâng cấp từ Phase 1
 
-## Build, test và chạy từ source
+Đóng ứng dụng và sao lưu toàn bộ thư mục dữ liệu trên từng máy trước khi dùng bản mới.
 
-PowerShell, thư mục làm việc:
+- Mỗi máy vẫn dùng thư mục dữ liệu cũ của chính nó; giữ nguyên UserId/NodeId và lịch sử.
+- Cửa sổ **Nâng cấp mạng chat** xuất hiện với cấu hình cũ. Chọn **một máy duy nhất** tạo mã nâng cấp, áp dụng trên máy đó rồi nhập **cùng mã** cho các máy khác.
+- Máy tạo mã cần trực tuyến trong giai đoạn thiết lập membership ban đầu. Sau khi có đủ voter, các máy có thể tự bầu điều phối mới.
+- Migration tự thêm bảng sự kiện/outbox/cursor/control log và chỉ mục tìm kiếm; tin cũ được bổ sung vào event store một lần.
+- Protocol 2 không trao đổi với ứng dụng Phase 1. Nâng cấp tất cả máy trong cùng đợt.
+- Không ghép database của hai cluster và không chép database máy A thành dữ liệu cho máy B.
+
+## Build, test và publish
+
+PowerShell tại thư mục solution:
 
 ```powershell
 Set-Location 'C:\Users\Admin\source\repos\dattiphu2022\LANChatAppByMrD'
@@ -33,92 +41,64 @@ dotnet test tests/LanChat.Tests --no-restore
 dotnet run --project src/LanChat.WinForms --no-build
 ```
 
-Project khởi động trong Visual Studio: **LanChat.WinForms**. Cần SDK có thể target .NET 9 và thành phần Windows Desktop. Máy phát triển này đã build bằng SDK 10.0.400, chạy trên .NET 9.0.19.
-
-Publish:
+Project khởi động trong Visual Studio: **LanChat.WinForms**. Môi trường kiểm tra: SDK 10.0.400, target .NET 9, Windows Desktop Runtime 9.0.19.
 
 ```powershell
-dotnet publish src/LanChat.WinForms -c Release --self-contained false -o artifacts/Phase1
+dotnet publish src/LanChat.WinForms -c Release --no-restore --self-contained false -o artifacts/LanChat-1.0
 ```
 
-## Hai instance trên cùng máy
-
-Mở hai cửa sổ PowerShell ở thư mục solution:
+Hai instance thử thủ công trên cùng máy, mỗi lệnh ở một cửa sổ:
 
 ```powershell
-# Instance A
 dotnet run --project src/LanChat.WinForms --no-build -- --data-dir .codex-temp/manual-A --port 54546
-```
-
-```powershell
-# Instance B: TCP khác, UDP vẫn cùng cổng để broadcast tự tìm nhau
 dotnet run --project src/LanChat.WinForms --no-build -- --data-dir .codex-temp/manual-B --port 54547
 ```
 
-Tạo cluster ở A rồi nhập cùng mã ở B như hướng dẫn trên. Mỗi instance giữ nguyên `--data-dir` và cổng khi mở lại. Không dùng cùng thư mục dữ liệu cho hai tiến trình; ứng dụng có khóa chống mở trùng.
+Dùng cùng mã mời, giữ nguyên thư mục dữ liệu khi mở lại. Cổng được lưu trong cấu hình; tham số cổng trên dòng lệnh có quyền ưu tiên. Một thư mục chỉ được mở bởi một instance.
 
-Kiểm tra tự động bằng hai **tiến trình WinForms thật**, có chụp giao diện và tự đóng các tiến trình do bài kiểm tra tạo:
+Kiểm tra tự động **hai tiến trình WinForms thật**, tạo dữ liệu riêng, chụp giao diện và tự đóng:
 
 ```powershell
 dotnet build LanChat.sln
-# UDP broadcast mặc định, không cấu hình endpoint peer
-pwsh -File scripts/Verify-TwoInstances.ps1 -UseBroadcast
-# Kiểm tra độc lập với chính sách broadcast: UDP loopback giữa hai cổng
-pwsh -File scripts/Verify-TwoInstances.ps1
+pwsh -NoProfile -File scripts/Verify-TwoInstances.ps1 -UseBroadcast
+# Hoặc dùng UDP loopback để kiểm tra độc lập với chính sách broadcast:
+pwsh -NoProfile -File scripts/Verify-TwoInstances.ps1
 ```
 
-Script yêu cầu **PowerShell 7**, tạo dữ liệu mẫu trong `.codex-temp/two-instances-<thời điểm>` và không ghi vào dữ liệu sử dụng thật. Dữ liệu mẫu gồm hai hồ sơ, cùng mã cluster, hai lời chào nhiều dòng/Unicode. Mỗi lần chạy tạo thư mục mới; để bắt đầu lại chỉ cần chạy lại script. Không có lệnh reset/xóa dữ liệu thật.
+Script cần PowerShell 7. Mỗi lần tạo thư mục `.codex-temp/two-instances-<thời điểm>`, không ghi vào dữ liệu thật. Dữ liệu mẫu gồm hai hồ sơ, chat, nhóm, ảnh và tệp. Muốn bắt đầu lại chỉ cần chạy lại script; không cần xóa/reset database đang dùng. Hook kiểm tra và các nút mô phỏng lỗi chỉ có trong Debug.
 
-Các tệp `A.json`, `B.json`, ảnh `.png`, cây layout và database được giữ lại để kiểm tra. Chế độ `--verify-ui` chỉ tồn tại trong Debug. Chi tiết kết quả thực tế: [docs/VERIFICATION.md](docs/VERIFICATION.md).
+## Mạng
 
-## Mạng và Firewall
+Mặc định **UDP 54545** discovery; **TCP/TLS 54546** cho sự kiện, điều phối và truyền tệp. Không cần IP server cố định. UDP công bố cổng TCP của peer; quét TCP fallback dò cổng service đang cấu hình.
 
-Mặc định: **UDP 54545** cho discovery, **TCP 54546** cho chat và NodeInfo. UDP response công bố TCP port riêng nên hai instance trên một máy có thể dùng hai TCP port khác nhau.
+Subnet tính từ IPv4 và mask thật; ưu tiên Ethernet/Wi-Fi đang hoạt động, lọc adapter ảo/VPN phổ biến. Quét có cancellation, 32 kết nối song song và timeout 600 ms; không phụ thuộc ping. Discovery chạy mỗi 5 giây, quét tự động mỗi 120 giây với mạng tối đa 4.096 host.
 
-Nếu Windows Firewall hỏi, chỉ cho phép ứng dụng trên mạng nội bộ tin cậy. Có thể nhờ quản trị viên chạy các lệnh dưới đây trong PowerShell Administrator trên từng máy; dự án **không tự sửa firewall**:
+Nếu Windows Firewall hỏi, cho phép trên mạng nội bộ tin cậy. Quản trị viên có thể tạo rule trên từng máy; ứng dụng không tự sửa firewall:
 
 ```powershell
-$lanChatExe = (Resolve-Path '.\artifacts\Phase1\LanChat.WinForms.exe').Path
+$lanChatExe = (Resolve-Path '.\artifacts\LanChat-1.0\LanChat.WinForms.exe').Path
 New-NetFirewallRule -DisplayName 'LanChat TCP Private' -Direction Inbound -Program $lanChatExe -Protocol TCP -LocalPort 54546 -RemoteAddress LocalSubnet -Profile Private -Action Allow
 New-NetFirewallRule -DisplayName 'LanChat UDP Private' -Direction Inbound -Program $lanChatExe -Protocol UDP -LocalPort 54545 -RemoteAddress LocalSubnet -Profile Private -Action Allow
 ```
 
-Sửa TCP port trong rule nếu dùng cổng khác. Máy khác/VLAN khác, Wi-Fi client isolation hoặc mạng chặn broadcast có thể cần quản trị viên điều chỉnh. TCP scan chỉ tìm cổng service đang cấu hình; không dò tất cả cổng.
+Sửa cổng theo cấu hình. VLAN, Wi-Fi client isolation và policy broadcast cần kiểm tra tại nơi triển khai.
 
-Thông tin mạng lấy bằng `NetworkInterface.GetAllNetworkInterfaces()`: IPv4/mask/gateway, ưu tiên Ethernet/Wi-Fi đang Up, lọc adapter ảo/VPN phổ biến. Tính subnet theo mask thật, không hard-code /24. Tên adapter ảo do nhà cung cấp tùy biến có thể cần bổ sung bộ lọc.
+## Dữ liệu và giới hạn cần biết
 
-Scan TCP: 32 kết nối song song, timeout 600 ms, bỏ địa chỉ máy mình/network/broadcast, không cần ping. Quét tự động sau 10 giây rồi mỗi 120 giây với tổng subnet tối đa 4.096 host để tránh tạo lưu lượng lớn. Quét thủ công vẫn hỗ trợ subnet lớn, duyệt địa chỉ từng phần và cho phép hủy. /31 và /32 dùng quy tắc point-to-point/host route.
+- Dữ liệu mặc định: `%LOCALAPPDATA%\LanChat\Data`. SQLite WAL, event/projection/outbox cùng transaction; không dùng SQLite qua network share hoặc thư mục liên kết.
+- Tất cả node trong cluster giữ lịch sử, kể cả hội thoại không hiển thị trên giao diện của người đó. **Cluster là một miền tin cậy chung; đây không phải mã hóa đầu cuối giữa riêng hai người.**
+- TCP dùng TLS 1.2/1.3 với certificate pin từ mã mời; message/event có HMAC-SHA256. UDP discovery có HMAC nhưng metadata hiện diện không mã hóa.
+- Mã mời chứa secret và chứng thư/khóa dùng chung của cluster. DPAPI CurrentUser bảo vệ chúng khi lưu local. Thành viên có mã mời được coi là tin cậy; không có chứng thực khóa riêng từng node hay chống thành viên ác ý giả danh. SQLite và tệp đính kèm chưa mã hóa khi lưu.
+- Các máy nên đồng bộ giờ: envelope có cửa sổ thời gian 120 giây. HLC và sequence giải quyết thứ tự/đồng bộ; không thay thế kiểm tra giờ của xác thực.
+- Không tự loại voter offline vì việc đó làm sai quorum. Nếu mất vĩnh viễn đa số voter, cần phục hồi máy/dữ liệu đã có; chưa có công cụ quản trị loại voter hoặc khôi phục cưỡng bức.
+- Binary chỉ ở máy đã gửi/tải. Không còn nguồn trực tuyến thì vẫn giữ metadata, báo chưa tải được. Tối đa 20 tệp/tin, 20 GB/tệp; streaming, progress, hủy, SHA256, tệp tạm và đổi tên nguyên tử. Xem trước ảnh tối đa 20 MB.
+- Chưa có compaction/snapshot control log, retention hoặc benchmark cụm lớn. Bản hiện tại phù hợp đánh giá trong mạng nội bộ tin cậy trước khi nghiệm thu thực tế.
+- Log cuốn trong `Data/Logs`, tối đa 14 tệp, 5 MB/tệp; không ghi secret hoặc nội dung chat.
+- Sao lưu cả thư mục khi app đã đóng. DPAPI gắn với tài khoản Windows; không coi bản sao cluster.json là mã mời cho máy khác.
 
-## Dữ liệu, bảo mật và log
+## Tài liệu
 
-- Mặc định: `%LOCALAPPDATA%\LanChat\Data\lanchat.db`; `--data-dir` thay đổi vị trí. Chọn ổ local, không đặt trên thư mục mạng.
-- `UserId`, `NodeId` sinh một lần, độc lập với IP/tên máy/tên hiển thị. Entity mới dùng `Guid.CreateVersion7()`; DirectConversation dùng Guid suy ra ổn định từ ClusterId và hai UserId đã sắp thứ tự.
-- EF Core migration tự chạy lúc mở; SQLite WAL; mỗi thao tác lưu tin và cấp sequence nằm cùng transaction. Tin nhận có unique index theo ClientMessageId và OriginNodeId/OriginSequence.
-- Tin đang chờ được lưu ngay trong bảng Messages ở Phase 1. Retry exponential backoff tối đa 30 giây, vẫn tiếp tục sau restart. **Chưa phải Event Store/Outbox replication của Phase 2**.
-- Peer offline vẫn còn trong Users/PeerNodes. Presence Online hết hạn sau 25 giây không nhận discovery/tin. Không coi không scan thấy là xóa user.
-- Thứ tự tin dùng PhysicalTicks, LogicalCounter, OriginNodeId, Id. Trạng thái đọc local dùng cờ từng tin, không suy ra từ đồng hồ máy gửi.
-- Hiển thị 200 tin mới nhất trước; **Xem tin nhắn cũ hơn** nạp thêm 200. UI dùng lại conversation/message controls; không dựng lại toàn bộ danh sách mỗi lần nhận tin.
-- Mã mời chứa ClusterId và secret. Secret lưu local bằng Windows DPAPI CurrentUser; không gửi secret qua socket, không ghi secret/nội dung chat vào log.
-- Gói UDP/TCP có version, RequestId, HMAC-SHA256, giới hạn kích thước, thời hạn 120 giây và kiểm tra phát lại. Các máy nên đồng bộ giờ. Phase 1 xác thực theo **secret dùng chung trong cluster**, chưa có chứng thực khóa riêng từng node.
-- **Nội dung chat trên đường truyền chưa được mã hóa**; HMAC kiểm tra xác thực/toàn vẹn, không cung cấp tính bí mật. TLS, phân quyền node và hardening thuộc Phase 5.
-- Log cuốn theo ngày/dung lượng trong `Data\Logs`, giữ tối đa 14 file, 5 MB/file.
-- Sao lưu cả thư mục dữ liệu khi ứng dụng đã đóng. DPAPI gắn với tài khoản Windows hiện tại; không coi bản sao `cluster.json` là mã mời sử dụng được trên tài khoản/máy khác.
-
-## Cấu trúc và giới hạn Phase 1
-
-```text
-LanChat.sln
-src/LanChat.Domain          Entity, enum, direct identity, Hybrid Logical Clock
-src/LanChat.Application     Interface, DTO, ChatService
-src/LanChat.Infrastructure  EF/SQLite/migration, socket, discovery, scan, retry, logging
-src/LanChat.WinForms        Generic Host startup, Forms, UserControls, debug UI verification
-tests/LanChat.Tests         Unit và integration test
-scripts                    Kiểm tra hai tiến trình
-docs                       Kiến trúc, kết quả, checklist nghiệm thu
-```
-
-Đã có hồ sơ local, avatar local, danh bạ Online/Offline, tìm tên người dùng/cuộc trò chuyện, chat text/Unicode/multiline, copy, ghim, đánh dấu đọc, cài đặt mạng/lưu trữ/cluster, cửa sổ chẩn đoán và đóng background services có cancellation. Tùy chọn im lặng được lưu local; Phase 1 chưa phát thông báo desktop.
-
-**Chưa triển khai**: chat nhóm, leader/quorum/failover, immutable event store, replication toàn cluster/anti-entropy/cursor, đồng bộ read state, sửa/thu hồi/reaction/reply/forward, tìm nội dung tin bằng FTS, kéo thả/tải file P2P, TLS và phân quyền node. Hai bên cuộc trò chuyện giữ lịch sử của họ; máy C chưa nhận toàn bộ lịch sử A/B. Menu Nhóm/File hiển thị “Sắp có” và bị vô hiệu hóa.
-
-Xem [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) và [docs/ACCEPTANCE.md](docs/ACCEPTANCE.md) trước khi triển khai các phase tiếp theo.
+- [Kiến trúc và luồng dữ liệu](docs/ARCHITECTURE.md)
+- [Kết quả kiểm chứng](docs/VERIFICATION.md)
+- [Checklist nghiệm thu trên các PC](docs/ACCEPTANCE.md)
+- [Phạm vi triển khai Phase 2–5](docs/PHASES_IMPLEMENTATION.md)

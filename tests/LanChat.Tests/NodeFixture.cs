@@ -9,12 +9,15 @@ namespace LanChat.Tests;
 
 internal sealed class TestNode : IAsyncDisposable
 {
+    // Test-only credential fixture; production state is always scoped to a DI host and its data directory.
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<Guid, byte[]> Certificates = new();
     public NodeOptions Options { get; }
     public IHost Host { get; }
     public IChatStore Store => Host.Services.GetRequiredService<IChatStore>();
     public TestNode(Guid cluster, byte[] secret, string name, string? directory = null)
     {
         Options = new NodeOptions { ClusterId = cluster, ClusterSecret = secret, InitialDisplayName = name,
+            TlsCertificatePfx = Certificates.GetOrAdd(cluster, ClusterTls.CreateCertificate),
             ServicePort = FreeTcpPort(), DiscoveryPort = FreeUdpPort(),
             DataDirectory = directory ?? Path.Combine(Path.GetTempPath(), "LanChat.Tests", Guid.NewGuid().ToString("N")) };
         Host = ServiceRegistration.BuildHost(Options);

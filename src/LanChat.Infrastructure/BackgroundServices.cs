@@ -11,6 +11,8 @@ namespace LanChat.Infrastructure;
 public sealed class PeerDiscoveryBackgroundService(NodeOptions options, WireProtocol wire, IChatStore store,
     ILocalNetworkInfoProvider networks, ILogger<PeerDiscoveryBackgroundService> logger, NetworkHealth health) : BackgroundService
 {
+    private readonly SemaphoreSlim _wake = new(0, 1);
+    public void RequestDiscovery() { try { _wake.Release(); } catch (SemaphoreFullException) { } }
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         using var udp = new UdpClient(AddressFamily.InterNetwork);
@@ -44,7 +46,7 @@ public sealed class PeerDiscoveryBackgroundService(NodeOptions options, WireProt
                     try { await udp.SendAsync(wire.Encode(info.NodeId, "DiscoveryRequest", info), endpoint, ct); }
                     catch (SocketException ex) { logger.LogDebug("Discovery broadcast failed: {Code}", ex.SocketErrorCode); }
                 }
-                await Task.Delay(TimeSpan.FromSeconds(5), ct);
+                await _wake.WaitAsync(TimeSpan.FromSeconds(5), ct);
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested) { break; }
             catch (Exception ex) { logger.LogError(ex, "Discovery cycle failed"); await Task.Delay(5000, ct); }
