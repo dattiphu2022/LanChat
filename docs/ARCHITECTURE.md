@@ -76,7 +76,9 @@ Tham khảo thuật toán: [Raft paper](https://raft.github.io/raft.pdf). Việc
 
 ## Tệp
 
-ImportLocalAsync copy streaming vào tệp tạm, tính SHA256 và lưu theo hash dưới Data/Attachments. MessageCreated chỉ chứa metadata. Khi bấm tải: kiểm tra local → hỏi FileAvailability → tải TLS trực tiếp từ nguồn → kiểm tra size/SHA256 → atomic rename.
+ImportLocalAsync copy streaming vào tệp tạm, tính SHA256 và lưu theo hash dưới Data/Attachments. MessageCreated chỉ chứa metadata. Khi bấm tải: kiểm tra/phục hồi local → yêu cầu FileDownload trực tiếp → nguồn xác minh và trả availability header → tải TLS → kiểm tra size/SHA256 → atomic rename.
+
+Mỗi lần import ghi đường dẫn nguồn vào `<hash>.bin.source.json` tại máy gửi, qua tệp tạm và rename; không replicate thông tin này. Blob hỏng/mất được phục hồi từ nguồn còn đúng SHA hoặc bản mở có tên gốc tra theo metadata (hỗ trợ tệp cũ chưa có source reference). Candidate được mở với FileShare.Read, hash và copy trên cùng handle; bản sửa khác SHA không được dùng thay nội dung cũ. GetLocalPath/FileAvailability chỉ trả bản đã xác minh. Máy phục vụ giữ nguyên handle đã kiểm tra SHA tới hết truyền, ngăn chỉnh sửa trong khoảng giữa kiểm tra và gửi. Kết nối/TLS vẫn có timeout ngắn; sau đó cho phép tối đa 30 phút kiểm tra/phục hồi nguồn lớn, hỗ trợ hủy từ bên tải. Việc công bố blob trùng nội dung dùng lại bản đúng đang được đọc nếu Windows khóa thao tác thay thế.
 
 Buffer 64 KB, idle timeout, cancellation và progress; tệp hỏng hoặc đứt giữa chừng không được công bố thành bản hoàn chỉnh. Thử peer tiếp theo nếu nguồn lỗi. Máy đã tải có thể phục vụ lại cho máy khác. Binary không tự replicate; không có nguồn thì giữ nguyên metadata.
 

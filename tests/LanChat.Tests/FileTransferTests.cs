@@ -63,6 +63,11 @@ public sealed class FileTransferTests
         Assert.Null(await Files(b).GetLocalPathAsync(file.Sha256));
         var progress = new CaptureProgress(); var path = await Files(b).DownloadAsync(received, progress);
         Assert.Equal(bytes, await File.ReadAllBytesAsync(path)); Assert.Equal(bytes.Length, progress.Last!.Completed);
+        // A sender with no intact copy must not prevent another cached peer from serving the original.
+        await File.WriteAllTextAsync(source, "changed source");
+        await File.WriteAllTextAsync((await Files(a).GetLocalPathAsync(file.Sha256))!, "damaged cache");
+        Assert.False((await a.Host.Services.GetRequiredService<PeerFileTransferService>().HasFileAsync(file.Sha256, default)).Available);
+        await File.WriteAllTextAsync(await Files(b).PrepareOpenAsync(received), "Receiver's local edits");
         // C knows only B; file data can be fetched without the original sender or a leader.
         await c.Store.RememberPeerAsync(await b.Store.GetNodeInfoAsync(), "127.0.0.1");
         var copy = await Files(c).DownloadAsync(received); Assert.Equal(bytes, await File.ReadAllBytesAsync(copy));
@@ -75,10 +80,87 @@ public sealed class FileTransferTests
         await a.InitializeAsync(true); await b.InitializeAsync(); await b.Store.RememberPeerAsync(await a.Store.GetNodeInfoAsync(), "127.0.0.1");
         var source = Path.Combine(a.Options.DataDirectory, "source.txt"); await File.WriteAllTextAsync(source, "original"); var metadata = await Files(a).ImportLocalAsync(source);
         await File.WriteAllTextAsync((await Files(a).GetLocalPathAsync(metadata.Sha256))!, "tampered");
-        await Assert.ThrowsAsync<IOException>(() => Files(b).PrepareOpenAsync(metadata));
+        await File.WriteAllTextAsync(source, "modified");
+        Assert.False((await a.Host.Services.GetRequiredService<PeerFileTransferService>().HasFileAsync(metadata.Sha256, default)).Available);
+        var error = await Assert.ThrowsAsync<IOException>(() => Files(b).PrepareOpenAsync(metadata));
+        Assert.Contains("gửi lại tệp", error.Message);
         Assert.Null(await Files(b).GetLocalPathAsync(metadata.Sha256)); Assert.Empty(Directory.GetFiles(Path.Combine(b.Options.DataDirectory, "Attachments"), "*.part", SearchOption.AllDirectories));
         // Reimport repairs a damaged content-addressed local copy.
+        await File.WriteAllTextAsync(source, "original");
         await Files(a).ImportLocalAsync(source); Assert.Equal("original", await File.ReadAllTextAsync(await Files(b).DownloadAsync(metadata)));
+    }
+    [Theory]
+    [InlineData("modified")]
+    [InlineData("Nội dung mới dài hơn sau khi gửi")]
+    [InlineData(null)]
+    public async Task ChangingOrDeletingOriginalAfterSendDoesNotAffectDelayedRecipient(string? replacement)
+    {
+        var cluster = Guid.NewGuid(); var secret = RandomNumberGenerator.GetBytes(32);
+        await using var a = new TestNode(cluster, secret, "A"); await using var b = new TestNode(cluster, secret, "B");
+        await a.InitializeAsync(true); await b.InitializeAsync(); await b.Store.RememberPeerAsync(await a.Store.GetNodeInfoAsync(), "127.0.0.1");
+        var source = Path.Combine(a.Options.DataDirectory, "report.txt"); await File.WriteAllTextAsync(source, "original");
+        var file = await Files(a).ImportLocalAsync(source);
+        if (replacement is null) File.Delete(source); else await File.WriteAllTextAsync(source, replacement);
+        var senderCopy = await Files(a).PrepareOpenAsync(file); await File.WriteAllTextAsync(senderCopy, "Sender edited in Word/Excel");
+        var received = await Files(b).PrepareOpenAsync(file);
+        Assert.Equal("original", await File.ReadAllTextAsync(received));
+        await File.WriteAllTextAsync(received, "Receiver edits");
+        Assert.Equal("original", await File.ReadAllTextAsync(await Files(b).DownloadAsync(file)));
+        Assert.Equal("Receiver edits", await File.ReadAllTextAsync(await Files(b).PrepareOpenAsync(file)));
+    }
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task DamagedOrMissingBlobAutomaticallyRecoversFromUnchangedSource(bool delete)
+    {
+        var cluster = Guid.NewGuid(); var secret = RandomNumberGenerator.GetBytes(32);
+        await using var a = new TestNode(cluster, secret, "A"); await using var b = new TestNode(cluster, secret, "B");
+        await a.InitializeAsync(); await b.InitializeAsync();
+        var source = Path.Combine(a.Options.DataDirectory, "report.txt"); await File.WriteAllTextAsync(source, "original");
+        var file = await Files(a).ImportLocalAsync(source); var blob = (await Files(a).GetLocalPathAsync(file.Sha256))!;
+        if (delete) File.Delete(blob); else await File.WriteAllTextAsync(blob, "tampered");
+        // A fresh host must recover using persisted source information, without reimporting.
+        await using var restarted = new TestNode(cluster, secret, "A", a.Options.DataDirectory);
+        await restarted.InitializeAsync(true); await b.Store.RememberPeerAsync(await restarted.Store.GetNodeInfoAsync(), "127.0.0.1");
+        Assert.Equal("original", await File.ReadAllTextAsync(await Files(b).PrepareOpenAsync(file)));
+        Assert.Equal("original", await File.ReadAllTextAsync(blob));
+        Assert.Empty(Directory.GetFiles(Path.Combine(a.Options.DataDirectory, "Attachments"), "*.part", SearchOption.AllDirectories));
+    }
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task LegacyAttachmentRecoversOnlyFromUnchangedOpenCopy(bool edited)
+    {
+        await using var node = new TestNode(Guid.NewGuid(), RandomNumberGenerator.GetBytes(32), "A"); await node.InitializeAsync();
+        var source = Path.Combine(node.Options.DataDirectory, "report.txt"); await File.WriteAllTextAsync(source, "original");
+        var file = await Files(node).ImportLocalAsync(source);
+        await using var other = new TestNode(node.Options.ClusterId, node.Options.ClusterSecret, "B"); await other.InitializeAsync();
+        await node.Store.RememberPeerAsync(await other.Store.GetNodeInfoAsync(), "127.0.0.1");
+        var conversation = await node.Store.OpenDirectAsync((await other.Store.GetIdentityAsync()).UserId);
+        await node.Host.Services.GetRequiredService<IDistributedStore>().SendToConversationAsync(conversation, "File", attachments: [file]);
+        var open = await Files(node).PrepareOpenAsync(file); var blob = (await Files(node).GetLocalPathAsync(file.Sha256))!;
+        File.Delete(blob + ".source.json"); File.Delete(source);
+        await File.WriteAllTextAsync(blob, "tampered");
+        if (edited) await File.WriteAllTextAsync(open, "modified");
+        var availability = await node.Host.Services.GetRequiredService<PeerFileTransferService>().HasFileAsync(file.Sha256, default);
+        Assert.Equal(!edited, availability.Available);
+        if (!edited) Assert.Equal("original", await File.ReadAllTextAsync(await Files(node).DownloadAsync(file)));
+        else Assert.Null(await Files(node).GetLocalPathAsync(file.Sha256));
+        Assert.Equal(edited ? "modified" : "original", await File.ReadAllTextAsync(open));
+    }
+    [Fact]
+    public async Task VerifiedSourceCannotBeEditedUntilTransferHandleIsClosed()
+    {
+        await using var node = new TestNode(Guid.NewGuid(), RandomNumberGenerator.GetBytes(32), "A"); await node.InitializeAsync();
+        var source = Path.Combine(node.Options.DataDirectory, "report.txt"); await File.WriteAllTextAsync(source, "original");
+        var file = await Files(node).ImportLocalAsync(source); var blob = (await Files(node).GetLocalPathAsync(file.Sha256))!;
+        await using (var stream = await node.Host.Services.GetRequiredService<PeerFileTransferService>().OpenVerifiedLocalAsync(file.Sha256, default))
+        {
+            Assert.NotNull(stream); Assert.Equal(0, stream.Position);
+            Assert.Throws<IOException>(() => { using var writer = new FileStream(blob, FileMode.Open, FileAccess.Write, FileShare.ReadWrite); });
+            Assert.Equal(file.Sha256, (await Files(node).ImportLocalAsync(source)).Sha256);
+        }
+        await File.WriteAllTextAsync(blob, "tampered");
     }
     [Fact]
     public async Task CancellationDuringStreamingRemovesPartialDownload()

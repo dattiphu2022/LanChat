@@ -100,3 +100,11 @@ Bằng chứng: [verification/attachment-open/](verification/attachment-open/) g
 - Luồng tệp thường vẫn được gọi 3 lần mỗi phiên (hai tệp và mở lại), giữ đúng tên/đuôi và dùng lại đường dẫn local. Bước khởi chạy ứng dụng ngoài được thay bằng hook Debug như lần kiểm chứng trước.
 
 Bằng chứng: [verification/image-gallery/](verification/image-gallery/) gồm A.json, B.json, ảnh PNG và TRX. Đây là kiểm tra trên cùng một PC; chưa thao tác chuột thủ công, kiểm tra DPI khác nhau hoặc xác minh từng định dạng EXIF/GIF/TIFF và ảnh sát giới hạn lớn. Các mục nghiệm thu thực địa nằm trong [ACCEPTANCE.md](ACCEPTANCE.md).
+
+## Phục hồi tệp sai SHA — 25/09/2026
+
+- Giữ nội dung tại thời điểm gửi dù file nguồn bị sửa/xóa; xác minh nguồn trước khi truyền và giữ cùng handle đọc đến hết truyền. Tự phục hồi blob hỏng/mất từ file nguồn hoặc bản mở còn đúng SHA, không dùng bản đã sửa để thay nội dung của tin nhắn cũ. FileAvailability/GetLocalPath không công bố blob sai SHA. Khi không còn bản đúng, thông báo bật máy từng giữ tệp hoặc gửi lại thành tin nhắn mới.
+- `dotnet test tests/LanChat.Tests/LanChat.Tests.csproj --no-restore --filter FullyQualifiedName~FileTransferTests`: **15 passed, 0 failed**. Bao gồm sửa nguồn cùng/khác kích thước, xóa nguồn, sửa bản mở hai phía, sửa/mất blob và khởi động lại, phục hồi tệp cũ không có source reference, từ chối bản sửa khác SHA, giữ khóa đọc khi truyền và nhập lại cùng nội dung khi có người đang tải.
+- `dotnet build LanChat.sln --no-restore`: **0 cảnh báo, 0 lỗi**. Toàn bộ **51 tests passed, 0 failed, 0 skipped**; TRX tại `.codex-temp/attachment-recovery-tests/attachment-recovery.trx`. Kiểm thử mạng chạy ngoài sandbox vì Windows TLS trong sandbox báo AuthenticationException.
+- `pwsh -NoProfile -File scripts/Verify-TwoInstances.ps1`: **PASS**, kết quả tại `.codex-temp/two-instances-20260925-153113`. Mỗi phiên sửa một file văn bản và xóa hai PNG nguồn sau khi gửi (`VerifiedSourceChanges = 3`), sau đó xác minh SHA của đủ 6 tệp, 3 lượt mở tệp thường, 4 lượt gallery và ảnh inline.
+- Hai tiến trình chạy trên cùng PC, dữ liệu kiểm thử riêng. Hook Debug ghi nhận đường dẫn bàn giao cho Windows; chưa mở Word/Excel thật, kiểm thử nhiều PC hoặc tệp 20 GB. Tệp cũ không còn bất kỳ bản đúng SHA nào không thể tự khôi phục; cần gửi lại.

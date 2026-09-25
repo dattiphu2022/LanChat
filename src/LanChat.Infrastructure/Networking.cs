@@ -133,6 +133,7 @@ public sealed class PeerTransport(WireProtocol wire, IChatStore store, FaultInje
         var identity = await store.GetIdentityAsync(timeout.Token);
         var requestId = Guid.CreateVersion7();
         await WireProtocol.WriteAsync(stream, wire.Encode(identity.NodeId, type, body, requestId), timeout.Token);
+        if (type == "FileAvailability") timeout.CancelAfter(TimeSpan.FromMinutes(30));
         var response = wire.Decode(await WireProtocol.ReadAsync(stream, timeout.Token), false);
         if (response.RequestId != requestId || response.MessageType != type + "Response") throw new InvalidDataException("Phản hồi không khớp.");
         return response;
@@ -217,16 +218,17 @@ public sealed class PeerConnectionManager(NodeOptions options, WireProtocol wire
                     case "Append": response = await services.GetRequiredService<ConsensusService>().AppendAsync(WireProtocol.Payload<AppendRequest>(request), request.SourceNodeId, timeout.Token); break;
                     case "ConsensusStatus": response = await services.GetRequiredService<IConsensusService>().GetStatusAsync(timeout.Token); break;
                     case "ControlProposal": response = await services.GetRequiredService<ConsensusService>().ProposeRemoteAsync(WireProtocol.Payload<ControlCommand>(request), request.SourceNodeId, timeout.Token); break;
-                    case "FileAvailability": response = await services.GetRequiredService<PeerFileTransferService>().HasFileAsync(WireProtocol.Payload<FileRequest>(request).Sha256, timeout.Token); break;
+                    case "FileAvailability":
+                        timeout.CancelAfter(TimeSpan.FromMinutes(30));
+                        response = await services.GetRequiredService<PeerFileTransferService>().HasFileAsync(WireProtocol.Payload<FileRequest>(request).Sha256, timeout.Token); break;
                     case "FileDownload":
                         var files = services.GetRequiredService<PeerFileTransferService>(); var hash = WireProtocol.Payload<FileRequest>(request).Sha256;
-                        var availability = await files.HasFileAsync(hash, timeout.Token);
-                        await WireProtocol.WriteAsync(stream, wire.Encode(identity.NodeId, "FileDownloadResponse", availability, request.RequestId), timeout.Token);
-                        if (availability.Available)
+                        timeout.CancelAfter(TimeSpan.FromMinutes(30));
+                        await using (var input = await files.OpenVerifiedLocalAsync(hash, timeout.Token))
                         {
-                            timeout.CancelAfter(TimeSpan.FromMinutes(30));
-                            await using var input = new FileStream((await files.GetLocalPathAsync(hash, timeout.Token))!, FileMode.Open, FileAccess.Read, FileShare.Read, 65536, FileOptions.Asynchronous | FileOptions.SequentialScan);
-                            await input.CopyToAsync(stream, timeout.Token);
+                            var availability = new FileAvailability(input is not null, input?.Length ?? 0);
+                            await WireProtocol.WriteAsync(stream, wire.Encode(identity.NodeId, "FileDownloadResponse", availability, request.RequestId), timeout.Token);
+                            if (input is not null) await input.CopyToAsync(stream, timeout.Token);
                         }
                         return;
                     case "ChatPush":

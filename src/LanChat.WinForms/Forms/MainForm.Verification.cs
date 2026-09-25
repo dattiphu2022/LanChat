@@ -48,6 +48,9 @@ public sealed partial class MainForm
             ClientSize = new Size(1240, 800); _chat.DropForVerification([textFile, imageFile, portraitFile]); await Task.Delay(200, deadline.Token);
             var previewPath = Path.ChangeExtension(reportPath, "drop-preview.png"); CaptureForm(this, previewPath); captures.Add(previewPath);
             await _chat.SubmitForVerificationAsync("Bộ ảnh của " + profile.DisplayName + "\nChú thích chung cho ảnh ngang và ảnh dọc.");
+            // The recipient must still receive the sent snapshot after originals change or disappear.
+            await File.WriteAllTextAsync(textFile, "Nội dung đã sửa sau khi gửi", deadline.Token);
+            File.Delete(imageFile); File.Delete(portraitFile);
             AttachmentDto[] attachments;
             do { await Task.Delay(200, deadline.Token); messages = await _store.GetMessagesAsync(conversation, ct: deadline.Token); attachments = await Distributed.GetAttachmentsAsync(conversation, deadline.Token); }
             while (messages.Count != 4 || attachments.Length != 6 || messages.Count(m => m.IsEdited) != 2);
@@ -128,7 +131,7 @@ public sealed partial class MainForm
             await File.WriteAllTextAsync(reportPath, JsonSerializer.Serialize(new { Success = true, identity.NodeId, identity.UserId,
                 Messages = messages.Select(x => new { x.Id, x.Text, x.Status, x.IsEdited, x.ReplyToMessageId }).ToArray(),
                 GroupId = group.Id, GroupMessageIds = groupMessages.Select(x => x.Id).ToArray(), VerifiedFiles = attachments.Length, VerifiedOpenRequests = openedPaths.Count,
-                VerifiedGalleries = verifiedGalleries, InlineImagesLoaded = inlineImagesLoaded,
+                VerifiedGalleries = verifiedGalleries, InlineImagesLoaded = inlineImagesLoaded, VerifiedSourceChanges = 3,
                 Consensus = await Consensus.GetStatusAsync(deadline.Token), Captures = captures }, new JsonSerializerOptions { WriteIndented = true }), deadline.Token);
             var partnerReport = Path.Combine(Path.GetDirectoryName(reportPath)!, profile.DisplayName.EndsWith("A", StringComparison.Ordinal) ? "B.json" : "A.json");
             while (!File.Exists(partnerReport)) await Task.Delay(200, deadline.Token);
