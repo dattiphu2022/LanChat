@@ -10,7 +10,7 @@ namespace LanChat.WinForms;
 
 internal sealed record AppProfile(string Name, string? Department);
 internal sealed record NetworkEntry(Guid Id, string Name, bool Primary = false);
-internal sealed record DefaultNetworkProvision(string Invitation, bool Creator = false);
+internal sealed record DefaultNetworkProvision(string Invitation, bool Creator = false, string? CreatorMachine = null);
 internal sealed record SavedNetworks(NetworkEntry[] Entries, NetworkEntry? DefaultNetwork, bool FirstPrivateCodeHandled);
 
 internal sealed class NetworkCatalog(NodeOptions primary)
@@ -19,6 +19,10 @@ internal sealed class NetworkCatalog(NodeOptions primary)
     private readonly List<NetworkEntry> _entries = new();
     private readonly HashSet<int> _ports = new();
     private readonly string _directory = primary.DataDirectory;
+    private readonly string _provisionedPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "default-network.json");
+    private const string DefaultNetworkResource = "LanChat.DefaultNetwork";
+    private bool HasProvisionedDefault => File.Exists(_provisionedPath) ||
+        typeof(NetworkCatalog).Assembly.GetManifestResourceInfo(DefaultNetworkResource) is not null;
     public IReadOnlyList<NetworkEntry> Entries => _entries;
     public AppProfile? Profile { get; private set; }
     public NetworkEntry? DefaultNetwork { get; private set; }
@@ -65,6 +69,23 @@ internal sealed class NetworkCatalog(NodeOptions primary)
                 await SaveNetworksAsync(_entries.Any(IsDefault) ? _entries : _entries.Prepend(DefaultNetwork));
         }
 
+        else if (_entries.Any(IsDefault) && HasProvisionedDefault)
+        {
+            try
+            {
+                var previous = DefaultNetwork;
+                var provisioned = await PrepareDefaultAsync(useProvisionedCode: true);
+                if (provisioned.Id != previous.Id)
+                {
+                    DefaultNetwork = provisioned;
+                    await SaveNetworksAsync(_entries.Where(e => e.Id != previous.Id || e.Primary)
+                        .Where(e => e.Id != provisioned.Id).Prepend(provisioned));
+                }
+            }
+            catch (Exception ex) when (ex is IOException or JsonException or ArgumentException)
+            { DefaultNetworkError = "Mạng mặc định: " + ex.Message; }
+        }
+
         var profile = Path.Combine(_directory, "profile.json");
         if (File.Exists(profile))
             Profile = JsonSerializer.Deserialize<AppProfile>(await FrameworkIO.ReadTextAsync(profile));
@@ -72,7 +93,9 @@ internal sealed class NetworkCatalog(NodeOptions primary)
 
     public async Task<NetworkEntry> RestoreDefaultAsync()
     {
-        var entry = DefaultNetwork ??= await PrepareDefaultAsync();
+        var entry = HasProvisionedDefault
+            ? await PrepareDefaultAsync(useProvisionedCode: true) : DefaultNetwork ?? await PrepareDefaultAsync();
+        DefaultNetwork = entry;
         if (!Entries.Any(IsDefault)) await SaveNetworksAsync(_entries.Append(entry));
         return entry;
     }
@@ -149,8 +172,11 @@ internal sealed class NetworkCatalog(NodeOptions primary)
                 if (upgrade.ShowDialog(owner) != DialogResult.OK) throw new OperationCanceledException();
             }
 
-            var preferred = entry.Primary ? options.ServicePort : ClusterPorts.Alternate(entry.Id);
-            options.ServicePort = AvailableTcpPort(preferred);
+            // The default network uses the original well-known port. Keep the former per-code
+            // port as the first fallback, so scanners can also reach installations during upgrade.
+            options.ServicePort = IsDefault(entry) && !options.OverrideServicePort
+                ? AvailableTcpPort(NodeOptions.DefaultServicePort, ClusterPorts.Alternate(entry.Id))
+                : AvailableTcpPort(options.ServicePort);
             var host = ServiceRegistration.BuildHost(options, services =>
             {
                 services.AddSingleton(_sockets);
@@ -206,15 +232,18 @@ internal sealed class NetworkCatalog(NodeOptions primary)
         finally { _ports.Remove(network.Port); }
     }
 
-    private int AvailableTcpPort(int preferred)
+    private int AvailableTcpPort(params int[] preferred)
     {
-        var listener = new TcpListener(IPAddress.Any, preferred) { ExclusiveAddressUse = true };
-        try { if (!_ports.Contains(preferred)) { listener.Start(); return preferred; } }
-        catch (SocketException) { }
-        finally { listener.Stop(); }
-        listener = new TcpListener(IPAddress.Any, 0) { ExclusiveAddressUse = true };
-        try { listener.Start(); return ((IPEndPoint)listener.LocalEndpoint).Port; }
-        finally { listener.Stop(); }
+        foreach (var port in preferred.Where(port => !_ports.Contains(port)))
+        {
+            var candidate = new TcpListener(IPAddress.Any, port) { ExclusiveAddressUse = true };
+            try { candidate.Start(); return port; }
+            catch (SocketException) { }
+            finally { candidate.Stop(); }
+        }
+        var ephemeral = new TcpListener(IPAddress.Any, 0) { ExclusiveAddressUse = true };
+        try { ephemeral.Start(); return ((IPEndPoint)ephemeral.LocalEndpoint).Port; }
+        finally { ephemeral.Stop(); }
     }
 
     private static bool SameCertificate(byte[] left, byte[] right)
@@ -224,25 +253,36 @@ internal sealed class NetworkCatalog(NodeOptions primary)
         return FrameworkIO.FixedEquals(a.RawData, b.RawData);
     }
 
-    private async Task<NetworkEntry> PrepareDefaultAsync()
+    private async Task<NetworkEntry> PrepareDefaultAsync(bool useProvisionedCode = false)
     {
         // The private, deployment-provided code is optional. A fresh installation owns its own default network.
-        var provisioned = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "default-network.json");
+        var provisioned = _provisionedPath;
         var persisted = Path.Combine(_directory, "default-network.json");
-        if (!string.Equals(provisioned, persisted, StringComparison.OrdinalIgnoreCase) && File.Exists(persisted))
+        if (!useProvisionedCode && !HasProvisionedDefault && !string.Equals(provisioned, persisted, StringComparison.OrdinalIgnoreCase) && File.Exists(persisted))
             return JsonSerializer.Deserialize<NetworkEntry>(await FrameworkIO.ReadTextAsync(persisted))
                 ?? throw new InvalidDataException("Cấu hình mạng mặc định không hợp lệ.");
 
-        var provision = File.Exists(provisioned)
-            ? JsonSerializer.Deserialize<DefaultNetworkProvision>(await FrameworkIO.ReadTextAsync(provisioned), new JsonSerializerOptions { PropertyNameCaseInsensitive = true })
-                ?? throw new InvalidDataException("Tệp cấp mã mặc định không hợp lệ.")
-            : new DefaultNetworkProvision(ClusterConfigurationStore.CreateInvitation(), Creator: true);
+        using var embedded = typeof(NetworkCatalog).Assembly.GetManifestResourceStream(DefaultNetworkResource);
+        var jsonOptions = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+        DefaultNetworkProvision? provision;
+        if (embedded is not null)
+            provision = await JsonSerializer.DeserializeAsync<DefaultNetworkProvision>(embedded, jsonOptions);
+        else if (File.Exists(provisioned))
+            provision = JsonSerializer.Deserialize<DefaultNetworkProvision>(await FrameworkIO.ReadTextAsync(provisioned), jsonOptions);
+        else
+            provision = new DefaultNetworkProvision(ClusterConfigurationStore.CreateInvitation(), Creator: true);
+
+        if (provision is null)
+            throw new InvalidDataException("Cấu hình cấp mã mặc định không hợp lệ.");
+        var creator = provision.CreatorMachine is { Length: > 0 } machine
+            ? string.Equals(machine, Environment.MachineName, StringComparison.OrdinalIgnoreCase)
+            : provision.Creator;
         var invite = ClusterConfigurationStore.ParseInvitation(provision.Invitation);
         var existing = _entries.FirstOrDefault(e => e.Id == invite.ClusterId);
         var entry = existing ?? new NetworkEntry(invite.ClusterId, "Mạng mặc định");
         var options = OptionsFor(entry);
         if (!await ClusterConfigurationStore.LoadAsync(options))
-            await ClusterConfigurationStore.SaveAsync(options, provision.Invitation, creator: provision.Creator);
+            await ClusterConfigurationStore.SaveAsync(options, provision.Invitation, creator: creator);
         else if (options.ClusterId != invite.ClusterId || options.BootstrapNodeId != invite.BootstrapNodeId ||
             !FrameworkIO.FixedEquals(options.ClusterSecret, Convert.FromBase64String(invite.Secret)) ||
             !SameCertificate(options.TlsCertificatePfx, Convert.FromBase64String(invite.TlsCertificatePfx!)))

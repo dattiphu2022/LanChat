@@ -18,6 +18,7 @@ public sealed partial class MainForm : Form
     private readonly ConversationPanel _info = new();
     private readonly Panel _people = new() { Dock = DockStyle.Fill, Visible = false, BackColor = Color.White };
     private readonly PromptTextBox _userSearch = new() { Dock = DockStyle.Fill, PlaceholderText = "Tìm người dùng…" };
+    private readonly Label _peopleEmpty = Theme.Label("Chưa tìm thấy người dùng trong mạng này.");
     private readonly Panel _userRows = new() { Dock = DockStyle.Fill, AutoScroll = true };
     private readonly Dictionary<Guid, UserItemControl> _users = new();
     private readonly Dictionary<Guid, ComposerDraft> _drafts = new();
@@ -49,7 +50,7 @@ public sealed partial class MainForm : Form
     private const int PageSize = 80;
     private IReadOnlyList<UserSummary> _contacts = [];
     private IReadOnlyList<ConversationSummary> _summaries = [];
-    private readonly NotifyIcon _notification = new() { Icon = SystemIcons.Information, Text = "LanChat", Visible = true };
+    private readonly NotifyIcon _notification = new() { Icon = AppIcon.Value, Text = "LanChat", Visible = true };
     private Action<string, string>? _showNotification;
     private Dictionary<Guid, int>? _lastUnread;
     private readonly NavigationItemControl _messageNav = new() { Caption = "Tin nhắn", Active = true };
@@ -61,6 +62,7 @@ public sealed partial class MainForm : Form
     {
         _store = store; _scanner = scanner; _services = services; _health = health;
         _images = images; _chat.ConfigureImages(images);
+        Icon = AppIcon.Value;
         Text = "LanChat — Chat nội bộ - phát triển bởi Trung tá Nguyễn Quốc Đạt";
         ClientSize = new Size(1240, 800); MinimumSize = new Size(860, 600);
         StartPosition = FormStartPosition.CenterScreen; AutoScaleMode = AutoScaleMode.Dpi;
@@ -94,6 +96,7 @@ public sealed partial class MainForm : Form
         peopleLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         peopleLayout.Controls.Add(Theme.Label("Danh bạ LAN", 15, true), 0, 0);
         peopleLayout.Controls.Add(_userSearch, 0, 1); peopleLayout.Controls.Add(_userRows, 0, 2);
+        _userRows.Controls.Add(_peopleEmpty);
         _people.Controls.Add(peopleLayout);
         _chatArea.Margin = Padding.Empty;
         _chatArea.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
@@ -168,7 +171,8 @@ public sealed partial class MainForm : Form
     {
         _showPeople = value;
         _people.Visible = value; _conversations.Visible = !value; _usersNav.Active = value; _messageNav.Active = !value;
-        if (value) BindPeople();
+        if (value) { _people.BringToFront(); BindPeople(); }
+        else _conversations.BringToFront();
     }
     internal void EmbedInWorkspace(Action<string, string> notify)
     {
@@ -315,7 +319,12 @@ public sealed partial class MainForm : Form
     {
         var ct = _lifetime.Token;
         var state = await Task.Run(async () => (await Consensus.GetStatusAsync(ct), await _store.GetPendingCountAsync(ct)), ct);
-        if (!IsDisposed) _status.Text = _health.Error ?? $"{state.Item1.StatusText}   ·   {_contacts.Count(x => x.Presence == PresenceStatus.Online)} máy trực tuyến   ·   {state.Item2} tin chờ";
+        if (!IsDisposed)
+        {
+            var online = _contacts.Count(x => x.Presence == PresenceStatus.Online);
+            _status.Text = _health.Error ?? (online == 0 ? _health.DiscoveryIssue : null)
+                ?? $"{state.Item1.StatusText}   ·   {online} máy trực tuyến   ·   {state.Item2} tin chờ";
+        }
     }
 
     private void BindConversations()
@@ -351,6 +360,8 @@ public sealed partial class MainForm : Form
             var targetIndex = contacts.Length - index - 1;
             if (_userRows.Controls.GetChildIndex(row) != targetIndex) _userRows.Controls.SetChildIndex(row, targetIndex);
         }
+        _peopleEmpty.Text = _contacts.Count == 0 ? "Chưa tìm thấy người dùng trong mạng này." : "Không có người dùng khớp từ khóa.";
+        _peopleEmpty.Visible = contacts.Length == 0;
         _userRows.ResumeLayout();
     }
 
@@ -435,7 +446,7 @@ public sealed partial class MainForm : Form
                     _scanState.Text = p.CheckingUdp ? "Đang tìm máy qua UDP…" : $"Đã kiểm tra {p.Checked:N0} địa chỉ · tìm thấy {p.Discovered} máy";
             });
             var peers = await _scanner.ScanAsync(cancellation.Token, progress);
-            if (!IsDisposed) { _scanState.Text = $"Tìm thấy {peers.Count} máy"; await RefreshAsync(); }
+            if (!IsDisposed) { _scanState.Text = peers.Count == 0 ? "Chưa tìm thấy máy" : $"Tìm thấy {peers.Count} máy"; await RefreshAsync(); }
         }
         catch (OperationCanceledException) { if (!IsDisposed) _scanState.Text = "Đã dừng quét"; }
         catch (Exception ex) { if (!IsDisposed) _scanState.Text = "Quét mạng: " + ex.Message; }

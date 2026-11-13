@@ -191,8 +191,7 @@ public sealed class PeerFileTransferService(NodeOptions options, IDistributedSto
                 await WireProtocol.WriteAsync(stream, wire.Encode(identity.NodeId, "FileDownload", new FileRequest(file.Sha256), requestId), handshake.Token);
                 // Source verification/recovery may scan a large file after the connection is established.
                 handshake.CancelAfter(TimeSpan.FromMinutes(30));
-                var response = wire.Decode(await WireProtocol.ReadAsync(stream, handshake.Token), false);
-                if (response.RequestId != requestId || response.SourceNodeId != peer.NodeId || response.MessageType != "FileDownloadResponse") throw new InvalidDataException("Phản hồi tải file không hợp lệ.");
+                var response = await wire.ReadTcpResponseAsync(stream, identity.NodeId, requestId, "FileDownloadResponse", handshake.Token, peer.NodeId);
                 var header = WireProtocol.Payload<FileAvailability>(response);
                 if (!header.Available || header.Length != file.FileSize) continue;
                 abortHandshake.Dispose();

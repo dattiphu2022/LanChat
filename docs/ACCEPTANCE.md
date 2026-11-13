@@ -9,7 +9,7 @@ Bản đã được kiểm thử tự động và chạy hai tiến trình trên
 - [ ] Sao lưu dữ liệu cũ khi app đóng trước nâng cấp.
 - [ ] Cùng mã mời hoặc mã nâng cấp từ một máy duy nhất.
 - [ ] UDP 54545 và TCP 54546 được phép trên LAN tin cậy; kiểm tra Wi-Fi isolation/VLAN.
-- [ ] Giờ các PC tương đối đồng bộ, sai lệch dưới cửa sổ xác thực 120 giây.
+- [ ] Thử hai PC lệch giờ hơn 120 giây. Khi nhận gói dò ngoài cửa sổ giờ, LanChat xác minh máy kia qua TCP/TLS trước khi đưa vào Danh bạ. Hai máy vẫn gửi và nhận tin sau khi xác minh.
 
 ## Chat và dữ liệu
 

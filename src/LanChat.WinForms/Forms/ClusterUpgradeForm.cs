@@ -9,6 +9,7 @@ public sealed class ClusterUpgradeForm : Form
 {
     public ClusterUpgradeForm(NodeOptions options)
     {
+        Icon = AppIcon.Value;
         Text = "Nâng cấp mạng chat"; ClientSize = new Size(680, 400); StartPosition = FormStartPosition.CenterParent; Font = new Font("Segoe UI", 10);
         var layout = Theme.Stack(4); layout.Padding = new Padding(20);
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 100)); layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));

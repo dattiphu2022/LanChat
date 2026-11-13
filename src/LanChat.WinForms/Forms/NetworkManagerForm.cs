@@ -11,8 +11,9 @@ internal sealed class NetworkManagerForm : Form
     private bool _busy;
 
     public NetworkManagerForm(NetworkCatalog catalog, Func<NetworkEntry, bool, Task> connect, Func<NetworkEntry, Task> remove,
-        Func<NetworkEntry, Task> stop, Action<NetworkEntry, Form> details, Func<Guid, bool> connected, Func<Guid?> selected, Action<Guid> selectNetwork)
+        Func<NetworkEntry, Task> stop, Action<NetworkEntry, Form> details, Func<Guid, bool> connected, Func<Task> restoreDefault, Func<Guid?> selected, Action<Guid> selectNetwork)
     {
+        Icon = AppIcon.Value;
         Text = "Mạng chat"; ClientSize = new Size(750, 408); MinimumSize = new Size(720, 385);
         Font = new Font("Segoe UI", 10); StartPosition = FormStartPosition.CenterParent; AutoScaleMode = AutoScaleMode.Dpi;
         var layout = Theme.Stack(6); layout.Padding = new Padding(12);
@@ -28,7 +29,7 @@ internal sealed class NetworkManagerForm : Form
         var retry = Theme.Secondary("Kết nối lại");
         var rename = Theme.Secondary("Đổi tên");
         var delete = Theme.Secondary("Gỡ mạng");
-        var restore = Theme.Secondary("Thêm lại mạng mặc định");
+        var restore = Theme.Secondary("Khôi phục mạng mặc định");
         actions.Controls.AddRange([show, retry, rename, delete, restore]); layout.Controls.Add(actions, 0, 2);
         layout.Controls.Add(Theme.Label("Mã tham gia (mỗi mã một dòng)"), 0, 3); layout.Controls.Add(_codes, 0, 4);
         var bottom = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1 };
@@ -96,10 +97,8 @@ internal sealed class NetworkManagerForm : Form
         }
         restore.Click += async (_, _) => await RunAsync(async () =>
         {
-            var entry = await catalog.RestoreDefaultAsync();
-            RefreshList(entry.Id);
-            await connect(entry, false);
-            selectNetwork(entry.Id);
+            await restoreDefault();
+            RefreshList(catalog.DefaultNetwork?.Id);
             _status.Text = "Đã mở lại mạng mặc định.";
         });
         _list.SelectedIndexChanged += (_, _) => UpdateButtons();

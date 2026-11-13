@@ -11,5 +11,6 @@
     <Content Include="$(PkgSQLitePCLRaw_lib_e_sqlite3)/runtimes/win-x64/native/e_sqlite3.dll" Link="e_sqlite3.dll" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Reference Include="System.Security" />
     <EmbeddedResource Include="Migrations/*.sql" />
+    <InternalsVisibleTo Include="LanChat.Tests" />
   </ItemGroup>
 </Project>

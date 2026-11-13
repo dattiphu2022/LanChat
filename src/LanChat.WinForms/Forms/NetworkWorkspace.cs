@@ -1,4 +1,5 @@
 using LanChat.Application;
+using LanChat.Infrastructure;
 using LanChat.WinForms.Controls;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -12,12 +13,14 @@ internal sealed class NetworkWorkspace : Form
     private readonly Dictionary<Guid, (RunningNetwork Network, MainForm View, TabPage Tab)> _running = new();
     private readonly Button _scanButton = Theme.Secondary("Quét tất cả");
     private readonly Label _feedback = Theme.Label("");
-    private readonly NotifyIcon _tray = new() { Icon = SystemIcons.Information, Text = "LanChat", Visible = true };
-    private bool _busy, _exiting, _closed;
+    private readonly NotifyIcon _tray = new() { Icon = AppIcon.Value, Text = "LanChat", Visible = true };
+    private bool _busy, _exiting, _closed, _exitRequested;
+    private FormWindowState _restoreState;
 
     public NetworkWorkspace(NetworkCatalog catalog, WindowsStartup startup)
     {
         _catalog = catalog; _startup = startup;
+        Icon = AppIcon.Value;
         Text = "LanChat";
         ClientSize = new Size(1260, 840); MinimumSize = new Size(900, 660);
         Font = new Font("Segoe UI", 10);
@@ -38,12 +41,31 @@ internal sealed class NetworkWorkspace : Form
         _scanButton.Click += async (_, _) => { if (_scan is not null) _scan.Cancel(); else await RunAsync(ScanAsync); };
         actions.Controls.Add(_scanButton);
         Button("Mạng chat", ManageAsync);
+        Button("Khôi phục mạng mặc định", RestoreDefaultNetworkAsync);
         Button("Cài đặt", SettingsAsync);
         root.Controls.Add(actions, 0, 0); root.Controls.Add(_feedback, 0, 1); root.Controls.Add(_tabs, 0, 2);
         Controls.Add(root);
-        _tray.DoubleClick += (_, _) => { WindowState = FormWindowState.Normal; Activate(); };
+        var trayMenu = new ContextMenuStrip();
+        trayMenu.Items.Add("Mở LanChat", null, (_, _) => RestoreWindow());
+        trayMenu.Items.Add("Thoát LanChat", null, (_, _) => { _exitRequested = true; Close(); });
+        _tray.ContextMenuStrip = trayMenu;
+        _tray.DoubleClick += (_, _) => RestoreWindow();
+        Resize += (_, _) =>
+        {
+            if (WindowState == FormWindowState.Minimized) Hide();
+            else _restoreState = WindowState;
+        };
+        FormClosed += (_, _) => trayMenu.Dispose();
         FormClosing += ClosingAsync;
     }
+
+    private void RestoreWindow()
+    {
+        if (_exiting) return;
+        Show(); WindowState = _restoreState; Activate();
+    }
+
+    internal void ExitApplication() { _exitRequested = true; Close(); }
 
     public async Task StartAsync()
     {
@@ -65,7 +87,7 @@ internal sealed class NetworkWorkspace : Form
         if (_catalog.DefaultNetwork is { } selectedDefault && _running.TryGetValue(selectedDefault.Id, out var defaultNetwork))
             _tabs.SelectedTab = defaultNetwork.Tab;
         _feedback.Text = failures.Count > 0 ? string.Join("  |  ", failures) :
-            _running.Count == 0 ? "Thêm mã tham gia trong Mạng chat." : "";
+            _running.Count == 0 ? "Chọn Khôi phục mạng mặc định để tiếp tục chat." : "";
     }
 
     private async Task OpenNetworkAsync(NetworkEntry entry, bool allowUpgrade = false)
@@ -116,7 +138,14 @@ internal sealed class NetworkWorkspace : Form
         {
             var tasks = _running.Values.Select(x => x.Network.Services.GetRequiredService<ILanScanner>().ScanAsync(scan.Token)).ToArray();
             var found = await Task.WhenAll(tasks);
-            if (!IsDisposed) _feedback.Text = $"Tìm thấy {found.Sum(x => x.Count)} máy trên {tasks.Length} mạng.";
+            if (!IsDisposed)
+            {
+                var count = found.Sum(x => x.Count);
+                var reason = _running.Values.Select(x => x.Network.Services.GetRequiredService<NetworkHealth>().DiscoveryIssue)
+                    .FirstOrDefault(x => x is not null);
+                _feedback.Text = count == 0 ? reason ?? "Chưa tìm thấy máy. Kiểm tra ID mạng và tường lửa trên cả hai máy."
+                    : $"Tìm thấy {count} máy trên {tasks.Length} mạng.";
+            }
         }
         catch (OperationCanceledException) { if (!IsDisposed) _feedback.Text = "Đã dừng quét."; }
         finally { _scan = null; if (!_scanButton.IsDisposed) _scanButton.Text = "Quét tất cả"; }
@@ -139,9 +168,17 @@ internal sealed class NetworkWorkspace : Form
         return Task.CompletedTask;
     }
 
+    private async Task RestoreDefaultNetworkAsync()
+    {
+        var entry = _catalog.Entries.FirstOrDefault(_catalog.IsDefault) ?? await _catalog.RestoreDefaultAsync();
+        await OpenNetworkAsync(entry);
+        _tabs.SelectedTab = _running[entry.Id].Tab;
+        _feedback.Text = "Đã mở mạng mặc định.";
+    }
+
     private Task ManageAsync()
     {
-        using var manager = new NetworkManagerForm(_catalog, OpenNetworkAsync, RemoveNetworkAsync, StopNetworkAsync, NetworkDetails, IsConnected,
+        using var manager = new NetworkManagerForm(_catalog, OpenNetworkAsync, RemoveNetworkAsync, StopNetworkAsync, NetworkDetails, IsConnected, RestoreDefaultNetworkAsync,
             () => _tabs.SelectedTab?.Tag as Guid?, id => { if (_running.TryGetValue(id, out var network)) _tabs.SelectedTab = network.Tab; });
         manager.ShowDialog(this);
         foreach (var entry in _catalog.Entries)
@@ -176,8 +213,13 @@ internal sealed class NetworkWorkspace : Form
     {
         if (_closed) return;
         e.Cancel = true;
+        if (e.CloseReason == CloseReason.UserClosing && !_exitRequested && !_exiting)
+        {
+            if (!_busy || _scan is not null) Hide();
+            return;
+        }
         if (_exiting) return;
-        if (_busy && _scan is null) return;
+        if (_busy && _scan is null && e.CloseReason == CloseReason.UserClosing) { _exitRequested = false; return; }
         _exiting = true;
         _scan?.Cancel();
         foreach (var item in _running.Values) item.View.Close();

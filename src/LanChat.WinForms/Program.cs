@@ -43,7 +43,7 @@ internal static class Program
             if (instance is not null && !acquired)
             {
                 instance.Dispose();
-                if (!startup) MessageBox.Show("LanChat đang chạy. Hãy mở cửa sổ hiện tại từ thanh tác vụ.", "LanChat",
+                if (!startup) MessageBox.Show("LanChat đang chạy. Hãy mở cửa sổ hiện tại từ khay hệ thống.", "LanChat",
                     MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
@@ -61,11 +61,11 @@ internal static class Program
             window.Shown += async (_, _) =>
             {
                 try { await window.StartAsync(); }
-                catch (OperationCanceledException) { window.Close(); }
+                catch (OperationCanceledException) { window.ExitApplication(); }
                 catch (Exception ex)
                 {
                     MessageBox.Show(window, ex.Message, "Không khởi động được LanChat", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                    window.Close();
+                    window.ExitApplication();
                 }
             };
             System.Windows.Forms.Application.Run(window);

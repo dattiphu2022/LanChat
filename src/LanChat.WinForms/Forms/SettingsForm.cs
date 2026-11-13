@@ -10,6 +10,7 @@ public sealed class SettingsForm : Form
 
     public SettingsForm(string name, string? department, bool startup, Func<string, string, bool, Task> save)
     {
+        Icon = AppIcon.Value;
         Text = "Cài đặt LanChat";
         StartPosition = FormStartPosition.CenterParent;
         AutoScaleMode = AutoScaleMode.Dpi;

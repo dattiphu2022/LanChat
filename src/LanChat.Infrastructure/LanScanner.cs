@@ -1,5 +1,5 @@
-using Microsoft.Extensions.Logging;
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
@@ -7,6 +7,7 @@ using System.Security.Authentication;
 using System.Text.Json;
 using LanChat.Application;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 
 namespace LanChat.Infrastructure;
 
@@ -50,7 +51,7 @@ public sealed class LanScanner(ILocalNetworkInfoProvider networks, IPeerTranspor
         }
         try
         {
-            discovery.RequestDiscovery();
+            if (manual) discovery.RequestDiscovery();
             while (!scan.Task.IsCompleted)
             {
                 progress?.Report(new LanScanProgress(Volatile.Read(ref scan.Checked), scan.Found.Count, scan.CheckingUdp));
@@ -79,7 +80,7 @@ public sealed class LanScanner(ILocalNetworkInfoProvider networks, IPeerTranspor
     private async Task<IReadOnlyList<DiscoveredPeerDto>> RunAsync(ScanSession scan)
     {
         var ct = scan.Stop.Token;
-        var started = DateTime.UtcNow.Ticks;
+        var started = Stopwatch.GetTimestamp();
         discovery.RequestDiscovery();
         await Task.Delay(750, ct).ConfigureAwait(false);
         foreach (var p in discovery.PeersSince(started)) scan.Found[p.NodeId] = p;
@@ -92,34 +93,48 @@ public sealed class LanScanner(ILocalNetworkInfoProvider networks, IPeerTranspor
         if (scan.Found.Count > 0 && known.All(p => scan.Found.ContainsKey(p.NodeId)) && Volatile.Read(ref scan.ManualUsers) == 0)
             return scan.Found.Values.ToArray();
 
-        var triedKnown = new HashSet<(string Address, int Port)>();
-        var endpoints = known.Where(p => !scan.Found.ContainsKey(p.NodeId) && (IPAddress.IsLoopback(IPAddress.Parse(p.Address)) ||
-            ranges.Any(r => NetworkRangeCalculator.Contains(r, p.Address)))).Select(p => (p.Address, p.Port));
-        var advertised = new HashSet<string>(scan.Found.Values.Select(p => p.IPAddress));
-        var subnets = ranges.GroupBy(r => (r.Network, r.PrefixLength)).Select(g => g.First());
-        var ports = new[] { NodeOptions.DefaultServicePort, ClusterPorts.Alternate(options.ClusterId), options.ServicePort }.Distinct().ToArray();
-        var candidates = endpoints.Where(triedKnown.Add).Concat(FallbackEndpoints());
+        var endpoints = known.Where(p => !scan.Found.ContainsKey(p.NodeId) && IPAddress.TryParse(p.Address, out var ip) &&
+            ip.AddressFamily == AddressFamily.InterNetwork && (IPAddress.IsLoopback(ip) ||
+            ranges.Any(r => NetworkRangeCalculator.Contains(r, p.Address)))).Select(p => (p.Address, p.Port)).Distinct().ToArray();
+        var checkedEndpoints = new HashSet<(string Address, int Port)>(endpoints);
+        checkedEndpoints.UnionWith(scan.Found.Values.Select(p => (p.IPAddress, p.ServicePort)));
+        var subnets = ranges.OrderByDescending(r => !string.IsNullOrEmpty(r.Gateway))
+            .ThenByDescending(r => r.PrefixLength).GroupBy(r => (r.Network, r.PrefixLength)).Select(g => g.First());
+        var ports = new[] { options.ServicePort, NodeOptions.DefaultServicePort, ClusterPorts.Alternate(options.ClusterId) }.Distinct().ToArray();
 
-        IEnumerable<(string Address, int Port)> FallbackEndpoints()
+        IEnumerable<string> FallbackAddresses()
         {
             var previous = new List<NetworkInfo>();
             foreach (var subnet in subnets)
             {
                 foreach (var ip in NetworkRangeCalculator.Hosts(subnet))
-                    if (!local.Contains(ip) && !advertised.Contains(ip) && !previous.Any(r => NetworkRangeCalculator.ContainsHost(r, ip)))
-                        foreach (var port in ports)
-                            if (!triedKnown.Contains((ip, port))) yield return (ip, port);
+                    if (!local.Contains(ip) && !previous.Any(r => NetworkRangeCalculator.ContainsHost(r, ip)))
+                        yield return ip;
                 previous.Add(subnet);
             }
         }
-        await FrameworkIO.ForEachAsync(BoundedCandidates(), 64, ct, async (endpoint, token) =>
+
+        IEnumerable<(string Address, int Port)> Candidates()
+        {
+            var addressBudget = 0;
+            foreach (var endpoint in endpoints) yield return endpoint;
+            foreach (var address in FallbackAddresses())
+            {
+                if (Volatile.Read(ref scan.ManualUsers) == 0 && addressBudget >= AutomaticLimit) yield break;
+                addressBudget++;
+                foreach (var port in ports)
+                    if (!checkedEndpoints.Contains((address, port)))
+                        yield return (address, port);
+            }
+        }
+        await FrameworkIO.ForEachAsync(Candidates(), 64, ct, async (endpoint, token) =>
         {
             try
             {
                 var info = transport is PeerTransport peerTransport
                     ? await peerTransport.DiscoverAsync(endpoint.Address, endpoint.Port, own, token).ConfigureAwait(false)
                     : await transport.GetNodeInfoAsync(endpoint.Address, endpoint.Port, token).ConfigureAwait(false);
-                if (info.NodeId == own.NodeId) return;
+                if (info.NodeId == own.NodeId || info.User is null || info.User.Id == own.User.Id) return;
                 await store.RememberPeerAsync(info, endpoint.Address, token).ConfigureAwait(false);
                 scan.Found[info.NodeId] = ToDiscovered(info, endpoint.Address, options.ClusterId);
             }
@@ -129,17 +144,6 @@ public sealed class LanScanner(ILocalNetworkInfoProvider networks, IPeerTranspor
         }).ConfigureAwait(false);
         foreach (var p in discovery.PeersSince(started)) scan.Found[p.NodeId] = p;
         return scan.Found.Values.ToArray();
-
-        IEnumerable<(string Address, int Port)> BoundedCandidates()
-        {
-            var count = 0;
-            foreach (var endpoint in candidates)
-            {
-                if (Volatile.Read(ref scan.ManualUsers) == 0 && count >= AutomaticLimit) yield break;
-                yield return endpoint;
-                count++;
-            }
-        }
     }
 
     internal static DiscoveredPeerDto ToDiscovered(NodeInfoDto info, string address, Guid cluster) =>

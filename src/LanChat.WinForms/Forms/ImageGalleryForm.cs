@@ -28,6 +28,7 @@ internal sealed class ImageGalleryForm : Form
     {
         if (items.Length == 0) throw new ArgumentException("Cuộc trò chuyện chưa có ảnh.");
         _items = items; _images = images; _files = files; _index = Math.Max(0, Array.FindIndex(items, x => x.File.Id == selectedId));
+        Icon = AppIcon.Value;
         Text = "Xem ảnh — LanChat"; ClientSize = new Size(1080, 800); MinimumSize = new Size(780, 580); StartPosition = FormStartPosition.CenterParent;
         Font = new Font("Segoe UI", 10); KeyPreview = true;
         var layout = Theme.Stack(6); layout.Padding = new Padding(12);

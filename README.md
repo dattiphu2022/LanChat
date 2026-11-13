@@ -21,9 +21,11 @@ Nên có **ít nhất 3 máy đã tham gia ổn định** để chịu được 
 
 Trong **Cài đặt**, bạn có thể sửa Tên, Đơn vị và bật **Khởi động cùng hệ thống** để mở LanChat khi đăng nhập Windows. LanChat dùng chữ cái làm ảnh đại diện và chỉ mở một tiến trình trên máy.
 
+Nhấn **Thu nhỏ** hoặc **X** để đưa LanChat xuống khay hệ thống. Nhấp đúp biểu tượng để mở lại, hoặc bấm chuột phải và chọn **Thoát LanChat** để dừng ứng dụng.
+
 ## Mã mặc định cho nhiều máy
 
-LanChat tạo mạng mặc định riêng khi chạy lần đầu. Để nhiều máy vào cùng một mạng mặc định ngay khi mở, lấy mã của máy đã tạo mạng và cấp cho các máy mới bằng tệp `default-network.json` đặt cạnh EXE trước lần mở đầu tiên. Dùng JSON dạng `{"invitation":"MÃ_MỜI_ĐẦY_ĐỦ"}`. Tệp chứa thông tin tham gia mạng, nên chỉ cấp cho máy được phép và có thể bỏ sau khi LanChat đã lưu cấu hình. Mỗi mã có cơ sở dữ liệu riêng, kể cả mạng mặc định. Khi đã gỡ mạng mặc định, có thể chọn **Thêm lại mạng mặc định** trong **Mạng chat**.
+Bản phát hành nội bộ tự tham gia mạng mặc định được nhúng trong EXE. Khi cài bản có mã mới, LanChat tự chuyển mạng mặc định đang bật và tiếp tục lưu lịch sử theo từng mã. Nếu đã gỡ mạng mặc định, dùng **Khôi phục mạng mặc định** trên thanh công cụ của cửa sổ chính để bật lại. Xem [hướng dẫn bộ cài](installer/README.md) để cấp hoặc đổi mã cho bản build.
 
 ## Nâng cấp
 

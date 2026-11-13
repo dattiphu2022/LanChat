@@ -9,6 +9,7 @@ internal sealed class AttachmentOpenProgressForm : Form
     private readonly ProgressBar _progress = new() { Dock = DockStyle.Fill, Style = ProgressBarStyle.Marquee, Maximum = 1000 };
     public AttachmentOpenProgressForm(string fileName, CancellationTokenSource cancellation)
     {
+        Icon = AppIcon.Value;
         Text = "Mở tệp đính kèm"; ClientSize = new Size(500, 175); FormBorderStyle = FormBorderStyle.FixedDialog;
         StartPosition = FormStartPosition.CenterParent; ShowInTaskbar = false; MaximizeBox = MinimizeBox = false;
         var layout = Theme.Stack(4); layout.Padding = new Padding(12);

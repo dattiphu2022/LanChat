@@ -10,6 +10,7 @@ public sealed class MessageSearchForm : Form
     public Guid? SelectedMessage { get; private set; }
     public MessageSearchForm(IDistributedStore store, IReadOnlyList<ConversationSummary> conversations)
     {
+        Icon = AppIcon.Value;
         Text = "Tìm trong lịch sử tin nhắn"; ClientSize = new Size(760, 500); StartPosition = FormStartPosition.CenterParent;
         var layout = Theme.Stack(3); layout.Padding = new Padding(12); layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 40)); layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100)); layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 48));
         var search = new PromptTextBox { Dock = DockStyle.Fill, PlaceholderText = "Nhập từ cần tìm (có thể gõ không dấu)…" };

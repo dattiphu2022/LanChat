@@ -403,7 +403,6 @@ public sealed partial class ConsensusService(ChatStore store, ChatDatabase datab
                         if (bootstrap || Volatile.Read(ref _handoffPending) != 0 || (retryDue && elapsed >= options.LeaderTimeout))
                         {
                             _lastElectionAttempt = Stopwatch.GetTimestamp();
-                            discovery.RequestDiscovery();
                             await ElectAsync(stoppingToken).ConfigureAwait(false);
                         }
                     }

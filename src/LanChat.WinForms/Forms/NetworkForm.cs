@@ -13,6 +13,7 @@ public sealed class NetworkForm : Form
     private readonly TextBox _cluster = new() { Multiline = true, ReadOnly = true, Dock = DockStyle.Fill };
     public NetworkForm(IChatStore store, NodeOptions options, ILocalNetworkInfoProvider networks, IConsensusService consensus, ILanScanner scanner, IServiceProvider services)
     {
+        Icon = AppIcon.Value;
         Text = "Quản lý kết nối mạng chat"; StartPosition = FormStartPosition.CenterParent; ClientSize = new Size(740, 640); MinimumSize = new Size(650, 600); Font = new Font("Segoe UI", 10);
         var tabs = new TabControl { Dock = DockStyle.Fill };
         var network = new TabPage("Kết nối"); var cluster = new TabPage("Điều phối và mã mời"); var storage = new TabPage("Lưu trữ");
@@ -75,7 +76,7 @@ public sealed class NetworkForm : Form
             var (state, identity, peers) = data;
             var center = state.LeaderReady ? (state.LeaderNodeId == identity.NodeId ? "Máy này" :
                 peers.FirstOrDefault(p => p.NodeId == state.LeaderNodeId)?.DisplayName ?? "Máy trong LAN") : "Đang chờ";
-            _cluster.Text = $"Máy trung tâm: {center}\r\n{state.StatusText}\r\nMáy bỏ phiếu: {state.Voters.Length}   ·   Nhiệm kỳ: {state.Term}\r\nMáy đã biết: {peers.Count}";
+            _cluster.Text = $"Máy trung tâm: {center}\r\n{state.StatusText}\r\nMáy bỏ phiếu: {state.Voters.Length}   ·   Nhiệm kỳ: {state.Term}\r\nMáy đã biết: {peers.Count}\r\nID mạng: {options.ClusterId:N} · Giao thức: v{NodeInfoDto.CurrentProtocol}";
             loadingLeadership = true; allow.Checked = state.CanLead; allow.Enabled = true; loadingLeadership = false;
             campaign.Enabled = state.CanLead && state.Role != NodeRole.Leader &&
                 state.Voters.Concat(state.JointVoters ?? []).Contains(identity.NodeId);

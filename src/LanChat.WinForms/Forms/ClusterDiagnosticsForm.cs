@@ -11,6 +11,7 @@ public sealed class ClusterDiagnosticsForm : Form
     public ClusterDiagnosticsForm(IChatStore store, NodeOptions options, NetworkHealth health, IDistributedStore distributed,
         IConsensusService consensus, ReplicationBackgroundService replication, PeerDiscoveryBackgroundService discovery, FaultInjection faults)
     {
+        Icon = AppIcon.Value;
         Text = "Chẩn đoán mạng chat"; ClientSize = new Size(1080, 650); StartPosition = FormStartPosition.CenterParent; Font = new Font("Segoe UI", 10);
         var layout = Theme.Stack(3); layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 180)); layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100)); layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 100));
         layout.Controls.Add(_summary, 0, 0); layout.Controls.Add(_grid, 0, 1);

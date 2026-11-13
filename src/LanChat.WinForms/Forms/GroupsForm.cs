@@ -18,6 +18,7 @@ public sealed class GroupsForm : Form
     public Guid? SelectedGroup { get; private set; }
     public GroupsForm(IChatStore chat, IDistributedStore store, IConsensusService consensus)
     {
+        Icon = AppIcon.Value;
         Text = "Nhóm chat"; ClientSize = new Size(850, 610); MinimumSize = new Size(780, 540); StartPosition = FormStartPosition.CenterParent;
         var layout = Theme.Stack(3); layout.Padding = new Padding(12); layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 55)); layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100)); layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 104));
         var columns = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1 };

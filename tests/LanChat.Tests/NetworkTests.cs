@@ -66,6 +66,40 @@ public sealed class NetworkTests
         Assert.Throws<InvalidDataException>(() => wire.Decode(altered, false));
     }
     [Fact]
+    public async Task TcpClockChallengeRejectsProofForAnotherNonce()
+    {
+        const long now = 1_000_000;
+        var options = new NodeOptions { ClusterId = Guid.NewGuid(), ClusterSecret = FrameworkIO.RandomBytes(32) };
+        var server = new WireProtocol(options, () => now);
+        var staleClient = new WireProtocol(options, () => now - 600);
+        var node = Guid.NewGuid();
+        var requestId = Guid.NewGuid();
+        var initial = staleClient.Encode(node, "NodeInfo", new { }, requestId);
+        Assert.Throws<InvalidDataException>(() => server.Decode(initial));
+
+        var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        using var timeout = new CancellationTokenSource(5000);
+        try
+        {
+            using var client = new TcpClient();
+            await client.ConnectAsync(IPAddress.Loopback, ((IPEndPoint)listener.LocalEndpoint).Port);
+            using var accepted = await listener.AcceptTcpClientAsync();
+            using var stream = client.GetStream();
+            using var serverStream = accepted.GetStream();
+            var handshake = server.ReadTcpRequestAsync(serverStream, Guid.NewGuid(), timeout.Token);
+            await WireProtocol.WriteAsync(stream, initial, timeout.Token);
+            var challenge = server.Decode(await WireProtocol.ReadAsync(stream, timeout.Token), false);
+            Assert.Equal("ClockChallenge", challenge.MessageType);
+            var wrongNonce = Guid.NewGuid();
+            Assert.NotEqual(challenge.RequestId, wrongNonce);
+            var wrongProof = staleClient.Encode(node, "ClockProof", requestId, wrongNonce);
+            await WireProtocol.WriteAsync(stream, wrongProof, timeout.Token);
+            await Assert.ThrowsAsync<InvalidDataException>(() => handshake);
+        }
+        finally { listener.Stop(); }
+    }
+    [Fact]
     public async Task RejectsOversizedFrameBeforeAllocation()
     {
         using var stream = new MemoryStream(new byte[] { 127, 255, 255, 255 });

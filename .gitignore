@@ -6,3 +6,6 @@ TestResults/
 artifacts/
 Data/
 *.user
+/src/LanChat.WinForms/Assets/DefaultNetwork.local.json
+
+/installer/PublishDir.local.iss

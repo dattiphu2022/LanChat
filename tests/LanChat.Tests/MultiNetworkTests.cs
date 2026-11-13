@@ -8,6 +8,29 @@ namespace LanChat.Tests;
 public sealed class MultiNetworkTests
 {
     [Fact]
+    public async Task ClockSkewStillDiscoversBothPeersAndDeliversMessages()
+    {
+        var cluster = Guid.NewGuid();
+        var secret = FrameworkIO.RandomBytes(32);
+        await using var a = new TestNode(cluster, secret, "Clock A");
+        await using var b = new TestNode(cluster, secret, "Clock B",
+            utcSeconds: () => DateTimeOffset.UtcNow.AddMinutes(17).ToUnixTimeSeconds());
+        a.Options.DiscoveryTargets.Add("127.0.0.1:" + b.Options.DiscoveryPort);
+        b.Options.DiscoveryTargets.Add("127.0.0.1:" + a.Options.DiscoveryPort);
+        await a.InitializeAsync(true);
+        await b.InitializeAsync(true);
+
+        await TestNode.WaitUntilAsync(async () => (await a.Store.GetUsersAsync()).Count == 1 &&
+            (await b.Store.GetUsersAsync()).Count == 1);
+        var userA = Assert.Single(await b.Store.GetUsersAsync());
+        var userB = Assert.Single(await a.Store.GetUsersAsync());
+        Assert.Equal("Clock A", userA.DisplayName);
+        Assert.Equal("Clock B", userB.DisplayName);
+        var message = await a.Store.SaveOutgoingAsync(userB.UserId, "Kiểm tra kết nối khi lệch giờ");
+        await TestNode.WaitUntilAsync(async () => (await b.Store.GetMessagesAsync(message.ConversationId)).Any(m => m.Id == message.Id));
+    }
+
+    [Fact]
     public async Task NetworksShareDiscoveryPortAndKeepDataSeparateAfterOneStops()
     {
         var hub = new DiscoverySockets();

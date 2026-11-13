@@ -4,7 +4,26 @@
     <PlatformTarget>x64</PlatformTarget>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
     <UseWindowsForms>true</UseWindowsForms>
+    <ApplicationIcon>Assets/LanChat.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
   </PropertyGroup>
   <ItemGroup><ProjectReference Include="../LanChat.Infrastructure/LanChat.Infrastructure.csproj" /></ItemGroup>
+  <ItemGroup Condition="Exists('Assets/DefaultNetwork.local.json')">
+    <EmbeddedResource Include="Assets/DefaultNetwork.local.json" LogicalName="LanChat.DefaultNetwork" />
+  </ItemGroup>
+  <Target Name="BuildInnoSetup" AfterTargets="Publish" Condition="'$(BuildInstaller)' != 'false'">
+    <PropertyGroup>
+      <InnoSetupCompiler Condition="'$(InnoSetupCompiler)' == '' and Exists('$(MSBuildProgramFiles32)/Inno Setup 6/ISCC.exe')">$(MSBuildProgramFiles32)/Inno Setup 6/ISCC.exe</InnoSetupCompiler>
+      <InnoSetupCompiler Condition="'$(InnoSetupCompiler)' == '' and Exists('$(LocalAppData)/Programs/Inno Setup 6/ISCC.exe')">$(LocalAppData)/Programs/Inno Setup 6/ISCC.exe</InnoSetupCompiler>
+      <InnoSetupCompiler Condition="'$(InnoSetupCompiler)' == ''">ISCC.exe</InnoSetupCompiler>
+      <InstallerScript>$(MSBuildProjectDirectory)/../../installer/LanChat.iss</InstallerScript>
+      <InstallerPublishDir>$([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)', '$(PublishDir)'))</InstallerPublishDir>
+    </PropertyGroup>
+    <Error Condition="!Exists('Assets/DefaultNetwork.local.json')" Text="Missing the shared default invitation. Restore Assets/DefaultNetwork.local.json from the internal release backup before publishing the installer." />
+    <Error Condition="!Exists('$(InstallerPublishDir)/$(TargetFileName)')" Text="WinForms publish output is missing from $(InstallerPublishDir)." />
+    <WriteLinesToFile File="$(MSBuildProjectDirectory)/../../installer/PublishDir.local.iss"
+                      Lines="#define PublishDir &quot;$([MSBuild]::EnsureTrailingSlash('$(InstallerPublishDir)')).&quot;"
+                      Overwrite="true" Encoding="UTF-8" />
+    <Exec WorkingDirectory="$(MSBuildProjectDirectory)" Command="&quot;$(InnoSetupCompiler)&quot; &quot;/DPublishDir=$([MSBuild]::EnsureTrailingSlash('$(InstallerPublishDir)')).&quot; &quot;$(InstallerScript)&quot;" />
+  </Target>
 </Project>
