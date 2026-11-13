@@ -37,7 +37,7 @@ public sealed class AttachmentForm : Form
             try
             {
                 _state.Text = "Đang tìm nguồn và tải tệp…";
-                var progress = new Progress<FileProgress>(p => { if (IsDisposed) return; _progress.Value = p.Total == 0 ? 1000 : (int)Math.Clamp(p.Completed * 1000 / p.Total, 0, 1000); _state.Text = $"Đã tải {p.Completed / 1024d:N0} / {p.Total / 1024d:N0} KB"; });
+                var progress = new Progress<FileProgress>(p => { if (IsDisposed) return; _progress.Value = p.Total == 0 ? 1000 : (int)Math.Max(0, Math.Min(1000, p.Completed * 1000 / p.Total)); _state.Text = $"Đã tải {p.Completed / 1024d:N0} / {p.Total / 1024d:N0} KB"; });
                 _localPath = await files.DownloadAsync(file, progress, _download.Token); if (!IsDisposed) ShowPreview();
             }
             catch (OperationCanceledException) { if (!IsDisposed) _state.Text = "Đã hủy tải. Thông tin tệp vẫn được giữ lại."; }
@@ -52,8 +52,8 @@ public sealed class AttachmentForm : Form
             try
             {
                 var verified = await files.DownloadAsync(file, ct: _lifetime.Token);
-                await using var source = File.OpenRead(verified); await using var output = new FileStream(dialog.FileName, FileMode.Create, FileAccess.Write, FileShare.None, 65536, true);
-                await source.CopyToAsync(output, _lifetime.Token); _state.Text = "Đã lưu tệp.";
+                using var source = File.OpenRead(verified); using var output = new FileStream(dialog.FileName, FileMode.Create, FileAccess.Write, FileShare.None, 65536, true);
+                await source.CopyToAsync(output, 65536, _lifetime.Token); _state.Text = "Đã lưu tệp.";
             }
             catch (Exception ex) { if (!IsDisposed) _state.Text = ex.Message; }
         };

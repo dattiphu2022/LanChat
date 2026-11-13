@@ -2,7 +2,6 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using LanChat.Application;
 using LanChat.Domain;
-using Microsoft.EntityFrameworkCore;
 
 namespace LanChat.Infrastructure;
 
@@ -11,18 +10,18 @@ public sealed partial class ChatStore
     internal static UserProfileDto ToProfile(LocalUserProfile p) => new(p.Id, p.DisplayName, p.FullName, p.Nickname, p.Department, p.Position, p.Phone, p.StatusMessage);
     internal static EventDto ToEvent(ReplicationEvent e) => new(e.Id, e.OriginNodeId, e.OriginSequence, e.ActorUserId, e.EntityId, e.ConversationId,
         e.Type, e.PayloadJson, e.PhysicalTicks, e.LogicalCounter, e.CreatedAtTicks, e.Signature);
-    private string SignEvent(EventDto e) => Convert.ToBase64String(HMACSHA256.HashData(options.ClusterSecret, JsonSerializer.SerializeToUtf8Bytes(e with { Signature = "" })));
+    private string SignEvent(EventDto e) => Convert.ToBase64String(FrameworkIO.Hmac(options.ClusterSecret, JsonSerializer.SerializeToUtf8Bytes(e with { Signature = "" })));
     private async Task InitializeDistributedAsync(CancellationToken ct)
     {
         await WriteAsync(async db =>
         {
-            var s = await db.Settings.SingleAsync(ct);
+            var s = db.Required<LocalSettings>();
             if (s.ClusterId != Guid.Empty && s.ClusterId != options.ClusterId) throw new InvalidOperationException("Database thuộc mạng chat khác. Hãy dùng thư mục dữ liệu riêng.");
             s.ClusterId = options.ClusterId;
-            if (!await db.Cluster.AnyAsync(ct)) db.Cluster.Add(new ClusterState { Id = Guid.CreateVersion7(), ClusterId = options.ClusterId });
-            if (!await db.Events.AnyAsync(x => x.OriginNodeId == s.NodeId && x.Type == ReplicationEventType.UserProfileUpdated, ct))
-                await EmitAsync(db, s, ReplicationEventType.UserProfileUpdated, s.UserId, null, ToProfile(await db.Users.SingleAsync(x => x.Id == s.UserId, ct)), ct);
-            var oldMessages = await db.Messages.Where(m => m.Kind != MessageKind.System && !db.Events.Any(e => e.EntityId == m.Id && e.Type == ReplicationEventType.MessageCreated)).ToListAsync(ct);
+            if (!db.Exists<ClusterState>()) db.Insert(new ClusterState { Id = LanChat.Domain.AppIdentity.NewId(), ClusterId = options.ClusterId });
+            if (!db.Exists<ReplicationEvent>("OriginNodeId=$0 AND Type=$1", s.NodeId, ReplicationEventType.UserProfileUpdated))
+                await EmitAsync(db, s, ReplicationEventType.UserProfileUpdated, s.UserId, null, ToProfile(db.Required<LocalUserProfile>("Id=$0", s.UserId)), ct);
+            var oldMessages = db.Rows<Message>("Kind<>$0 AND NOT EXISTS(SELECT 1 FROM ReplicationEvents e WHERE e.EntityId=Messages.Id AND e.Type=$1)", MessageKind.System, ReplicationEventType.MessageCreated);
             foreach (var message in oldMessages) await EmitMessageAsync(db, s, message, null, ct);
             return true;
         }, ct);
@@ -31,37 +30,36 @@ public sealed partial class ChatStore
         Guid? conversationId, T payload, CancellationToken ct, Guid? actor = null)
     {
         (s.PhysicalTicks, s.LogicalCounter) = HybridClock.Advance(s.PhysicalTicks, s.LogicalCounter);
-        var e = new ReplicationEvent { Id = Guid.CreateVersion7(), OriginNodeId = s.NodeId, OriginSequence = ++s.EventSequence,
+        var e = new ReplicationEvent { Id = LanChat.Domain.AppIdentity.NewId(), OriginNodeId = s.NodeId, OriginSequence = ++s.EventSequence,
             ActorUserId = actor ?? s.UserId, EntityId = entityId, ConversationId = conversationId, Type = type,
             PayloadJson = JsonSerializer.Serialize(payload), PhysicalTicks = s.PhysicalTicks, LogicalCounter = s.LogicalCounter, CreatedAtTicks = DateTime.UtcNow.Ticks };
         e.Signature = SignEvent(ToEvent(e));
-        db.Events.Add(e); db.Outbox.Add(new OutboxItem { Id = Guid.CreateVersion7(), ReplicationEventId = e.Id });
-        var cursor = await db.Cursors.SingleOrDefaultAsync(x => x.OriginNodeId == s.NodeId, ct);
-        if (cursor is null) { cursor = new ReplicationCursor { Id = Guid.CreateVersion7(), OriginNodeId = s.NodeId }; db.Cursors.Add(cursor); }
+        db.Insert(e); db.Insert(new OutboxItem { Id = LanChat.Domain.AppIdentity.NewId(), ReplicationEventId = e.Id });
+        var cursor = db.One<ReplicationCursor>("OriginNodeId=$0", s.NodeId);
+        if (cursor is null) { cursor = new ReplicationCursor { Id = LanChat.Domain.AppIdentity.NewId(), OriginNodeId = s.NodeId }; db.Insert(cursor); }
         cursor.LastOriginSequence = s.EventSequence;
-        await db.SaveChangesAsync(ct);
+        db.SaveChanges();
         await ProjectEntityAsync(db, e.EntityId, ct);
         return ToEvent(e);
     }
     private async Task EmitMessageAsync(ChatDbContext db, LocalSettings s, Message message, AttachmentDto[]? attachments, CancellationToken ct)
     {
-        var sender = await db.Users.SingleAsync(x => x.Id == message.SenderUserId, ct);
-        var recipient = await db.Users.SingleOrDefaultAsync(x => x.Id == message.RecipientUserId, ct);
-        var audience = await db.Members.Where(x => x.ConversationId == message.ConversationId).Select(x => x.UserId).ToArrayAsync(ct);
+        var sender = db.Required<LocalUserProfile>("Id=$0", message.SenderUserId);
+        var recipient = db.One<LocalUserProfile>("Id=$0", message.RecipientUserId);
+        var audience = db.Rows<ConversationMember>("ConversationId=$0", message.ConversationId).Select(x => x.UserId).ToArray();
         var content = new MessageContent(PendingMessageDeliveryService.ToDto(message), ToProfile(sender), recipient is null ? null : ToProfile(recipient),
             message.ReplyToMessageId, message.ForwardedFromMessageId, attachments, audience);
         await EmitAsync(db, s, ReplicationEventType.MessageCreated, message.Id, message.ConversationId, content, ct, message.SenderUserId);
     }
     public async Task<ReplicationDigest> GetDigestAsync(CancellationToken ct = default)
     {
-        await using var db = await factory.CreateDbContextAsync(ct);
-        return new(await db.Cursors.AsNoTracking().Select(x => new CursorDto(x.OriginNodeId, x.LastOriginSequence)).ToArrayAsync(ct));
+        using var db = database.Open(ct);
+        return new(db.Rows<ReplicationCursor>().Select(x => new CursorDto(x.OriginNodeId, x.LastOriginSequence)).ToArray());
     }
     public async Task<EventBatch> GetEventRangeAsync(EventRangeRequest request, CancellationToken ct = default)
     {
-        await using var db = await factory.CreateDbContextAsync(ct);
-        var rows = await db.Events.AsNoTracking().Where(x => x.OriginNodeId == request.OriginNodeId && x.OriginSequence > request.AfterSequence)
-            .OrderBy(x => x.OriginSequence).Take(Math.Clamp(request.Limit, 1, 100)).ToArrayAsync(ct);
+        using var db = database.Open(ct);
+        var rows = db.Rows<ReplicationEvent>("OriginNodeId=$0 AND OriginSequence>$1 ORDER BY OriginSequence LIMIT $2", request.OriginNodeId, request.AfterSequence, Math.Min(100, Math.Max(1, request.Limit)));
         // Bound by serialized byte size as well as row count; a batch can contain large text/metadata events.
         var result = new List<EventDto>(); var bytes = 0;
         foreach (var row in rows)
@@ -75,46 +73,45 @@ public sealed partial class ChatStore
     public Task<EventAck> ImportEventsAsync(EventBatch batch, CancellationToken ct = default) => WriteAsync(async db =>
     {
         if (batch.Events.Length > 100) throw new InvalidDataException("Lô sự kiện quá lớn.");
-        var s = await db.Settings.SingleAsync(ct);
+        var s = db.Required<LocalSettings>();
         var changed = new HashSet<Guid>(); var origins = new HashSet<Guid>();
         foreach (var e in batch.Events)
         {
             ValidateEvent(e);
-            var old = await db.Events.SingleOrDefaultAsync(x => x.Id == e.Id || (x.OriginNodeId == e.OriginNodeId && x.OriginSequence == e.OriginSequence), ct);
+            var old = db.One<ReplicationEvent>("Id=$0 OR (OriginNodeId=$1 AND OriginSequence=$2)", e.Id, e.OriginNodeId, e.OriginSequence);
             if (old is not null)
             {
                 if (ToEvent(old) != e) throw new InvalidDataException("Xung đột sự kiện bất biến.");
                 continue;
             }
             if (e.OriginNodeId == s.NodeId) throw new InvalidDataException("Không nhận sự kiện mới giả danh node cục bộ.");
-            db.Events.Add(new ReplicationEvent { Id = e.Id, OriginNodeId = e.OriginNodeId, OriginSequence = e.OriginSequence,
+            db.Insert(new ReplicationEvent { Id = e.Id, OriginNodeId = e.OriginNodeId, OriginSequence = e.OriginSequence,
                 ActorUserId = e.ActorUserId, EntityId = e.EntityId, ConversationId = e.ConversationId, Type = e.Type, PayloadJson = e.PayloadJson,
                 PhysicalTicks = e.PhysicalTicks, LogicalCounter = e.LogicalCounter, CreatedAtTicks = e.CreatedAtTicks, Signature = e.Signature });
             (s.PhysicalTicks, s.LogicalCounter) = HybridClock.Advance(s.PhysicalTicks, s.LogicalCounter, e.PhysicalTicks, e.LogicalCounter);
             changed.Add(e.EntityId); origins.Add(e.OriginNodeId);
-            await db.SaveChangesAsync(ct);
+            db.SaveChanges();
         }
         foreach (var origin in origins)
         {
-            var cursor = await db.Cursors.SingleOrDefaultAsync(x => x.OriginNodeId == origin, ct);
-            if (cursor is null) { cursor = new ReplicationCursor { Id = Guid.CreateVersion7(), OriginNodeId = origin }; db.Cursors.Add(cursor); }
+            var cursor = db.One<ReplicationCursor>("OriginNodeId=$0", origin);
+            if (cursor is null) { cursor = new ReplicationCursor { Id = LanChat.Domain.AppIdentity.NewId(), OriginNodeId = origin }; db.Insert(cursor); }
             // Never skip a gap, even when a later event arrived through realtime delivery.
             while (true)
             {
-                var sequences = await db.Events.Where(x => x.OriginNodeId == origin && x.OriginSequence > cursor.LastOriginSequence)
-                    .OrderBy(x => x.OriginSequence).Select(x => x.OriginSequence).Take(500).ToArrayAsync(ct);
+                var sequences = db.Rows<ReplicationEvent>("OriginNodeId=$0 AND OriginSequence>$1 ORDER BY OriginSequence LIMIT 500", origin, cursor.LastOriginSequence).Select(x => x.OriginSequence).ToArray();
                 var start = cursor.LastOriginSequence;
                 foreach (var sequence in sequences) { if (sequence != cursor.LastOriginSequence + 1) break; cursor.LastOriginSequence = sequence; }
-                if (sequences.Length < 500 || cursor.LastOriginSequence == start || cursor.LastOriginSequence != sequences[^1]) break;
+                if (sequences.Length < 500 || cursor.LastOriginSequence == start || cursor.LastOriginSequence != sequences[sequences.Length - 1]) break;
             }
         }
         foreach (var id in changed) await ProjectEntityAsync(db, id, ct);
-        await db.SaveChangesAsync(ct);
+        db.SaveChanges();
         foreach (var id in changed)
         {
-            var m = await db.Messages.SingleOrDefaultAsync(x => x.Id == id, ct);
-            if (m is not null && m.SenderUserId != s.UserId && await db.Members.AnyAsync(x => x.ConversationId == m.ConversationId && x.UserId == s.UserId, ct)
-                && !await db.Receipts.AnyAsync(x => x.MessageId == id && x.UserId == s.UserId, ct))
+            var m = db.One<Message>("Id=$0", id);
+            if (m is not null && m.SenderUserId != s.UserId && db.Exists<ConversationMember>("ConversationId=$0 AND UserId=$1", m.ConversationId, s.UserId)
+                && !db.Exists<MessageReceipt>("MessageId=$0 AND UserId=$1", id, s.UserId))
                 await EmitAsync(db, s, ReplicationEventType.ReceiptUpdated, id, m.ConversationId, new ReceiptChange(false, DateTime.UtcNow.Ticks), ct);
         }
         return new EventAck(batch.Events.Select(x => x.Id).ToArray());
@@ -123,19 +120,18 @@ public sealed partial class ChatStore
     {
         if (e.Id == Guid.Empty || e.EntityId == Guid.Empty || e.ActorUserId == Guid.Empty || e.OriginNodeId == Guid.Empty || e.OriginSequence < 1 ||
             e.PayloadJson.Length > 200000 || e.PhysicalTicks < 1 || e.PhysicalTicks > DateTime.UtcNow.AddDays(1).Ticks || e.LogicalCounter < 0 || e.LogicalCounter > 10000000 ||
-            !Enum.IsDefined(e.Type) || !CryptographicOperations.FixedTimeEquals(Convert.FromBase64String(SignEvent(e)), Convert.FromBase64String(e.Signature)))
+            !Enum.IsDefined(typeof(ReplicationEventType), e.Type) || !FrameworkIO.FixedEquals(Convert.FromBase64String(SignEvent(e)), Convert.FromBase64String(e.Signature)))
             throw new InvalidDataException("Sự kiện không hợp lệ.");
     }
     public async Task<PeerEndpoint[]> GetPeerEndpointsAsync(CancellationToken ct = default)
     {
-        await using var db = await factory.CreateDbContextAsync(ct);
-        return await db.Peers.AsNoTracking().Select(x => new PeerEndpoint(x.NodeId, x.IPAddress, x.ServicePort)).ToArrayAsync(ct);
+        using var db = database.Open(ct);
+        return db.Rows<PeerNode>("1 ORDER BY LastSeenTicks DESC").Select(x => new PeerEndpoint(x.NodeId, x.IPAddress, x.ServicePort)).ToArray();
     }
     public async Task<EventDto[]> GetOutboxAsync(CancellationToken ct = default)
     {
-        await using var db = await factory.CreateDbContextAsync(ct); var now = DateTime.UtcNow.Ticks;
-        var ids = await db.Outbox.Where(x => x.Status == OutboxStatus.Pending && x.NextRetryTicks <= now).OrderBy(x => x.NextRetryTicks).Select(x => x.ReplicationEventId).Take(20).ToArrayAsync(ct);
-        var events = await db.Events.AsNoTracking().Where(x => ids.Contains(x.Id)).OrderBy(x => x.OriginSequence).ToArrayAsync(ct);
+        using var db = database.Open(ct); var now = DateTime.UtcNow.Ticks;
+        var events = db.Rows<ReplicationEvent>("Id IN (SELECT ReplicationEventId FROM OutboxItems WHERE Status=$0 AND NextRetryTicks<=$1 ORDER BY NextRetryTicks LIMIT 20) ORDER BY OriginSequence", OutboxStatus.Pending, now);
         var result = new List<EventDto>(); var bytes = 0;
         foreach (var row in events)
         {
@@ -149,28 +145,29 @@ public sealed partial class ChatStore
     {
         await WriteAsync(async db =>
         {
-            var rows = await db.Outbox.Where(x => eventIds.Contains(x.ReplicationEventId)).ToArrayAsync(ct);
+            var rows = db.Rows<OutboxItem>(In("ReplicationEventId", eventIds), Args(eventIds));
             foreach (var row in rows)
             {
                 if (success) { row.Status = OutboxStatus.Replicated; row.LastError = null; }
-                else { row.RetryCount++; row.NextRetryTicks = DateTime.UtcNow.AddSeconds(Math.Min(30, Math.Pow(2, Math.Min(5, row.RetryCount)))).Ticks; row.LastError = "Chưa kết nối được peer."; }
+                else if (row.Status == OutboxStatus.Pending) { row.RetryCount++; row.NextRetryTicks = DateTime.UtcNow.AddSeconds(Math.Min(30, Math.Pow(2, Math.Min(5, row.RetryCount)))).Ticks; row.LastError = "Chưa kết nối được peer."; }
             }
             if (success)
             {
-                var messageIds = await db.Events.Where(x => eventIds.Contains(x.Id) && x.Type == ReplicationEventType.MessageCreated).Select(x => x.EntityId).ToArrayAsync(ct);
-                await db.Messages.Where(x => messageIds.Contains(x.Id) && x.Status == MessageStatus.LocalPending).ExecuteUpdateAsync(x => x.SetProperty(m => m.Status, MessageStatus.Synced), ct);
+                foreach (var e in db.Rows<ReplicationEvent>(In("Id", eventIds), Args(eventIds)).Where(e => e.Type == ReplicationEventType.MessageCreated))
+                    if (db.Execute("UPDATE Messages SET Status=$0 WHERE Id=$1 AND Status=$2", MessageStatus.Synced, e.EntityId, MessageStatus.LocalPending) > 0)
+                        db.NoteContentChange();
             }
             return true;
         }, ct);
     }
     public async Task<DistributedDiagnostics> GetDistributedDiagnosticsAsync(CancellationToken ct = default)
     {
-        await using var db = await factory.CreateDbContextAsync(ct);
-        return new(await db.Events.CountAsync(ct), await db.Outbox.CountAsync(x => x.Status == OutboxStatus.Pending, ct), (await GetDigestAsync(ct)).Cursors, faults.LastSync.UtcTicks);
+        using var db = database.Open(ct);
+        return new((int)db.Count<ReplicationEvent>(), (int)db.Count<OutboxItem>("Status=$0", OutboxStatus.Pending), (await GetDigestAsync(ct)).Cursors, faults.LastSync.UtcDateTime.Ticks);
     }
     public async Task<PeerDiagnostic[]> GetPeerDiagnosticsAsync(CancellationToken ct = default)
     {
-        await using var db = await factory.CreateDbContextAsync(ct);
-        return await db.Peers.AsNoTracking().Select(x => new PeerDiagnostic(x.NodeId, x.DeviceName, x.IPAddress, x.Role, x.Term, x.LastSeenTicks)).ToArrayAsync(ct);
+        using var db = database.Open(ct);
+        return db.Rows<PeerNode>().Select(x => new PeerDiagnostic(x.NodeId, x.DeviceName, x.IPAddress, x.Role, x.Term, x.LastSeenTicks)).ToArray();
     }
 }

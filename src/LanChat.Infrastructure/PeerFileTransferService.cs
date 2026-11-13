@@ -14,11 +14,11 @@ public sealed class PeerFileTransferService(NodeOptions options, IDistributedSto
     {
         if (hash.Length != 64 || !hash.All(Uri.IsHexDigit)) throw new ArgumentException("SHA256 không hợp lệ.");
         hash = hash.ToLowerInvariant();
-        return Path.Combine(options.DataDirectory, "Attachments", hash[..2], hash + ".bin");
+        return Path.Combine(options.DataDirectory, "Attachments", hash.Substring(0, 2), hash + ".bin");
     }
     public async Task<string?> GetLocalPathAsync(string sha256, CancellationToken ct = default)
     {
-        await using var stream = await OpenVerifiedLocalAsync(sha256, ct);
+        using var stream = await OpenVerifiedLocalAsync(sha256, ct);
         return stream is null ? null : BlobPath(sha256);
     }
     public async Task<AttachmentDto> ImportLocalAsync(string path, CancellationToken ct = default)
@@ -26,35 +26,35 @@ public sealed class PeerFileTransferService(NodeOptions options, IDistributedSto
         var info = new FileInfo(path);
         if (!info.Exists || info.Length > 20L * 1024 * 1024 * 1024) throw new ArgumentException("File không tồn tại hoặc vượt quá 20 GB.");
         var tempRoot = Path.Combine(options.DataDirectory, "Attachments", ".temp"); Directory.CreateDirectory(tempRoot);
-        var temp = Path.Combine(tempRoot, Guid.CreateVersion7() + ".part");
+        var temp = Path.Combine(tempRoot, LanChat.Domain.AppIdentity.NewId() + ".part");
         try
         {
-            await using (var source = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 65536, FileOptions.Asynchronous | FileOptions.SequentialScan))
-            await using (var destination = new FileStream(temp, FileMode.CreateNew, FileAccess.Write, FileShare.None, 65536, FileOptions.Asynchronous))
+            using (var source = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 65536, FileOptions.Asynchronous | FileOptions.SequentialScan))
+            using (var destination = new FileStream(temp, FileMode.CreateNew, FileAccess.Write, FileShare.None, 65536, FileOptions.Asynchronous))
                 await source.CopyToAsync(destination, ct);
             string hash;
-            await using (var file = File.OpenRead(temp)) hash = Convert.ToHexString(await SHA256.HashDataAsync(file, ct)).ToLowerInvariant();
+            using (var file = File.OpenRead(temp)) hash = FrameworkIO.Hex(await FrameworkIO.HashAsync(file, ct)).ToLowerInvariant();
             var target = BlobPath(hash); Directory.CreateDirectory(Path.GetDirectoryName(target)!);
             // Replace atomically with the verified copy, including recovery from a damaged local blob.
             await PublishSnapshotAsync(temp, target, hash, ct);
             // Remember only a recovery candidate. It must still match the original hash before reuse.
             var reference = target + ".source.json";
-            var referenceTemp = reference + "." + Guid.CreateVersion7() + ".part";
+            var referenceTemp = reference + "." + LanChat.Domain.AppIdentity.NewId() + ".part";
             try
             {
-                await File.WriteAllTextAsync(referenceTemp, JsonSerializer.Serialize(Path.GetFullPath(path)), ct);
-                File.Move(referenceTemp, reference, true);
+                await FrameworkIO.WriteTextAsync(referenceTemp, JsonSerializer.Serialize(Path.GetFullPath(path)), ct);
+                FrameworkIO.PublishFile(referenceTemp, reference);
             }
             finally { if (File.Exists(referenceTemp)) File.Delete(referenceTemp); }
             var mime = Path.GetExtension(path).ToLowerInvariant() switch { ".png" => "image/png", ".jpg" or ".jpeg" => "image/jpeg", ".gif" => "image/gif", ".bmp" => "image/bmp", ".tif" or ".tiff" => "image/tiff", ".pdf" => "application/pdf", ".txt" => "text/plain", _ => "application/octet-stream" };
             logger.LogInformation("Imported local attachment {Bytes} bytes", info.Length);
-            return new(Guid.CreateVersion7(), Guid.Empty, info.Name, mime, new FileInfo(target).Length, hash);
+            return new(LanChat.Domain.AppIdentity.NewId(), Guid.Empty, info.Name, mime, new FileInfo(target).Length, hash);
         }
         finally { if (File.Exists(temp)) File.Delete(temp); }
     }
     public async Task<FileAvailability> HasFileAsync(string hash, CancellationToken ct)
     {
-        await using var stream = await OpenVerifiedLocalAsync(hash, ct);
+        using var stream = await OpenVerifiedLocalAsync(hash, ct);
         return new(stream is not null, stream?.Length ?? 0);
     }
 
@@ -70,7 +70,7 @@ public sealed class PeerFileTransferService(NodeOptions options, IDistributedSto
         try
         {
             var reference = target + ".source.json";
-            if (File.Exists(reference) && JsonSerializer.Deserialize<string>(await File.ReadAllTextAsync(reference, ct)) is { } source)
+            if (File.Exists(reference) && JsonSerializer.Deserialize<string>(await FrameworkIO.ReadTextAsync(reference, ct)) is { } source)
                 candidates.Add(source);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException) { }
@@ -80,14 +80,14 @@ public sealed class PeerFileTransferService(NodeOptions options, IDistributedSto
         foreach (var candidate in candidates.Distinct(StringComparer.OrdinalIgnoreCase))
         {
             ct.ThrowIfCancellationRequested();
-            var temp = target + "." + Guid.CreateVersion7() + ".part";
+            var temp = target + "." + LanChat.Domain.AppIdentity.NewId() + ".part";
             try
             {
                 if (string.Equals(Path.GetFullPath(candidate), Path.GetFullPath(target), StringComparison.OrdinalIgnoreCase)) continue;
-                await using var source = await OpenMatchingAsync(candidate, hash, ct);
+                using var source = await OpenMatchingAsync(candidate, hash, ct);
                 if (source is null) continue;
                 Directory.CreateDirectory(Path.GetDirectoryName(target)!);
-                await using (var output = new FileStream(temp, FileMode.CreateNew, FileAccess.Write, FileShare.None, 65536, FileOptions.Asynchronous))
+                using (var output = new FileStream(temp, FileMode.CreateNew, FileAccess.Write, FileShare.None, 65536, FileOptions.Asynchronous))
                     await source.CopyToAsync(output, ct);
                 ct.ThrowIfCancellationRequested();
                 await PublishSnapshotAsync(temp, target, hash, ct);
@@ -105,11 +105,11 @@ public sealed class PeerFileTransferService(NodeOptions options, IDistributedSto
     private static async Task PublishSnapshotAsync(string temp, string target, string hash, CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
-        try { File.Move(temp, target, true); }
+        try { FrameworkIO.PublishFile(temp, target); }
         catch (Exception ex) when ((ex is IOException or UnauthorizedAccessException) && File.Exists(target))
         {
             // Concurrent readers can lock an already valid blob. Reuse it without disrupting transfers.
-            await using var existing = await OpenMatchingAsync(target, hash, ct);
+            using var existing = await OpenMatchingAsync(target, hash, ct);
             if (existing is null) throw;
             File.Delete(temp);
         }
@@ -121,14 +121,14 @@ public sealed class PeerFileTransferService(NodeOptions options, IDistributedSto
         try
         {
             stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 65536, FileOptions.Asynchronous | FileOptions.SequentialScan);
-            if (string.Equals(Convert.ToHexString(await SHA256.HashDataAsync(stream, ct)), hash, StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(FrameworkIO.Hex(await FrameworkIO.HashAsync(stream, ct)), hash, StringComparison.OrdinalIgnoreCase))
             {
                 stream.Position = 0;
                 var verified = stream; stream = null; return verified;
             }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
-        finally { if (stream is not null) await stream.DisposeAsync(); }
+        finally { if (stream is not null) stream.Dispose(); }
         return null;
     }
     public async Task<string> PrepareOpenAsync(AttachmentDto file, IProgress<FileProgress>? progress = null, CancellationToken ct = default)
@@ -143,11 +143,11 @@ public sealed class PeerFileTransferService(NodeOptions options, IDistributedSto
         if (File.Exists(target)) return target;
         var blob = await DownloadAsync(file, progress, ct);
         Directory.CreateDirectory(directory);
-        var temp = Path.Combine(directory, Guid.CreateVersion7() + ".part");
+        var temp = Path.Combine(directory, LanChat.Domain.AppIdentity.NewId() + ".part");
         try
         {
-            await using (var source = new FileStream(blob, FileMode.Open, FileAccess.Read, FileShare.Read, 65536, FileOptions.Asynchronous | FileOptions.SequentialScan))
-            await using (var destination = new FileStream(temp, FileMode.CreateNew, FileAccess.Write, FileShare.None, 65536, FileOptions.Asynchronous))
+            using (var source = new FileStream(blob, FileMode.Open, FileAccess.Read, FileShare.Read, 65536, FileOptions.Asynchronous | FileOptions.SequentialScan))
+            using (var destination = new FileStream(temp, FileMode.CreateNew, FileAccess.Write, FileShare.None, 65536, FileOptions.Asynchronous))
                 await source.CopyToAsync(destination, ct);
             if (!await VerifyAsync(temp, file, ct)) throw new IOException("Bản lưu tệp đã thay đổi trong lúc mở. Hãy bấm lại để tải bản đúng.");
             ct.ThrowIfCancellationRequested();
@@ -171,21 +171,23 @@ public sealed class PeerFileTransferService(NodeOptions options, IDistributedSto
     public async Task<string> DownloadAsync(AttachmentDto file, IProgress<FileProgress>? progress = null, CancellationToken ct = default)
     {
         var target = BlobPath(file.Sha256);
-        await using (var local = await OpenVerifiedLocalAsync(file.Sha256, ct))
+        using (var local = await OpenVerifiedLocalAsync(file.Sha256, ct))
             if (local is not null && local.Length == file.FileSize) { progress?.Report(new(file.FileSize, file.FileSize)); return target; }
         Directory.CreateDirectory(Path.GetDirectoryName(target)!);
         var peers = await store.GetPeerEndpointsAsync(ct);
         foreach (var peer in peers)
         {
-            ct.ThrowIfCancellationRequested(); var temp = target + "." + Guid.CreateVersion7() + ".part";
+            ct.ThrowIfCancellationRequested(); var temp = target + "." + LanChat.Domain.AppIdentity.NewId() + ".part";
             try
             {
                 faults.ThrowIfBlocked(peer.NodeId);
                 using var client = new TcpClient(AddressFamily.InterNetwork);
                 using var handshake = CancellationTokenSource.CreateLinkedTokenSource(ct); handshake.CancelAfter(TimeSpan.FromSeconds(5));
                 await client.ConnectAsync(IPAddress.Parse(peer.Address), peer.Port, handshake.Token);
-                await using var stream = await tls.ConnectAsync(client.GetStream(), handshake.Token);
-                var identity = await chatStore.GetIdentityAsync(ct); var requestId = Guid.CreateVersion7();
+                using var abortHandshake = handshake.Token.Register(() => client.Close());
+                using var abortTransfer = ct.Register(() => client.Close());
+                using var stream = await tls.ConnectAsync(client.GetStream(), handshake.Token);
+                var identity = await chatStore.GetIdentityAsync(ct); var requestId = LanChat.Domain.AppIdentity.NewId();
                 await WireProtocol.WriteAsync(stream, wire.Encode(identity.NodeId, "FileDownload", new FileRequest(file.Sha256), requestId), handshake.Token);
                 // Source verification/recovery may scan a large file after the connection is established.
                 handshake.CancelAfter(TimeSpan.FromMinutes(30));
@@ -193,15 +195,17 @@ public sealed class PeerFileTransferService(NodeOptions options, IDistributedSto
                 if (response.RequestId != requestId || response.SourceNodeId != peer.NodeId || response.MessageType != "FileDownloadResponse") throw new InvalidDataException("Phản hồi tải file không hợp lệ.");
                 var header = WireProtocol.Payload<FileAvailability>(response);
                 if (!header.Available || header.Length != file.FileSize) continue;
-                await using (var output = new FileStream(temp, FileMode.CreateNew, FileAccess.Write, FileShare.None, 65536, FileOptions.Asynchronous))
+                abortHandshake.Dispose();
+                using (var output = new FileStream(temp, FileMode.CreateNew, FileAccess.Write, FileShare.None, 65536, FileOptions.Asynchronous))
                 {
                     var buffer = new byte[65536]; long received = 0;
                     while (received < file.FileSize)
                     {
                         using var idleTimeout = CancellationTokenSource.CreateLinkedTokenSource(ct); idleTimeout.CancelAfter(TimeSpan.FromSeconds(15));
-                        var count = await stream.ReadAsync(buffer.AsMemory(0, (int)Math.Min(buffer.Length, file.FileSize - received)), idleTimeout.Token);
+                        using var abortIdle = idleTimeout.Token.Register(() => client.Close());
+                        var count = await stream.ReadAsync(buffer, 0, (int)Math.Min(buffer.Length, file.FileSize - received), idleTimeout.Token);
                         if (count == 0) throw new EndOfStreamException("File bị ngắt giữa chừng.");
-                        await output.WriteAsync(buffer.AsMemory(0, count), ct); received += count; progress?.Report(new(received, file.FileSize));
+                        await output.WriteAsync(buffer, 0, count, ct); received += count; progress?.Report(new(received, file.FileSize));
                     }
                     await output.FlushAsync(ct);
                 }
@@ -209,8 +213,8 @@ public sealed class PeerFileTransferService(NodeOptions options, IDistributedSto
                 await PublishSnapshotAsync(temp, target, file.Sha256, ct);
                 logger.LogInformation("Attachment downloaded and verified: {Bytes} bytes", file.FileSize); return target;
             }
-            catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException or SocketException or OperationCanceledException or System.Security.Authentication.AuthenticationException)
+            catch (Exception) when (ct.IsCancellationRequested) { throw new OperationCanceledException(ct); }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException or SocketException or OperationCanceledException or ObjectDisposedException or System.Security.Authentication.AuthenticationException)
             { logger.LogWarning("File source unavailable/invalid on {Node}: {Type}", peer.NodeId, ex.GetType().Name); }
             finally { if (File.Exists(temp)) File.Delete(temp); }
         }
@@ -219,7 +223,7 @@ public sealed class PeerFileTransferService(NodeOptions options, IDistributedSto
     private static async Task<bool> VerifyAsync(string path, AttachmentDto file, CancellationToken ct)
     {
         if (!File.Exists(path) || new FileInfo(path).Length != file.FileSize) return false;
-        await using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 65536, FileOptions.Asynchronous | FileOptions.SequentialScan);
-        return string.Equals(Convert.ToHexString(await SHA256.HashDataAsync(stream, ct)), file.Sha256, StringComparison.OrdinalIgnoreCase);
+        using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 65536, FileOptions.Asynchronous | FileOptions.SequentialScan);
+        return string.Equals(FrameworkIO.Hex(await FrameworkIO.HashAsync(stream, ct)), file.Sha256, StringComparison.OrdinalIgnoreCase);
     }
 }

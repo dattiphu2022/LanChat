@@ -41,7 +41,7 @@ public sealed class ImageViewportControl : Control
     private void Zoom(float factor, Point anchor)
     {
         if (_image is null) return;
-        var next = Math.Clamp(_scale * factor, .01f, 16f); var ratio = next / _scale;
+        var next = Math.Max(.01f, Math.Min(16f, _scale * factor)); var ratio = next / _scale;
         var x = anchor.X - ClientSize.Width / 2f; var y = anchor.Y - ClientSize.Height / 2f;
         _pan = new PointF(x - (x - _pan.X) * ratio, y - (y - _pan.Y) * ratio); _scale = next; _fit = false;
         ClampPan(); ZoomChanged?.Invoke(_scale); Invalidate();
@@ -50,7 +50,7 @@ public sealed class ImageViewportControl : Control
     {
         if (_image is null) return;
         var x = Math.Max(0, (_image.Width * _scale - ClientSize.Width) / 2); var y = Math.Max(0, (_image.Height * _scale - ClientSize.Height) / 2);
-        _pan.X = Math.Clamp(_pan.X, -x, x); _pan.Y = Math.Clamp(_pan.Y, -y, y);
+        _pan.X = Math.Max(-x, Math.Min(x, _pan.X)); _pan.Y = Math.Max(-y, Math.Min(y, _pan.Y));
     }
     protected override void OnResize(EventArgs e) { base.OnResize(e); if (_fit) Fit(); else { ClampPan(); Invalidate(); } }
     protected override void OnPaint(PaintEventArgs e)

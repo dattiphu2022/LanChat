@@ -26,7 +26,7 @@ internal sealed class AttachmentOpenProgressForm : Form
         else
         {
             _progress.Style = ProgressBarStyle.Continuous;
-            _progress.Value = progress.Total == 0 ? 0 : (int)Math.Clamp(progress.Completed * 1000 / progress.Total, 0, 1000);
+            _progress.Value = progress.Total == 0 ? 0 : (int)Math.Max(0, Math.Min(1000, progress.Completed * 1000 / progress.Total));
             _state.Text = $"Đang tải: {progress.Completed / 1024d:N0} / {progress.Total / 1024d:N0} KB";
         }
     }

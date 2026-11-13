@@ -4,7 +4,7 @@ Bản đã được kiểm thử tự động và chạy hai tiến trình trên
 
 ## Chuẩn bị
 
-- [ ] Ít nhất 3 PC Windows có .NET 9 Desktop Runtime; dùng cùng bản phát hành.
+- [ ] Ít nhất 3 PC Windows 11 x64 dùng cùng ZIP. Có một máy Windows 11 sạch, tài khoản thường, chưa cài .NET Desktop Runtime.
 - [ ] Mỗi PC có thư mục dữ liệu local riêng; không clone database/NodeId.
 - [ ] Sao lưu dữ liệu cũ khi app đóng trước nâng cấp.
 - [ ] Cùng mã mời hoặc mã nâng cấp từ một máy duy nhất.
@@ -25,8 +25,10 @@ Bản đã được kiểm thử tự động và chạy hai tiến trình trên
 ## Nhóm, failover và partition
 
 - [ ] Chờ Diagnostics thấy 3 Voters và Joint=0 trước thử tắt leader.
-- [ ] Chủ nhóm tạo/đổi tên/ảnh, thêm/xóa người, chuyển quyền; thành viên không có quyền cấu trúc.
-- [ ] Đóng leader, chờ khoảng timeout 15 giây cộng probe/discovery/jitter; hai máy còn lại có leader mới.
+- [ ] Chủ nhóm tạo/đổi tên, thêm/xóa người, chuyển quyền; thành viên không có quyền cấu trúc.
+- [ ] Dừng đột ngột máy trung tâm sau khi ba voter ổn định. Đo từ heartbeat hợp lệ cuối tới PreVote (5 giây), trung tâm sẵn sàng (mục tiêu ≤ 7 giây) và bắt đầu đồng bộ (mục tiêu ≤ 1 giây sau xác nhận). Lặp 30 lượt trên LAN /24 và ghi p95.
+- [ ] Đề cử một voter đã bắt kịp log, thử ứng cử, rút lui và mở lại để kiểm tra lựa chọn đã lưu. Tắt quyền làm trung tâm trên mọi máy, kiểm tra tin nhắn vẫn đồng bộ và thao tác đổi cấu trúc nhóm tạm dừng.
+- [ ] Đo p95 thời gian thấy peer đầu tiên qua UDP (mục tiêu ≤ 1 giây) và qua TCP với UDP bị chặn (mục tiêu ≤ 3 giây).
 - [ ] Mở lại leader cũ; cùng leader/term và nhóm, không ghi đè control log đã commit.
 - [ ] Cô lập một voter khỏi hai voter còn lại. Phía một voter không đổi nhóm được; phía hai voter vẫn đổi nhóm.
 - [ ] Hai phía vẫn gửi chat local; nối lại và đối chiếu MessageIds/nội dung.
@@ -45,10 +47,17 @@ Bản đã được kiểm thử tự động và chạy hai tiến trình trên
 - [ ] B đã tải có thể phục vụ cho C khi A offline.
 - [ ] Không còn nguồn online thì hiện lỗi rõ, metadata vẫn còn.
 - [ ] Đối chiếu SHA256 với tệp gốc; thử nguồn bị hỏng và đường truyền ngắt.
-- [ ] Resize cửa sổ, DPI 100/125/150%, tên/tin dài, nhiều tệp; không mất nút gửi.
+- [ ] Resize cửa sổ, DPI 100/125/150%, tên/tin dài, nhiều tệp. Kiểm tra Ctrl+K, Ctrl+F, Shift+Enter, bản nháp theo hội thoại và tải tin cũ giữ vị trí cuộn.
 - [ ] Kiểm tra ảnh lớn và tệp lớn theo kích thước thực tế của đơn vị.
 
 ## Vận hành
+
+- [ ] Mở lần đầu vào Mạng mặc định mà không qua form nhập mã. Máy mới được cấp cùng mã mặc định có thể tìm máy tạo và trao đổi tin nhắn.
+- [ ] Thêm mã riêng đầu tiên, thử cả giữ và gỡ mạng mặc định. Mở lại ứng dụng và thêm mã tiếp theo để kiểm tra lựa chọn được nhớ. Xác minh tin nhắn và tệp không xuất hiện ngoài mạng của mã đã dùng.
+
+- [ ] Cài đặt chỉ có Tên, Đơn vị và Khởi động cùng hệ thống. Đăng xuất/đăng nhập để xác nhận Windows mở ứng dụng khi bật.
+- [ ] Mở lần hai, kể cả dùng thư mục dữ liệu khác, chỉ có một cửa sổ LanChat hoạt động.
+- [ ] Dán hai mã khác nhau, kiểm tra cả hai tab tìm máy cùng lúc và tin nhắn không xuất hiện ở mạng kia. Gỡ một mạng, xác minh mạng còn lại tiếp tục kết nối. Nhập lại mã để mở lại lịch sử.
 
 - [ ] Join code sai/cluster khác không đồng bộ.
 - [ ] Chẩn đoán/copy diagnostics không lộ secret, mã mời hoặc nội dung chat.

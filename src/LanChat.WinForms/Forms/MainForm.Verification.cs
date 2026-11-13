@@ -1,3 +1,4 @@
+using LanChat.Infrastructure;
 #if DEBUG
 using System.Drawing.Imaging;
 using System.Text.Json;
@@ -21,7 +22,7 @@ public sealed partial class MainForm
             do { await Task.Delay(200, deadline.Token); contacts = await _store.GetUsersAsync(ct: deadline.Token); } while (contacts.Count == 0);
             var other = contacts[0]; var profile = await _store.GetProfileAsync(deadline.Token);
             var conversation = await _store.OpenDirectAsync(other.UserId, deadline.Token);
-            await SelectConversationAsync(conversation, other.UserId);
+            await SelectConversationAsync(conversation);
             var text = $"Xin chào từ {profile.DisplayName} 👋\nTin nhắn nhiều dòng qua TCP, không có server riêng.";
             await _chat.SubmitForVerificationAsync(text);
             IReadOnlyList<Domain.Message> messages;
@@ -34,13 +35,28 @@ public sealed partial class MainForm
                 ClientSize = size; await RefreshAsync(); await Task.Delay(350, deadline.Token);
                 var path = Path.ChangeExtension(reportPath, $"{size.Width}.png"); CaptureForm(this, path); captures.Add(path);
                 static object Describe(Control c) => new { Type = c.GetType().Name, Bounds = c.Bounds.ToString(), Minimum = c.MinimumSize.ToString(), c.AutoSize, Dock = c.Dock.ToString(), Children = c.Controls.Cast<Control>().Select(Describe).ToArray() };
-                await File.WriteAllTextAsync(Path.ChangeExtension(reportPath, $"{size.Width}.layout.json"), JsonSerializer.Serialize(Describe(this), new JsonSerializerOptions { WriteIndented = true }));
+                await FrameworkIO.WriteTextAsync(Path.ChangeExtension(reportPath, $"{size.Width}.layout.json"), JsonSerializer.Serialize(Describe(this), new JsonSerializerOptions { WriteIndented = true }));
                 VerifyVisibleControls();
             }
+            _chat.RestoreDraft(new ComposerDraft("Bản nháp giữ theo hội thoại", [], null, null, ""));
+            await OpenPanelAsync(true);
+            await SearchInPanelAsync("Xin chào");
+            var match = (await Distributed.SearchMessagesAsync("Xin chào", conversation, deadline.Token)).First();
+            await JumpAsync(match);
+            if (_searchAnchor != match.MessageId) throw new InvalidOperationException("Không mở được kết quả tìm tin.");
+            ClientSize = new Size(1240, 800);
+            await OpenPanelAsync(true);
+            await SearchInPanelAsync("Xin chào");
+            await Task.Delay(250, deadline.Token);
+            var panelCapture = Path.ChangeExtension(reportPath, "conversation-panel.png"); CaptureForm(this, panelCapture); captures.Add(panelCapture);
+            await LoadOlderAsync();
+            SetPanel(false);
+            if (_chat.Draft().Text != "Bản nháp giữ theo hội thoại") throw new InvalidOperationException("Thao tác tìm tin làm mất bản nháp.");
+            _chat.ResetDraft();
             var own = messages.Single(m => m.SenderUserId == profile.Id); var theirs = messages.Single(m => m.SenderUserId != profile.Id);
             await MessageActionAsync(own, "edit"); await _chat.SubmitForVerificationAsync("Nội dung đã sửa từ " + profile.DisplayName);
             await MessageActionAsync(theirs, "react:👍"); await MessageActionAsync(theirs, "reply");
-            var textFile = Path.ChangeExtension(reportPath, "attachment.txt"); await File.WriteAllTextAsync(textFile, "Tệp thử nghiệm của " + profile.DisplayName, deadline.Token);
+            var textFile = Path.ChangeExtension(reportPath, "attachment.txt"); await FrameworkIO.WriteTextAsync(textFile, "Tệp thử nghiệm của " + profile.DisplayName, deadline.Token);
             var imageFile = Path.ChangeExtension(reportPath, "attachment.png");
             var portraitFile = Path.ChangeExtension(reportPath, "portrait.png");
             using (var bitmap = new Bitmap(800, 450)) { using var graphics = Graphics.FromImage(bitmap); graphics.Clear(Color.CornflowerBlue); graphics.DrawString(profile.DisplayName + " · Ảnh ngang", Font, Brushes.White, new PointF(200, 200)); bitmap.Save(imageFile, ImageFormat.Png); }
@@ -49,7 +65,7 @@ public sealed partial class MainForm
             var previewPath = Path.ChangeExtension(reportPath, "drop-preview.png"); CaptureForm(this, previewPath); captures.Add(previewPath);
             await _chat.SubmitForVerificationAsync("Bộ ảnh của " + profile.DisplayName + "\nChú thích chung cho ảnh ngang và ảnh dọc.");
             // The recipient must still receive the sent snapshot after originals change or disappear.
-            await File.WriteAllTextAsync(textFile, "Nội dung đã sửa sau khi gửi", deadline.Token);
+            await FrameworkIO.WriteTextAsync(textFile, "Nội dung đã sửa sau khi gửi", deadline.Token);
             File.Delete(imageFile); File.Delete(portraitFile);
             AttachmentDto[] attachments;
             do { await Task.Delay(200, deadline.Token); messages = await _store.GetMessagesAsync(conversation, ct: deadline.Token); attachments = await Distributed.GetAttachmentsAsync(conversation, deadline.Token); }
@@ -95,29 +111,29 @@ public sealed partial class MainForm
                 var path = ChatImageService.IsImage(attachment) ? await Files.DownloadAsync(attachment, ct: deadline.Token)
                     : openedPaths.LastOrDefault() ?? throw new InvalidOperationException("Chưa chuyển tệp sang thao tác mở.");
                 if (!ChatImageService.IsImage(attachment) && Path.GetFileName(path) != attachment.FileName) throw new InvalidDataException("Tệp mở bị mất tên hoặc phần mở rộng.");
-                await using var input = File.OpenRead(path);
-                var hash = Convert.ToHexString(await System.Security.Cryptography.SHA256.HashDataAsync(input, deadline.Token));
+                using var input = File.OpenRead(path);
+                var hash = FrameworkIO.Hex(await FrameworkIO.HashAsync(input, deadline.Token));
                 if (!hash.Equals(attachment.Sha256, StringComparison.OrdinalIgnoreCase)) throw new InvalidDataException("Tệp nhận không khớp SHA256.");
             }
             await OpenAttachmentAsync(attachments.First(x => !ChatImageService.IsImage(x)));
-            if (openedPaths.Count != 3 || openedPaths[0] != openedPaths[^1]) throw new InvalidOperationException("Bấm lại chưa tái sử dụng tệp local.");
+            if (openedPaths.Count != 3 || openedPaths[0] != openedPaths[openedPaths.Count - 1]) throw new InvalidOperationException("Bấm lại chưa tái sử dụng tệp local.");
             _attachmentLaunchForVerification = null; _galleryForVerification = null;
             if (profile.DisplayName.EndsWith("A", StringComparison.Ordinal))
             {
-                var command = new ControlCommand(Guid.CreateVersion7(), Domain.ControlCommandType.GroupCreated, profile.Id, Guid.CreateVersion7(), "Nhóm thử nghiệm LAN", Members: [profile.Id, other.UserId]);
+                var command = new ControlCommand(LanChat.Domain.AppIdentity.NewId(), Domain.ControlCommandType.GroupCreated, profile.Id, LanChat.Domain.AppIdentity.NewId(), "Nhóm thử nghiệm LAN", Members: [profile.Id, other.UserId]);
                 ControlResult result;
                 do { await Task.Delay(500, deadline.Token); result = await Consensus.ProposeAsync(command, deadline.Token); } while (!result.Success);
             }
             GroupSummary[] groups;
             do { await Task.Delay(250, deadline.Token); groups = await Distributed.GetGroupsAsync(deadline.Token); } while (groups.Length == 0);
-            var group = groups[0]; await SelectConversationAsync(group.Id, Guid.Empty); await _chat.SubmitForVerificationAsync("Xin chào nhóm từ " + profile.DisplayName);
+            var group = groups[0]; await SelectConversationAsync(group.Id); await _chat.SubmitForVerificationAsync("Xin chào nhóm từ " + profile.DisplayName);
             IReadOnlyList<Domain.Message> groupMessages;
             do { await Task.Delay(200, deadline.Token); groupMessages = await _store.GetMessagesAsync(group.Id, ct: deadline.Token); } while (groupMessages.Count < 3);
             await RefreshAsync(); await Task.Delay(300, deadline.Token);
             var groupPath = Path.ChangeExtension(reportPath, "group-chat.png"); CaptureForm(this, groupPath); captures.Add(groupPath);
             using (var manager = ActivatorUtilities.CreateInstance<GroupsForm>(_services))
             { manager.Show(this); await Task.Delay(500, deadline.Token); var path = Path.ChangeExtension(reportPath, "groups.png"); CaptureForm(manager, path); captures.Add(path); manager.Close(); }
-            using (var settings = ActivatorUtilities.CreateInstance<SettingsForm>(_services))
+            using (var settings = new SettingsForm(profile.DisplayName, profile.Department, false, (_, _, _) => Task.CompletedTask))
             {
                 settings.Show(this); await Task.Delay(350, deadline.Token);
                 var path = Path.ChangeExtension(reportPath, "settings.png"); CaptureForm(settings, path); captures.Add(path); settings.Close();
@@ -128,7 +144,7 @@ public sealed partial class MainForm
                 var path = Path.ChangeExtension(reportPath, "diagnostics.png"); CaptureForm(diagnostics, path); captures.Add(path); diagnostics.Close();
             }
             var identity = await _store.GetIdentityAsync(deadline.Token);
-            await File.WriteAllTextAsync(reportPath, JsonSerializer.Serialize(new { Success = true, identity.NodeId, identity.UserId,
+            await FrameworkIO.WriteTextAsync(reportPath, JsonSerializer.Serialize(new { Success = true, identity.NodeId, identity.UserId,
                 Messages = messages.Select(x => new { x.Id, x.Text, x.Status, x.IsEdited, x.ReplyToMessageId }).ToArray(),
                 GroupId = group.Id, GroupMessageIds = groupMessages.Select(x => x.Id).ToArray(), VerifiedFiles = attachments.Length, VerifiedOpenRequests = openedPaths.Count,
                 VerifiedGalleries = verifiedGalleries, InlineImagesLoaded = inlineImagesLoaded, VerifiedSourceChanges = 3,
@@ -139,7 +155,7 @@ public sealed partial class MainForm
         catch (Exception ex)
         {
             Environment.ExitCode = 1;
-            await File.WriteAllTextAsync(reportPath, JsonSerializer.Serialize(new { Success = false, Error = ex.ToString(), Captures = captures }));
+            await FrameworkIO.WriteTextAsync(reportPath, JsonSerializer.Serialize(new { Success = false, Error = ex.ToString(), Captures = captures }));
         }
         finally { Close(); }
     }

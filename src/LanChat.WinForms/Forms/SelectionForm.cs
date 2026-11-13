@@ -11,10 +11,10 @@ internal sealed class SelectionForm : Form
     public SelectionForm(string title, IEnumerable<SelectionItem> items)
     {
         Text = title; ClientSize = new Size(520, 420); MinimumSize = new Size(380, 300); StartPosition = FormStartPosition.CenterParent;
-        var all = items.ToArray(); var search = new TextBox { Dock = DockStyle.Fill, PlaceholderText = "Tìm…" };
+        var all = items.ToArray(); var search = new PromptTextBox { Dock = DockStyle.Fill, PlaceholderText = "Tìm…" };
         var layout = Theme.Stack(3); layout.Padding = new Padding(12); layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 38)); layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100)); layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 48));
         var select = Theme.Button("Chọn"); select.Click += (_, _) => { if (SelectedId.HasValue) { DialogResult = DialogResult.OK; Close(); } };
-        search.TextChanged += (_, _) => { _list.Items.Clear(); _list.Items.AddRange(all.Where(x => x.Name.Contains(search.Text, StringComparison.CurrentCultureIgnoreCase)).Cast<object>().ToArray()); };
+        search.TextChanged += (_, _) => { _list.Items.Clear(); _list.Items.AddRange(all.Where(x => x.Name.IndexOf(search.Text, StringComparison.CurrentCultureIgnoreCase) >= 0).Cast<object>().ToArray()); };
         _list.Items.AddRange(all); _list.DoubleClick += (_, _) => select.PerformClick();
         layout.Controls.Add(search, 0, 0); layout.Controls.Add(_list, 0, 1); layout.Controls.Add(select, 0, 2); Controls.Add(layout); AcceptButton = select;
     }

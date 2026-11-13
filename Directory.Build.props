@@ -1,9 +1,12 @@
 <Project>
   <PropertyGroup>
-    <TargetFramework>net9.0</TargetFramework>
+    <TargetFramework>net48</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <LangVersion>13</LangVersion>
     <Deterministic>true</Deterministic>
   </PropertyGroup>
+  <ItemGroup Condition="'$(MSBuildProjectName)' != 'LanChat.Domain'">
+    <Compile Include="$(MSBuildThisFileDirectory)src/LanChat.Domain/IsExternalInit.cs" Link="IsExternalInit.cs" />
+  </ItemGroup>
 </Project>

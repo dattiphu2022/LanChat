@@ -56,11 +56,11 @@ public sealed class NetworkTests
     [Fact]
     public void HmacRejectsWrongClusterSecretTamperingAndReplay()
     {
-        var options = new NodeOptions { ClusterId = Guid.NewGuid(), ClusterSecret = RandomNumberGenerator.GetBytes(32) };
+        var options = new NodeOptions { ClusterId = Guid.NewGuid(), ClusterSecret = FrameworkIO.RandomBytes(32) };
         var wire = new WireProtocol(options); var packet = wire.Encode(Guid.NewGuid(), "NodeInfo", new { Text = "hello" });
         Assert.Equal("NodeInfo", wire.Decode(packet).MessageType);
         Assert.Throws<InvalidDataException>(() => wire.Decode(packet));
-        var other = new WireProtocol(new NodeOptions { ClusterId = options.ClusterId, ClusterSecret = RandomNumberGenerator.GetBytes(32) });
+        var other = new WireProtocol(new NodeOptions { ClusterId = options.ClusterId, ClusterSecret = FrameworkIO.RandomBytes(32) });
         Assert.Throws<InvalidDataException>(() => other.Decode(packet));
         var altered = System.Text.Encoding.UTF8.GetBytes(System.Text.Encoding.UTF8.GetString(packet).Replace("hello", "other"));
         Assert.Throws<InvalidDataException>(() => wire.Decode(altered, false));

@@ -6,7 +6,7 @@ $OutputDirectory = [IO.Path]::GetFullPath($OutputDirectory)
 if ((Test-Path -LiteralPath $OutputDirectory) -and (Get-ChildItem -LiteralPath $OutputDirectory -Force | Select-Object -First 1)) {
     throw 'Thư mục kết quả đã có dữ liệu. Hãy chọn thư mục mới để không ghi đè cluster/database cũ.'
 }
-$exe = Join-Path $repo 'src\LanChat.WinForms\bin\Debug\net9.0-windows\LanChat.WinForms.exe'
+$exe = Join-Path $repo 'src\LanChat.WinForms\bin\Debug\net48\LanChat.WinForms.exe'
 if (-not (Test-Path -LiteralPath $exe)) { throw 'Build Debug trước khi kiểm tra.' }
 New-Item -ItemType Directory -Path $OutputDirectory -Force | Out-Null
 Add-Type -AssemblyName System.Security

@@ -1,11 +1,15 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
     <ProjectReference Include="../LanChat.Application/LanChat.Application.csproj" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="9.0.15" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.15"><PrivateAssets>all</PrivateAssets></PackageReference>
-    <PackageReference Include="Microsoft.Extensions.Hosting" Version="9.0.15" />
-    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="9.0.15" />
-    <PackageReference Include="Serilog.Extensions.Logging" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.15" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.15" />
+    <PackageReference Include="Microsoft.Bcl.Cryptography" Version="10.0.15" />
+    <PackageReference Include="System.Text.Json" Version="10.0.15" />
+    <PackageReference Include="Serilog.Extensions.Logging" Version="9.0.2" />
     <PackageReference Include="Serilog.Sinks.File" Version="7.0.0" />
+    <PackageReference Include="SQLitePCLRaw.lib.e_sqlite3" Version="2.1.13" GeneratePathProperty="true" />
+    <Content Include="$(PkgSQLitePCLRaw_lib_e_sqlite3)/runtimes/win-x64/native/e_sqlite3.dll" Link="e_sqlite3.dll" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Reference Include="System.Security" />
+    <EmbeddedResource Include="Migrations/*.sql" />
   </ItemGroup>
 </Project>

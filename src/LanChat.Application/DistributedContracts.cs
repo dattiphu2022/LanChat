@@ -26,13 +26,15 @@ public sealed record ControlCommand(Guid Id, ControlCommandType Type, Guid Actor
     string? Name = null, Guid? TargetUserId = null, Guid[]? Members = null, Guid[]? OldVoters = null,
     Guid[]? NewVoters = null, string? AvatarBase64 = null, long CreatedAtTicks = 0);
 public sealed record LogEntryDto(Guid Id, long Index, long Term, ControlCommand Command);
-public sealed record VoteRequest(long Term, Guid CandidateNodeId, long LastLogIndex, long LastLogTerm);
+public sealed record VoteRequest(long Term, Guid CandidateNodeId, long LastLogIndex, long LastLogTerm, Guid? TransferFrom = null);
 public sealed record VoteResponse(long Term, bool Granted);
-public sealed record AppendRequest(long Term, Guid LeaderNodeId, long PreviousIndex, long PreviousTerm, LogEntryDto[] Entries, long LeaderCommit);
+public sealed record AppendRequest(long Term, Guid LeaderNodeId, long PreviousIndex, long PreviousTerm, LogEntryDto[] Entries, long LeaderCommit, bool LeaderReady = false);
 public sealed record AppendResponse(long Term, bool Success, long MatchIndex);
 public sealed record ControlResult(bool Success, string? Error, long Index = 0, Guid? LeaderNodeId = null);
 public sealed record ConsensusStatus(NodeRole Role, long Term, Guid? LeaderNodeId, bool HasQuorum,
-    Guid[] Voters, Guid[]? JointVoters, long CommitIndex, long LastLeaderHeartbeatTicks, string StatusText);
+    Guid[] Voters, Guid[]? JointVoters, long CommitIndex, long LastLeaderHeartbeatTicks, string StatusText, bool CanLead = true, bool LeaderReady = false);
+public sealed record LeadershipResult(bool Success, string? Error);
+public sealed record LeadershipHandoff(long Term, long LastIndex, long LastTerm);
 
 public interface IClusterTransport
 {
@@ -64,6 +66,9 @@ public interface IDistributedStore
 public interface IConsensusService
 {
     Task<ConsensusStatus> GetStatusAsync(CancellationToken ct = default);
+    Task<LeadershipResult> CampaignAsync(CancellationToken ct = default);
+    Task<LeadershipResult> NominateAsync(Guid nodeId, CancellationToken ct = default);
+    Task<LeadershipResult> SetCanLeadAsync(bool enabled, CancellationToken ct = default);
     Task<ControlResult> ProposeAsync(ControlCommand command, CancellationToken ct = default);
 }
 public sealed record FileProgress(long Completed, long Total);
@@ -92,5 +97,19 @@ public sealed class FaultInjection
 
 public sealed class NodeRuntimeState
 {
-    public NodeRole Role { get; set; } = NodeRole.Follower;
+    private volatile NodeRole _role;
+    public NodeRole Role { get => _role; set => _role = value; }
+    public volatile bool CanLead = true;
+    private readonly object _leaderGate = new();
+    private (Guid? Node, long Term) _leader;
+    public event Action<Guid, long>? LeaderReady;
+    public void SetReadyLeader(Guid? node, long term)
+    {
+        lock (_leaderGate)
+        {
+            if (_leader == (node, term)) return;
+            _leader = (node, term);
+            if (node.HasValue) LeaderReady?.Invoke(node.Value, term);
+        }
+    }
 }

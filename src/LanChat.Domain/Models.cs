@@ -106,7 +106,10 @@ public static class DirectConversation
     {
         var users = new[] { first.ToString("N"), second.ToString("N") };
         Array.Sort(users, StringComparer.Ordinal);
-        return new Guid(SHA256.HashData(Encoding.UTF8.GetBytes($"{clusterId:N}:{users[0]}:{users[1]}"))[..16]);
+        using var sha = SHA256.Create();
+        var digest = sha.ComputeHash(Encoding.UTF8.GetBytes($"{clusterId:N}:{users[0]}:{users[1]}"));
+        Array.Resize(ref digest, 16);
+        return new Guid(digest);
     }
 }
 

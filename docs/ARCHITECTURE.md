@@ -6,11 +6,11 @@
 |---|---|
 | LanChat.Domain | Entity Guid, enum, định danh hội thoại trực tiếp, Hybrid Logical Clock |
 | LanChat.Application | DTO, hợp đồng chat/replication/consensus/tệp |
-| LanChat.Infrastructure | EF Core/SQLite, event store, projection, outbox, TLS/TCP/UDP, Raft, tệp, log |
+| LanChat.Infrastructure | Microsoft.Data.Sqlite/SQLite, event store, projection, outbox, TLS/TCP/UDP, Raft, tệp, log |
 | LanChat.WinForms | Form/UserControl native, trạng thái giao diện, Generic Host và DI |
 | LanChat.Tests | Kiểm thử database, mạng thật, partition, event, tệp và bảo mật |
 
-Form gọi application interfaces; không trực tiếp mở socket hoặc query EF. MainForm được tách phần thao tác nâng cao và harness Debug.
+Form gọi application interfaces; không trực tiếp mở socket hoặc query SQLite. MainForm được tách phần thao tác nâng cao và harness Debug.
 
 ## Hai loại dữ liệu
 
@@ -61,14 +61,14 @@ FTS5 với unicode61/remove_diacritics=2 là chỉ mục tìm nội dung. Trigge
 ConsensusService triển khai cơ chế Raft cho control plane:
 - Persist CurrentTerm, VotedForNodeId, log, CommitIndex và LastAppliedIndex.
 - Một phiếu mỗi term; chỉ bỏ phiếu cho candidate có log đủ mới.
-- Timeout mặc định 15 giây cộng jitter; probe leader, kích hoạt discovery, chờ ngẫu nhiên rồi election.
-- AppendEntries/heartbeat mỗi 2 giây; truyền song song để một peer chết không kéo dài mọi heartbeat.
+- Sau 5 giây thiếu heartbeat hợp lệ, voter đủ điều kiện bắt đầu PreVote. Chỉ tăng term khi PreVote đủ đa số.
+- AppendEntries/heartbeat mỗi giây; truyền song song để một peer chết không kéo dài mọi heartbeat.
 - Leader thêm no-op trong term mới; chỉ commit trực tiếp mục của term hiện tại khi có quorum.
 - Peer mới nhận log như learner; thêm từng voter qua JointMembership rồi FinalMembership.
 - Joint consensus cần majority cả tập cũ lẫn tập mới; denominator không dựa trên số máy đang online.
 - Không sửa/xóa log đã commit. Xung đột chỉ có thể thay suffix chưa commit.
 
-Một leader cũ bị cô lập có thể vẫn mang Role=Leader, nhưng HasQuorum hết hiệu lực và không commit thay đổi nhóm. Phía đa số bầu leader term cao hơn; khi nối lại, node cũ step down và đồng bộ log. Chat vẫn ghi local ở cả hai phía rồi merge.
+Leader bị cô lập mất quyền commit khi xác nhận đa số hết hạn và rời vai trò sau timeout. Phía đa số bầu leader term cao hơn; khi nối lại, node cũ step down và đồng bộ log. Chat vẫn ghi local ở cả hai phía rồi merge.
 
 Cấu hình khởi đầu chứa BootstrapNodeId trong mã mời, không dựa vào “máy nào online đầu tiên”. Hai voter cần cả hai; ba voter chịu được một voter offline. Không tự giảm membership vì mất kết nối. Chưa có UI loại voter, snapshot/compaction hoặc phục hồi cưỡng bức khi mất đa số vĩnh viễn.
 
@@ -92,11 +92,11 @@ Bấm ảnh truy vấn metadata ảnh thuộc cuộc trò chuyện (loại tin t
 
 ## Bảo mật và lưu trữ
 
-Protocol version 2, frame tối đa 4 MB, request correlation, HMAC-SHA256, replay/freshness check. TCP TLS 1.2/1.3 pin certificate theo mã mời. Cert dùng chung có khóa riêng được DPAPI bảo vệ local; Windows Schannel dùng UserKeySet cho private key. [Tài liệu SslStream troubleshooting](https://learn.microsoft.com/en-us/dotnet/core/extensions/sslstream-troubleshooting).
+Protocol version 3 (mã mời v2), frame tối đa 4 MB, request correlation, HMAC-SHA256, replay/freshness check. TCP TLS 1.2/1.3 pin certificate theo mã mời. Cert dùng chung có khóa riêng được DPAPI bảo vệ local; Windows Schannel dùng UserKeySet cho private key. [Tài liệu SslStream troubleshooting](https://learn.microsoft.com/en-us/dotnet/core/extensions/sslstream-troubleshooting).
 
 Đây là cluster tin cậy dùng chung credential, không phải mutual identity riêng từng node, Byzantine consensus hay E2EE cho từng hội thoại. UDP metadata không mã hóa; SQLite/tệp local cũng không mã hóa.
 
-Một tiến trình giữ instance.lock cho mỗi thư mục dữ liệu. BuildHost từ chối UNC, mapped network drive và thư mục liên kết. EF migration, WAL, unique indexes và write semaphore giữ transaction tuần tự trong node. Migration từ Phase 1 giữ identity và bổ sung event cho tin cũ, bỏ qua system message từ control log.
+Một tiến trình giao diện duy nhất quản lý nhiều host mạng. Các host dùng chung bộ nhận UDP theo cổng và phân luồng theo ClusterId trước khi xác thực HMAC, dùng listener TCP và SQLite riêng. File instance.lock bảo vệ từng thư mục dữ liệu. BuildHost từ chối UNC, mapped network drive và thư mục liên kết. Migration SQL giữ lịch sử __EFMigrationsHistory, WAL, unique indexes và write semaphore giữ transaction tuần tự trong node. Migration từ Phase 1 giữ identity và bổ sung event cho tin cũ, bỏ qua system message từ control log.
 
 ## Đọc mã theo nghiệp vụ
 

@@ -31,7 +31,7 @@ public sealed class ClusterUpgradeForm : Form
             try
             {
                 var invite = ClusterConfigurationStore.ParseInvitation(code.Text);
-                if (invite.ClusterId != options.ClusterId || !CryptographicOperations.FixedTimeEquals(Convert.FromBase64String(invite.Secret), options.ClusterSecret))
+                if (invite.ClusterId != options.ClusterId || !FrameworkIO.FixedEquals(Convert.FromBase64String(invite.Secret), options.ClusterSecret))
                     throw new ArgumentException("Mã không thuộc mạng chat hiện tại. Không thể ghép database của hai mạng khác nhau.");
                 await ClusterConfigurationStore.SaveAsync(options, code.Text); DialogResult = DialogResult.OK;
             }

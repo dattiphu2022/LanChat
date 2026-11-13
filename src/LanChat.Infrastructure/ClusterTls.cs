@@ -15,9 +15,9 @@ public sealed class ClusterTls : IDisposable
         if (options.TlsCertificatePfx.Length == 0) throw new InvalidOperationException("Cần nâng cấp mã tham gia để bật kết nối mã hóa.");
         // Schannel requires a key-container-backed private key on Windows for server credentials.
         _certificate = X509CertificateLoader.LoadPkcs12(options.TlsCertificatePfx, null,
-            OperatingSystem.IsWindows() ? X509KeyStorageFlags.UserKeySet : X509KeyStorageFlags.EphemeralKeySet);
+            X509KeyStorageFlags.UserKeySet);
         if (!_certificate.HasPrivateKey) throw new InvalidDataException("Chứng chỉ cluster thiếu khóa riêng.");
-        _fingerprint = SHA256.HashData(_certificate.RawData);
+        _fingerprint = FrameworkIO.Hash(_certificate.RawData);
     }
     public static byte[] CreateCertificate(Guid cluster)
     {
@@ -31,25 +31,33 @@ public sealed class ClusterTls : IDisposable
     public async Task<SslStream> ConnectAsync(Stream stream, CancellationToken ct)
     {
         var ssl = new SslStream(stream, false, (_, certificate, _, _) => certificate is not null &&
-            CryptographicOperations.FixedTimeEquals(_fingerprint, SHA256.HashData(certificate.GetRawCertData())));
+            FrameworkIO.FixedEquals(_fingerprint, FrameworkIO.Hash(certificate.GetRawCertData())));
         try
         {
-            await ssl.AuthenticateAsClientAsync(new SslClientAuthenticationOptions { TargetHost = "LanChat", EnabledSslProtocols = SslProtocols.Tls12 | SslProtocols.Tls13,
-                CertificateRevocationCheckMode = X509RevocationMode.NoCheck }, ct);
+            using var abort = ct.Register(() => stream.Dispose());
+            await ssl.AuthenticateAsClientAsync("LanChat", null, SslProtocols.None, false).ConfigureAwait(false);
+            ValidateSession(ssl, ct);
             return ssl;
         }
-        catch { await ssl.DisposeAsync(); throw; }
+        catch { ssl.Dispose(); throw; }
     }
     public async Task<SslStream> AcceptAsync(Stream stream, CancellationToken ct)
     {
         var ssl = new SslStream(stream, false);
         try
         {
-            await ssl.AuthenticateAsServerAsync(new SslServerAuthenticationOptions { ServerCertificate = _certificate, ClientCertificateRequired = false,
-                EnabledSslProtocols = SslProtocols.Tls12 | SslProtocols.Tls13, CertificateRevocationCheckMode = X509RevocationMode.NoCheck }, ct);
+            using var abort = ct.Register(() => stream.Dispose());
+            await ssl.AuthenticateAsServerAsync(_certificate, false, SslProtocols.None, false).ConfigureAwait(false);
+            ValidateSession(ssl, ct);
             return ssl;
         }
-        catch { await ssl.DisposeAsync(); throw; }
+        catch { ssl.Dispose(); throw; }
+    }
+    private static void ValidateSession(SslStream ssl, CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        if (ssl.SslProtocol != SslProtocols.Tls12 && (int)ssl.SslProtocol != 12288)
+            throw new AuthenticationException("LanChat yêu cầu TLS 1.2 trở lên.");
     }
     public void Dispose() => _certificate.Dispose();
 }

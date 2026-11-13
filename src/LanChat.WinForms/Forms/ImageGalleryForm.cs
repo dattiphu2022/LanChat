@@ -1,3 +1,4 @@
+using LanChat.Domain;
 using System.Diagnostics;
 using LanChat.Application;
 using LanChat.WinForms.Controls;
@@ -15,7 +16,7 @@ internal sealed class ImageGalleryForm : Form
     private readonly Label _title = Theme.Label("", 12, true);
     private readonly Label _status = Theme.Label("", 9);
     private readonly Label _zoom = Theme.Label("100%", 9);
-    private readonly TextBox _caption = new() { Dock = DockStyle.Fill, Multiline = true, ReadOnly = true, ScrollBars = ScrollBars.Vertical, BackColor = Color.White, BorderStyle = BorderStyle.FixedSingle };
+    private readonly PromptTextBox _caption = new() { Dock = DockStyle.Fill, Multiline = true, ReadOnly = true, ScrollBars = ScrollBars.Vertical, BackColor = Color.White, BorderStyle = BorderStyle.FixedSingle };
     private readonly FlowLayoutPanel _strip = new() { Dock = DockStyle.Fill, AutoScroll = true, WrapContents = false };
     private readonly Button _previous = Theme.Button("‹ Trước");
     private readonly Button _next = Theme.Button("Sau ›");
@@ -69,7 +70,7 @@ internal sealed class ImageGalleryForm : Form
         var generation = ++_generation; _index = index; var item = _items[index]; _viewport.Image = null;
         _previous.Enabled = index > 0; _next.Enabled = index < _items.Length - 1;
         _title.Text = $"{index + 1} / {_items.Length}  ·  {item.File.FileName}\n{item.Sender}  ·  {new DateTime(item.CreatedAtTicks, DateTimeKind.Utc).ToLocalTime():dd/MM/yyyy HH:mm}";
-        _caption.Text = item.Caption.ReplaceLineEndings(); _caption.PlaceholderText = "Không có chú thích"; _status.Text = "Đang tải ảnh…";
+        _caption.Text = item.Caption.NormalizeLines(); _caption.PlaceholderText = "Không có chú thích"; _status.Text = "Đang tải ảnh…";
         foreach (Control control in _strip.Controls.Cast<Control>().ToArray()) control.Dispose();
         var first = Math.Max(0, Math.Min(index - 4, _items.Length - 9));
         for (var i = first; i < Math.Min(first + 9, _items.Length); i++)
@@ -103,20 +104,20 @@ internal sealed class ImageGalleryForm : Form
 #if DEBUG
     internal async Task VerifyAsync()
     {
-        await ShowImageAsync(0); if (!_viewport.HasImage || _caption.Text != _items[0].Caption.ReplaceLineEndings()) throw new InvalidOperationException("Ảnh/chú thích đầu chưa hiển thị: " + _status.Text);
+        await ShowImageAsync(0); if (!_viewport.HasImage || _caption.Text != _items[0].Caption.NormalizeLines()) throw new InvalidOperationException("Ảnh/chú thích đầu chưa hiển thị: " + _status.Text);
         var scale = _viewport.ScaleFactor; _viewport.Zoom(1.5f);
         if (_viewport.ScaleFactor <= scale) throw new InvalidOperationException("Phóng to không thay đổi tỷ lệ.");
         _viewport.ActualSize(); if (_viewport.ScaleFactor != 1) throw new InvalidOperationException("Sai tỷ lệ 100%.");
         _viewport.Fit();
         if (_items.Length < 2) throw new InvalidOperationException("Thiếu album nhiều ảnh.");
-        await ShowImageAsync(1); if (!_viewport.HasImage || _caption.Text != _items[1].Caption.ReplaceLineEndings()) throw new InvalidOperationException("Không chuyển được ảnh/chú thích.");
+        await ShowImageAsync(1); if (!_viewport.HasImage || _caption.Text != _items[1].Caption.NormalizeLines()) throw new InvalidOperationException("Không chuyển được ảnh/chú thích.");
         var first = ShowImageAsync(0); var last = ShowImageAsync(_items.Length - 1); await Task.WhenAll(first, last);
-        if (!_viewport.HasImage || _index != _items.Length - 1 || _caption.Text != _items[^1].Caption.ReplaceLineEndings()) throw new InvalidOperationException("Ảnh tải cũ ghi đè lựa chọn mới.");
+        if (!_viewport.HasImage || _index != _items.Length - 1 || _caption.Text != _items[_items.Length - 1].Caption.NormalizeLines()) throw new InvalidOperationException("Ảnh tải cũ ghi đè lựa chọn mới.");
     }
     internal void VerifyLayout()
     {
         static IEnumerable<Control> Descendants(Control parent) => parent.Controls.Cast<Control>().SelectMany(c => Descendants(c).Prepend(c));
-        if (_viewport.Height < 100 || _caption.Lines.Length != _items[_index].Caption.ReplaceLineEndings().Split(Environment.NewLine).Length) throw new InvalidOperationException("Viewport hoặc dòng chú thích không đúng.");
+        if (_viewport.Height < 100 || _caption.Lines.Length != _items[_index].Caption.NormalizeLines().Split(new[] { Environment.NewLine }, StringSplitOptions.None).Length) throw new InvalidOperationException("Viewport hoặc dòng chú thích không đúng.");
         foreach (var button in Descendants(this).OfType<Button>())
         {
             var bounds = button.RectangleToScreen(button.ClientRectangle); var visible = bounds;

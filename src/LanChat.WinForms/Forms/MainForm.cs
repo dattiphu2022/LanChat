@@ -3,186 +3,442 @@ using LanChat.Domain;
 using LanChat.Infrastructure;
 using LanChat.WinForms.Controls;
 using Microsoft.Extensions.DependencyInjection;
+using Message = LanChat.Domain.Message;
 
 namespace LanChat.WinForms.Forms;
 
 public sealed partial class MainForm : Form
 {
     private readonly IChatStore _store;
-    private readonly IChatService _chatService;
     private readonly ILanScanner _scanner;
     private readonly IServiceProvider _services;
     private readonly NetworkHealth _health;
     private readonly ConversationListControl _conversations = new();
     private readonly ChatViewControl _chat = new();
-    private readonly Panel _people = new() { Dock = DockStyle.Fill, AutoScroll = true, Visible = false, BackColor = Color.White };
-    private readonly TextBox _userSearch = new() { Dock = DockStyle.Top, PlaceholderText = "Tìm người dùng…" };
+    private readonly ConversationPanel _info = new();
+    private readonly Panel _people = new() { Dock = DockStyle.Fill, Visible = false, BackColor = Color.White };
+    private readonly PromptTextBox _userSearch = new() { Dock = DockStyle.Fill, PlaceholderText = "Tìm người dùng…" };
     private readonly Panel _userRows = new() { Dock = DockStyle.Fill, AutoScroll = true };
-    private readonly Dictionary<Guid, UserItemControl> _users = [];
-    private readonly Label _profile = Theme.Label("LanChat", 13, true);
-    private readonly PictureBox _avatar = new() { Dock = DockStyle.Fill, SizeMode = PictureBoxSizeMode.Zoom };
+    private readonly Dictionary<Guid, UserItemControl> _users = new();
+    private readonly Dictionary<Guid, ComposerDraft> _drafts = new();
+    private readonly Label _profile = Theme.Label("LanChat", 10, true);
+    private readonly Label _initial = Theme.Label("", 20, true);
+    private readonly NavigationItemControl _networkNav = new() { Caption = "Mạng chat" };
     private readonly ToolStripStatusLabel _status = new() { Spring = true, TextAlign = ContentAlignment.MiddleLeft };
-    private readonly System.Windows.Forms.Timer _timer = new() { Interval = 1200 };
+    private readonly ToolStripStatusLabel _scanState = new();
+    private readonly System.Windows.Forms.Timer _timer = new() { Interval = 500 };
     private readonly CancellationTokenSource _lifetime = new();
+    private readonly SemaphoreSlim _refresh = new(1, 1);
     private CancellationTokenSource? _scanCancellation;
-    private bool _refreshing;
     private Guid _localUser;
     private Guid? _activeConversation;
-    private Guid? _recipient;
-    private int _messageLimit = 200;
     private Guid? _searchAnchor;
     private bool _anchorScrolled;
+    private bool _panelOpen;
+    private bool _showPeople;
+    private Message[] _olderMessages = [];
+    private Message[] _visibleMessages = [];
+    private long _revision = -1;
+    private long _presenceRevision = -1;
+    private bool _hasOlder = true;
+    private bool _loadingOlder;
+    private Guid? _boundConversation;
+    private Guid? _boundSearch;
+    private Message[]? _boundOlder;
+    private DateTime _lastPresence;
+    private const int PageSize = 80;
+    private IReadOnlyList<UserSummary> _contacts = [];
+    private IReadOnlyList<ConversationSummary> _summaries = [];
     private readonly NotifyIcon _notification = new() { Icon = SystemIcons.Information, Text = "LanChat", Visible = true };
+    private Action<string, string>? _showNotification;
     private Dictionary<Guid, int>? _lastUnread;
-    private readonly NavigationItemControl _messageNav = new() { Caption = "✉  Tin nhắn", Active = true };
-    private readonly NavigationItemControl _usersNav = new() { Caption = "●  Người dùng" };
-    public MainForm(IChatStore store, IChatService chatService, ILanScanner scanner, IServiceProvider services, NetworkHealth health, ChatImageService images)
+    private readonly NavigationItemControl _messageNav = new() { Caption = "Tin nhắn", Active = true };
+    private readonly NavigationItemControl _usersNav = new() { Caption = "Danh bạ" };
+    private readonly TableLayoutPanel _workspace = new() { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1, Margin = Padding.Empty };
+    private readonly TableLayoutPanel _chatArea = new() { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1 };
+
+    public MainForm(IChatStore store, ILanScanner scanner, IServiceProvider services, NetworkHealth health, ChatImageService images)
     {
-        _store = store; _chatService = chatService; _scanner = scanner; _services = services; _health = health;
+        _store = store; _scanner = scanner; _services = services; _health = health;
         _images = images; _chat.ConfigureImages(images);
-        Text = "LanChat — Chat nội bộ"; ClientSize = new Size(1240, 800); MinimumSize = new Size(1020, 650);
-        StartPosition = FormStartPosition.CenterScreen; Font = new Font("Segoe UI", 10); BackColor = Theme.Canvas;
-        var root = Theme.Stack(3); root.RowStyles.Add(new RowStyle(SizeType.Absolute, 64)); root.RowStyles.Add(new RowStyle(SizeType.Percent, 100)); root.RowStyles.Add(new RowStyle(SizeType.Absolute, 28));
-        var toolbar = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 4, RowCount = 1, Padding = new Padding(12, 6, 12, 6) };
-        toolbar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 46)); toolbar.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        toolbar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 170)); toolbar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 150));
-        toolbar.Controls.Add(_avatar, 0, 0); toolbar.Controls.Add(_profile, 1, 0);
-        var scan = Theme.Button("Quét lại mạng"); toolbar.Controls.Add(scan, 2, 0); var diagnostics = Theme.Button("Chẩn đoán"); toolbar.Controls.Add(diagnostics, 3, 0);
-        root.Controls.Add(toolbar, 0, 0);
-        var workspace = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1 };
-        workspace.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        workspace.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 155)); workspace.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        var navigation = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, BackColor = Color.White };
-        foreach (var item in new[] { _messageNav, _usersNav }) { item.Width = 150; navigation.Controls.Add(item); }
-        var groups = new NavigationItemControl { Caption = "♧  Nhóm", Width = 150 };
-        var files = new NavigationItemControl { Caption = "▤  File", Width = 150 };
-        var searchMessages = new NavigationItemControl { Caption = "⌕  Tìm tin nhắn", Width = 150 };
-        navigation.Controls.Add(groups); navigation.Controls.Add(files); navigation.Controls.Add(searchMessages);
-        groups.Selected += async (_, _) => await RunUiAsync(async () => { using var form = ActivatorUtilities.CreateInstance<GroupsForm>(services); if (form.ShowDialog(this) == DialogResult.OK && form.SelectedGroup is { } id) await SelectConversationAsync(id, Guid.Empty); });
-        files.Selected += async (_, _) => await RunUiAsync(OpenFilesAsync);
-        searchMessages.Selected += async (_, _) => await RunUiAsync(SearchMessagesAsync);
-        var settings = new NavigationItemControl { Caption = "⚙  Cài đặt", Width = 150 }; navigation.Controls.Add(settings);
+        Text = "LanChat — Chat nội bộ - phát triển bởi Trung tá Nguyễn Quốc Đạt";
+        ClientSize = new Size(1240, 800); MinimumSize = new Size(860, 600);
+        StartPosition = FormStartPosition.CenterScreen; AutoScaleMode = AutoScaleMode.Dpi;
+        Font = new Font("Segoe UI", 10); BackColor = Theme.Canvas;
+        var root = Theme.Stack(2);
+        root.RowStyles.Add(new RowStyle(SizeType.Percent, 100)); root.RowStyles.Add(new RowStyle(SizeType.Absolute, 28));
+        var workspace = _workspace;
+        workspace.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 104));
+        workspace.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 292));
+        workspace.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        root.Controls.Add(workspace, 0, 0);
+
+        var navigation = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false,
+            AutoScroll = true, BackColor = Theme.Rail, Padding = new Padding(1, 12, 1, 0), Margin = Padding.Empty };
+        _profile.Width = 90; _profile.Height = 32; _profile.Dock = DockStyle.None; _profile.AutoSize = false;
+        _profile.AutoEllipsis = true; _profile.ForeColor = Color.White; _profile.TextAlign = ContentAlignment.MiddleCenter;
+        _initial.Dock = DockStyle.None; _initial.Width = 90; _initial.Height = 44; _initial.AutoSize = false;
+        _initial.TextAlign = ContentAlignment.MiddleCenter; _initial.ForeColor = Color.White;
+        navigation.Controls.Add(_initial); navigation.Controls.Add(_profile);
+        var groups = new NavigationItemControl { Caption = "Nhóm" };
+        var files = new NavigationItemControl { Caption = "Tệp" };
+        var scan = new NavigationItemControl { Caption = "Quét lại" };
+        foreach (var item in new[] { _messageNav, _usersNav, groups, files, scan, _networkNav })
+        { item.Width = 96; item.Margin = Padding.Empty; navigation.Controls.Add(item); }
         workspace.Controls.Add(navigation, 0, 0);
-        var split = new SplitContainer();
-        ((System.ComponentModel.ISupportInitialize)split).BeginInit();
-        split.Dock = DockStyle.Fill; split.Size = new Size(1050, 680); split.SplitterDistance = 320;
-        split.Panel1MinSize = 260; split.Panel2MinSize = 420; split.BackColor = Color.FromArgb(223, 228, 237);
-        split.Panel1.Controls.Add(_conversations); split.Panel1.Controls.Add(_people); split.Panel2.Controls.Add(_chat);
+        var left = new Panel { Dock = DockStyle.Fill, Margin = new Padding(0, 0, 1, 0), BackColor = Theme.Border };
+        left.Controls.Add(_conversations); left.Controls.Add(_people); workspace.Controls.Add(left, 1, 0);
         var peopleLayout = Theme.Stack(3); peopleLayout.Padding = new Padding(10);
-        peopleLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 50)); peopleLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 38)); peopleLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        peopleLayout.Controls.Add(Theme.Label("Người dùng", 16, true), 0, 0); peopleLayout.Controls.Add(_userSearch, 0, 1); peopleLayout.Controls.Add(_userRows, 0, 2); _people.Controls.Add(peopleLayout);
-        workspace.Controls.Add(split, 1, 0); root.Controls.Add(workspace, 0, 1);
-        ((System.ComponentModel.ISupportInitialize)split).EndInit();
-        split.Panel1.ClientSizeChanged += (_, _) => { _conversations.Size = split.Panel1.ClientSize; _people.Size = split.Panel1.ClientSize; };
-        split.Panel2.ClientSizeChanged += (_, _) => _chat.Size = split.Panel2.ClientSize;
-        var status = new StatusStrip { Dock = DockStyle.Fill }; status.Items.Add(_status); root.Controls.Add(status, 0, 2); Controls.Add(root);
-        _messageNav.Selected += (_, _) => ShowPeople(false); _usersNav.Selected += (_, _) => ShowPeople(true);
-        _conversations.Selected += async c => await RunUiAsync(() => SelectConversationAsync(c.Id, c.OtherUserId));
+        peopleLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 44));
+        peopleLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));
+        peopleLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        peopleLayout.Controls.Add(Theme.Label("Danh bạ LAN", 15, true), 0, 0);
+        peopleLayout.Controls.Add(_userSearch, 0, 1); peopleLayout.Controls.Add(_userRows, 0, 2);
+        _people.Controls.Add(peopleLayout);
+        _chatArea.Margin = Padding.Empty;
+        _chatArea.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        _chatArea.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 0));
+        _chatArea.Controls.Add(_chat, 0, 0); _chatArea.Controls.Add(_info, 1, 0);
+        workspace.Controls.Add(_chatArea, 2, 0);
+        var status = new StatusStrip { Dock = DockStyle.Fill, SizingGrip = false };
+        status.Items.AddRange([_status, _scanState]);
+        root.Controls.Add(status, 0, 1); Controls.Add(root);
+
+        _messageNav.Selected += (_, _) => ShowPeople(false);
+        _usersNav.Selected += (_, _) => ShowPeople(true);
+        groups.Selected += async (_, _) => await RunUiAsync(async () =>
+        {
+            using var form = ActivatorUtilities.CreateInstance<GroupsForm>(services);
+            if (form.ShowDialog(this) == DialogResult.OK && form.SelectedGroup is Guid id)
+                await SelectConversationAsync(id);
+        });
+        files.Selected += async (_, _) => await RunUiAsync(OpenFilesAsync);
+        scan.Selected += async (_, _) => await ScanAsync(scan);
+        _networkNav.Selected += (_, _) => { using var form = ActivatorUtilities.CreateInstance<NetworkForm>(services); form.ShowDialog(this); };
+        _userSearch.TextChanged += (_, _) => BindPeople();
+        _conversations.SearchChanged += (_, _) => BindConversations();
+        _conversations.Selected += async c => await RunUiAsync(async () =>
+        {
+            var id = c.Id != Guid.Empty ? c.Id : await _store.OpenDirectAsync(c.OtherUserId, _lifetime.Token);
+            await SelectConversationAsync(id);
+        });
         _conversations.ActionRequested += async (c, action) => await RunUiAsync(async () =>
         {
-            await store.SetConversationAsync(c.Id, action == "pin" ? !c.IsPinned : null, action == "mute" ? !c.IsMuted : null, action == "read", _lifetime.Token);
+            if (c.Id == Guid.Empty) return;
+            await store.SetConversationAsync(c.Id, action == "pin" ? !c.IsPinned : (bool?)null,
+                action == "mute" ? !c.IsMuted : (bool?)null, action == "read", _lifetime.Token);
             await RefreshAsync();
         });
         _chat.SendRequested += SendSubmissionAsync;
-        _chat.ActionRequested += async (m, a) => await RunUiAsync(() => MessageActionAsync(m, a));
+        _chat.ActionRequested += async (m, action) => await RunUiAsync(() => MessageActionAsync(m, action));
         _chat.FileRequested += async file => await RunUiAsync(() => OpenAttachmentAsync(file));
-        _chat.OlderRequested += async () => await RunUiAsync(async () => { if (_searchAnchor.HasValue) { _searchAnchor = null; _messageLimit = 200; } else _messageLimit += 200; await RefreshAsync(); });
-        scan.Click += async (_, _) => await ScanAsync(scan);
-        settings.Selected += async (_, _) => { using var form = ActivatorUtilities.CreateInstance<SettingsForm>(services); form.ShowDialog(this); await RunUiAsync(UpdateProfileAsync); };
-        diagnostics.Click += (_, _) => { using var form = ActivatorUtilities.CreateInstance<ClusterDiagnosticsForm>(services); form.ShowDialog(this); };
-        _timer.Tick += async (_, _) => await RefreshAsync();
-        Shown += async (_, _) => await RunUiAsync(async () => { await UpdateProfileAsync(); await RefreshAsync(); _timer.Start(); });
+        _chat.OlderRequested += async () => await RunUiAsync(LoadOlderAsync);
+        _chat.ReadRequested += async () => await RunUiAsync(MarkActiveReadAsync);
+        _chat.PanelRequested += async search => await RunUiAsync(() => OpenPanelAsync(search));
+        _info.CloseRequested += () => SetPanel(false);
+        _info.FileRequested += async file => await RunUiAsync(() => OpenAttachmentAsync(file));
+        _info.SearchRequested += async query => await RunUiAsync(() => SearchInPanelAsync(query));
+        _info.ResultSelected += async result => await RunUiAsync(() => JumpAsync(result));
+        _chatArea.Resize += (_, _) => LayoutPanel();
+        _workspace.Resize += (_, _) => LayoutWorkspace();
+        _timer.Tick += async (_, _) => await TickAsync();
+        Shown += async (_, _) => await RunUiAsync(async () => { await UpdateProfileAsync(); await RefreshAsync(); if (!IsDisposed) _timer.Start(); });
+        Activated += async (_, _) => await RunUiAsync(MarkActiveReadAsync);
         _notification.DoubleClick += (_, _) => { Show(); WindowState = FormWindowState.Normal; Activate(); };
-        FormClosed += (_, _) => { _timer.Stop(); _timer.Dispose(); _lifetime.Cancel(); _scanCancellation?.Cancel(); _avatar.Image?.Dispose(); _notification.Dispose(); };
+        FormClosed += (_, _) =>
+        {
+            _timer.Stop(); _timer.Dispose(); _lifetime.Cancel(); _scanCancellation?.Cancel();
+            _notification.Dispose();
+        };
     }
-    private void ShowPeople(bool value) { _people.Visible = value; _conversations.Visible = !value; _usersNav.Active = value; _messageNav.Active = !value; }
-    private async Task UpdateProfileAsync()
+
+    protected override bool ProcessCmdKey(ref System.Windows.Forms.Message msg, Keys keyData)
     {
-        var profile = await _store.GetProfileAsync(_lifetime.Token); _localUser = profile.Id;
-        _profile.Text = $"LanChat  /  {profile.DisplayName}";
-        _avatar.Image?.Dispose(); _avatar.Image = null;
-        if (profile.AvatarPath is not null && File.Exists(profile.AvatarPath))
-        { using var image = Image.FromFile(profile.AvatarPath); _avatar.Image = new Bitmap(image); }
+        if (keyData == (Keys.Control | Keys.K)) { ShowPeople(false); _conversations.FocusSearch(); return true; }
+        if (keyData == (Keys.Control | Keys.F))
+        {
+            _ = RunUiAsync(() => _activeConversation.HasValue ? OpenPanelAsync(true) : SearchMessagesAsync());
+            return true;
+        }
+        if (keyData == Keys.Escape && _panelOpen) { SetPanel(false); return true; }
+        return base.ProcessCmdKey(ref msg, keyData);
     }
-    public async Task SelectConversationAsync(Guid id, Guid other)
+
+    private void ShowPeople(bool value)
     {
-        if (_activeConversation != id) { _messageLimit = 200; _searchAnchor = null; _chat.ResetDraft(); }
-        _activeConversation = id; _recipient = other; ShowPeople(false);
-        await _store.SetConversationAsync(id, markRead: true, ct: _lifetime.Token); await RefreshAsync();
+        _showPeople = value;
+        _people.Visible = value; _conversations.Visible = !value; _usersNav.Active = value; _messageNav.Active = !value;
+        if (value) BindPeople();
     }
+    internal void EmbedInWorkspace(Action<string, string> notify)
+    {
+        TopLevel = false; FormBorderStyle = FormBorderStyle.None; ShowInTaskbar = false; MinimumSize = Size.Empty;
+        _notification.Visible = false;
+        _showNotification = notify;
+        _networkNav.Visible = false;
+    }
+
+    internal async Task UpdateProfileAsync()
+    {
+        var profile = await Task.Run(() => _store.GetProfileAsync(_lifetime.Token), _lifetime.Token);
+        if (IsDisposed) return;
+        _localUser = profile.Id; _profile.Text = profile.DisplayName;
+        _initial.Text = string.Concat(profile.DisplayName.Trim().Take(1)).ToUpperInvariant();
+    }
+
+    public async Task SelectConversationAsync(Guid id)
+    {
+        if (_activeConversation != id)
+        {
+            if (_activeConversation is Guid old) _drafts[old] = _chat.Draft();
+            _chat.RestoreDraft(_drafts.TryGetValue(id, out var draft) ? draft : null);
+            _olderMessages = _visibleMessages = []; _searchAnchor = null; _hasOlder = true;
+            _info.ResetSearch();
+        }
+        _activeConversation = id; ShowPeople(false);
+        await RefreshAsync();
+    }
+
     private async Task RunUiAsync(Func<Task> action)
     {
         try { await action(); }
         catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { }
         catch (Exception ex) { if (!IsDisposed) MessageBox.Show(this, ex.Message, "LanChat", MessageBoxButtons.OK, MessageBoxIcon.Warning); }
     }
-    public async Task RefreshAsync()
+
+    private async Task TickAsync()
     {
-        if (_refreshing || IsDisposed || _lifetime.IsCancellationRequested) return;
-        _refreshing = true;
-        var selectedId = _activeConversation; var selectedRecipient = _recipient;
+        if (_refresh.CurrentCount == 0 || IsDisposed) return;
         try
         {
-            var contacts = await _store.GetUsersAsync(_userSearch.Text.Trim(), _lifetime.Token);
-            var allConversations = await _store.GetConversationsAsync(ct: _lifetime.Token);
-            var conversations = allConversations.Where(x => x.DisplayName.Contains(_conversations.SearchText, StringComparison.CurrentCultureIgnoreCase)).ToArray();
-            if (IsDisposed || _lifetime.IsCancellationRequested) return;
-            _conversations.Bind(conversations, _activeConversation);
-            if (_lastUnread is not null)
-            {
-                var notify = allConversations.FirstOrDefault(c => !c.IsMuted && c.UnreadCount > _lastUnread.GetValueOrDefault(c.Id) && !(c.Id == _activeConversation && ContainsFocus && WindowState != FormWindowState.Minimized));
-                if (notify is not null) _notification.ShowBalloonTip(3000, notify.DisplayName, $"Bạn có {notify.UnreadCount} tin nhắn chưa đọc.", ToolTipIcon.Info);
-            }
-            _lastUnread = allConversations.ToDictionary(x => x.Id, x => x.UnreadCount);
-            if (_activeConversation.HasValue && !allConversations.Any(x => x.Id == _activeConversation))
-            { _activeConversation = _recipient = null; _searchAnchor = null; _chat.ClearConversation(); }
-            _userRows.SuspendLayout();
-            foreach (var id in _users.Keys.Except(contacts.Select(x => x.UserId)).ToArray()) { _users[id].Dispose(); _users.Remove(id); }
-            foreach (var u in contacts)
-            {
-                if (!_users.TryGetValue(u.UserId, out var row))
-                {
-                    row = new UserItemControl(); row.Selected += async id => await RunUiAsync(async () => { var c = await _store.OpenDirectAsync(id, _lifetime.Token); await SelectConversationAsync(c, id); });
-                    _users.Add(u.UserId, row); _userRows.Controls.Add(row);
-                }
-                row.Bind(u);
-            }
-            _userRows.ResumeLayout();
-            var all = await _store.GetUsersAsync(ct: _lifetime.Token);
-            if (selectedId.HasValue && selectedRecipient.HasValue && selectedId == _activeConversation)
-            {
-                var user = all.FirstOrDefault(x => x.UserId == selectedRecipient.Value);
-                var current = allConversations.FirstOrDefault(x => x.Id == selectedId);
-                _chat.SelectConversation(current?.DisplayName ?? user?.DisplayName ?? "Cuộc trò chuyện", user?.Presence == PresenceStatus.Online, current?.Kind == ConversationKind.Group);
-                var anchor = _searchAnchor;
-                IReadOnlyList<LanChat.Domain.Message> messages = anchor.HasValue ? await Distributed.GetMessageWindowAsync(selectedId.Value, anchor.Value, _lifetime.Token)
-                    : await _store.GetMessagesAsync(selectedId.Value, ct: _lifetime.Token, limit: _messageLimit);
-                var details = await Distributed.GetMessageDetailsBatchAsync(messages.Select(x => x.Id).ToArray(), _lifetime.Token);
-                if (IsDisposed) return;
-                if (selectedId == _activeConversation)
-                {
-                    _chat.Bind(selectedId.Value, messages, _localUser);
-                    _chat.BindDetails(details);
-                    _chat.SetHistoryAvailable(anchor.HasValue || messages.Count >= _messageLimit, anchor.HasValue);
-                    if (anchor.HasValue && !_anchorScrolled) { _chat.FocusMessage(anchor.Value); _anchorScrolled = true; }
-                    if (ContainsFocus) await _store.SetConversationAsync(selectedId.Value, markRead: true, ct: _lifetime.Token);
-                }
-            }
-            var cluster = await Consensus.GetStatusAsync(_lifetime.Token);
-            _status.Text = _health.Error ?? $"{cluster.StatusText}    |    Peers: {all.Count(x => x.Presence == PresenceStatus.Online)}    |    Chờ đồng bộ: {await _store.GetPendingCountAsync(_lifetime.Token)}";
-            _messageNav.SetBadge("✉  Tin nhắn", allConversations.Sum(x => x.UnreadCount));
+            if (_revision != _store.Revision || _presenceRevision != _store.PresenceRevision || DateTime.UtcNow - _lastPresence > TimeSpan.FromSeconds(4))
+                await RefreshAsync();
+            else await UpdateStatusAsync();
         }
         catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { }
-        catch (Exception ex) { if (!IsDisposed) _status.Text = "Không cập nhật được: " + ex.Message; }
-        finally { _refreshing = false; }
+        catch (Exception ex) { if (!IsDisposed) _status.Text = ex.Message; }
     }
-    private async Task ScanAsync(Button button)
+
+    public async Task RefreshAsync()
+    {
+        var ct = _lifetime.Token;
+        await _refresh.WaitAsync(ct);
+        try
+        {
+            var revision = _store.Revision;
+            var presenceRevision = _store.PresenceRevision;
+            var id = _activeConversation;
+            var anchor = _searchAnchor;
+            var previous = _olderMessages;
+            var changed = _revision != revision;
+            var presenceDue = DateTime.UtcNow - _lastPresence > TimeSpan.FromSeconds(4);
+            if (changed || _presenceRevision != presenceRevision || presenceDue)
+            {
+                var contacts = await Task.Run(() => _store.GetUsersAsync(ct: ct), ct);
+                var summaries = changed || _presenceRevision != presenceRevision
+                    ? await Task.Run(() => _store.GetConversationsAsync(ct: ct), ct) : _summaries;
+                if (IsDisposed) return;
+                var presence = contacts.ToDictionary(u => u.UserId, u => u.Presence);
+                _contacts = contacts;
+                _summaries = summaries.Select(c => c.Kind == ConversationKind.Direct && presence.TryGetValue(c.OtherUserId, out var online)
+                    ? c with { Presence = online } : c).ToArray();
+                BindConversations(); if (_showPeople) BindPeople();
+                UpdateUnread();
+                _lastPresence = DateTime.UtcNow;
+            }
+
+            if (id.HasValue && id == _activeConversation && anchor == _searchAnchor)
+            {
+                var current = _summaries.FirstOrDefault(x => x.Id == id);
+                if (current is null) { _activeConversation = null; _boundConversation = null; _chat.ClearConversation(); SetPanel(false); }
+                else
+                {
+                    _chat.SelectConversation(current.DisplayName, current.Presence == PresenceStatus.Online, current.Kind == ConversationKind.Group);
+                    if (changed || _boundConversation != id || _boundSearch != anchor || _boundOlder != previous)
+                    {
+                        var data = await Task.Run(async () =>
+                        {
+                            var latest = anchor.HasValue ? await Distributed.GetMessageWindowAsync(id.Value, anchor.Value, ct) :
+                                await _store.GetMessagesAsync(id.Value, ct: ct, limit: PageSize);
+                            var cached = previous.Length == 0 || anchor.HasValue ? [] : await Distributed.GetMessageDetailsBatchAsync(previous.Select(m => m.Id).ToArray(), ct);
+                            var messages = cached.Select(m => m.Message).Where(m => !m.IsDeletedLocal).Concat(latest)
+                                .GroupBy(m => m.Id).Select(g => g.Last()).OrderBy(m => m.PhysicalTicks).ThenBy(m => m.LogicalCounter)
+                                .ThenBy(m => m.OriginNodeId.ToString(), StringComparer.Ordinal).ThenBy(m => m.Id.ToString(), StringComparer.Ordinal).ToArray();
+                            var details = await Distributed.GetMessageDetailsBatchAsync(latest.Select(m => m.Id).ToArray(), ct);
+                            return (messages, details: cached.Concat(details).ToArray(), more: latest.Count >= PageSize);
+                        }, ct);
+                        if (IsDisposed) return;
+                        if (id == _activeConversation && anchor == _searchAnchor)
+                        {
+                            _visibleMessages = data.messages;
+                            _chat.Bind(id.Value, data.messages, _localUser, data.details);
+                            _boundConversation = id; _boundSearch = anchor; _boundOlder = previous;
+                            _chat.SetHistoryAvailable(anchor.HasValue || (_hasOlder && (previous.Length > 0 || data.more)), anchor.HasValue);
+                            if (anchor.HasValue && !_anchorScrolled) { _chat.FocusMessage(anchor.Value); _anchorScrolled = true; }
+                            if (_panelOpen) await LoadPanelAsync(id.Value);
+                            await MarkActiveReadAsync();
+                        }
+                    }
+                }
+            }
+            _revision = revision; _presenceRevision = presenceRevision;
+            await UpdateStatusAsync();
+        }
+        finally { _refresh.Release(); }
+    }
+
+    private void UpdateUnread()
+    {
+        if (_lastUnread is not null)
+        {
+            var notify = _summaries.FirstOrDefault(c => !c.IsMuted && c.UnreadCount > _lastUnread.GetValueOrDefault(c.Id) &&
+                !(c.Id == _activeConversation && ContainsFocus && WindowState != FormWindowState.Minimized && _chat.AtBottom));
+            if (notify is not null)
+            {
+                var body = $"Bạn có {notify.UnreadCount} tin nhắn chưa đọc.";
+                if (_showNotification is null) _notification.ShowBalloonTip(3000, notify.DisplayName, body, ToolTipIcon.Info);
+                else _showNotification(notify.DisplayName, body);
+            }
+        }
+        _lastUnread = _summaries.ToDictionary(x => x.Id, x => x.UnreadCount);
+        _messageNav.SetBadge("Tin nhắn", _summaries.Sum(x => x.UnreadCount));
+    }
+
+    private Task MarkActiveReadAsync()
+    {
+        var active = _summaries.FirstOrDefault(c => c.Id == _activeConversation);
+        return ContainsFocus && WindowState != FormWindowState.Minimized && _chat.AtBottom && !_searchAnchor.HasValue &&
+            active is { UnreadCount: > 0 } ? _store.SetConversationAsync(active.Id, markRead: true, ct: _lifetime.Token) : Task.CompletedTask;
+    }
+
+    private async Task UpdateStatusAsync()
+    {
+        var ct = _lifetime.Token;
+        var state = await Task.Run(async () => (await Consensus.GetStatusAsync(ct), await _store.GetPendingCountAsync(ct)), ct);
+        if (!IsDisposed) _status.Text = _health.Error ?? $"{state.Item1.StatusText}   ·   {_contacts.Count(x => x.Presence == PresenceStatus.Online)} máy trực tuyến   ·   {state.Item2} tin chờ";
+    }
+
+    private void BindConversations()
+    {
+        var text = _conversations.SearchText;
+        var matches = _summaries.Where(c => ChatStore.NameMatches(c.DisplayName, text));
+        if (text.Length > 0)
+            matches = matches.Concat(_contacts.Where(u => ChatStore.NameMatches(u.DisplayName, text) &&
+                !_summaries.Any(c => c.OtherUserId == u.UserId))
+                .Select(u => new ConversationSummary(Guid.Empty, u.UserId, u.DisplayName, "Bắt đầu trò chuyện", 0, 0, false, false, u.Presence)));
+        _conversations.Bind(matches.ToArray(), _activeConversation);
+    }
+
+    private void BindPeople()
+    {
+        var contacts = _contacts.Where(u => ChatStore.NameMatches(u.DisplayName, _userSearch.Text.Trim())).ToArray();
+        _userRows.SuspendLayout();
+        foreach (var id in _users.Keys.Except(contacts.Select(x => x.UserId)).ToArray()) { _users[id].Dispose(); _users.Remove(id); }
+        for (var index = 0; index < contacts.Length; index++)
+        {
+            var u = contacts[index];
+            if (!_users.TryGetValue(u.UserId, out var row))
+            {
+                row = new UserItemControl();
+                row.Selected += async user => await RunUiAsync(async () =>
+                {
+                    var c = await _store.OpenDirectAsync(user, _lifetime.Token);
+                    await SelectConversationAsync(c);
+                });
+                _users.Add(u.UserId, row); _userRows.Controls.Add(row);
+            }
+            row.Bind(u);
+            var targetIndex = contacts.Length - index - 1;
+            if (_userRows.Controls.GetChildIndex(row) != targetIndex) _userRows.Controls.SetChildIndex(row, targetIndex);
+        }
+        _userRows.ResumeLayout();
+    }
+
+    private async Task LoadOlderAsync()
+    {
+        if (_loadingOlder || _activeConversation is not Guid id) return;
+        _loadingOlder = true;
+        try
+        {
+            if (_searchAnchor.HasValue) { _searchAnchor = null; _olderMessages = []; _hasOlder = true; await RefreshAsync(); _chat.ScrollToEnd(); return; }
+            var first = _visibleMessages.FirstOrDefault();
+            if (first is null || !_hasOlder) return;
+            var ct = _lifetime.Token;
+            var page = await Task.Run(() => _store.GetOlderMessagesAsync(id, first, PageSize, ct), ct);
+            if (id != _activeConversation || IsDisposed) return;
+            _hasOlder = page.Length == PageSize;
+            _olderMessages = page.Concat(_visibleMessages).ToArray();
+            await RefreshAsync();
+        }
+        finally { _loadingOlder = false; }
+    }
+
+    private void SetPanel(bool visible)
+    {
+        _panelOpen = visible;
+        _info.Visible = visible;
+        LayoutPanel();
+    }
+    private int ScaleWidth(int pixels) => (int)Math.Round(pixels * DeviceDpi / 96d);
+    private bool IsCompactChat => _chatArea.Width < ScaleWidth(570);
+    private void LayoutWorkspace()
+    {
+        var listWidth = _workspace.Width < ScaleWidth(1000) ? ScaleWidth(248) : ScaleWidth(292);
+        if (_workspace.ColumnStyles[1].Width != listWidth) _workspace.ColumnStyles[1].Width = listWidth;
+    }
+    private void LayoutPanel()
+    {
+        var width = !_panelOpen ? 0 : IsCompactChat ? _chatArea.ClientSize.Width : ScaleWidth(288);
+        if (_chatArea.ColumnStyles[1].Width != width) _chatArea.ColumnStyles[1].Width = width;
+        var showChat = !_panelOpen || !IsCompactChat;
+        if (_chat.Visible != showChat) _chat.Visible = showChat;
+    }
+    private async Task OpenPanelAsync(bool search)
+    {
+        if (_activeConversation is not Guid id) return;
+        if (!search && _panelOpen) { SetPanel(false); return; }
+        SetPanel(true);
+        if (search) _info.FocusSearch();
+        await LoadPanelAsync(id);
+    }
+    private async Task LoadPanelAsync(Guid id)
+    {
+        var ct = _lifetime.Token;
+        var data = await Task.Run(async () => (await Distributed.GetAttachmentsAsync(id, ct), (await Distributed.GetGroupsAsync(ct)).FirstOrDefault(g => g.Id == id)), ct);
+        if (id == _activeConversation && !IsDisposed) _info.Bind(data.Item1, data.Item2, _contacts, _localUser);
+    }
+    private async Task SearchInPanelAsync(string query)
+    {
+        if (_activeConversation is not Guid id) return;
+        var ct = _lifetime.Token;
+        var results = await Task.Run(() => Distributed.SearchMessagesAsync(query, id, ct), ct);
+        if (!IsDisposed && id == _activeConversation) _info.SetResults(query, results);
+    }
+    private async Task JumpAsync(SearchResult result)
+    {
+        if (_activeConversation != result.ConversationId) return;
+        _searchAnchor = result.MessageId; _anchorScrolled = false;
+        if (IsCompactChat) SetPanel(false);
+        await RefreshAsync();
+    }
+
+    private async Task ScanAsync(NavigationItemControl button)
     {
         if (_scanCancellation is not null) { _scanCancellation.Cancel(); return; }
-        _scanCancellation = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token); button.Text = "Dừng quét";
-        try { await _scanner.ScanAsync(_scanCancellation.Token); await RefreshAsync(); }
-        catch (OperationCanceledException) { }
-        catch (Exception ex) { if (!IsDisposed) MessageBox.Show(this, ex.Message, "Không quét được mạng"); }
-        finally { _scanCancellation.Dispose(); _scanCancellation = null; if (!button.IsDisposed) button.Text = "Quét lại mạng"; }
+        var cancellation = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
+        _scanCancellation = cancellation; button.Caption = "Dừng quét";
+        try
+        {
+            var progress = new Progress<LanScanProgress>(p =>
+            {
+                if (!IsDisposed && _scanCancellation == cancellation)
+                    _scanState.Text = p.CheckingUdp ? "Đang tìm máy qua UDP…" : $"Đã kiểm tra {p.Checked:N0} địa chỉ · tìm thấy {p.Discovered} máy";
+            });
+            var peers = await _scanner.ScanAsync(cancellation.Token, progress);
+            if (!IsDisposed) { _scanState.Text = $"Tìm thấy {peers.Count} máy"; await RefreshAsync(); }
+        }
+        catch (OperationCanceledException) { if (!IsDisposed) _scanState.Text = "Đã dừng quét"; }
+        catch (Exception ex) { if (!IsDisposed) _scanState.Text = "Quét mạng: " + ex.Message; }
+        finally { _scanCancellation = null; cancellation.Dispose(); if (!IsDisposed) button.Caption = "Quét lại"; }
     }
 }

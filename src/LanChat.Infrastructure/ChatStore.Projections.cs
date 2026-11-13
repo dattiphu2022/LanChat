@@ -1,7 +1,6 @@
 using System.Text.Json;
 using LanChat.Application;
 using LanChat.Domain;
-using Microsoft.EntityFrameworkCore;
 
 namespace LanChat.Infrastructure;
 
@@ -9,8 +8,7 @@ public sealed partial class ChatStore
 {
     private async Task ProjectEntityAsync(ChatDbContext db, Guid entityId, CancellationToken ct)
     {
-        var events = await db.Events.Where(x => x.EntityId == entityId).OrderBy(x => x.PhysicalTicks).ThenBy(x => x.LogicalCounter)
-            .ThenBy(x => x.OriginNodeId).ThenBy(x => x.Id).ToListAsync(ct);
+        var events = db.Rows<ReplicationEvent>("EntityId=$0 ORDER BY PhysicalTicks,LogicalCounter,OriginNodeId,Id", entityId);
         var profileEvent = events.LastOrDefault(x => x.Type == ReplicationEventType.UserProfileUpdated && x.ActorUserId == entityId);
         if (profileEvent is not null)
         {
@@ -29,18 +27,18 @@ public sealed partial class ChatStore
             throw new InvalidDataException("Nội dung MessageCreated không hợp lệ.");
         await ProjectProfileAsync(db, content.Sender, ct, false);
         if (content.Recipient is not null) await ProjectProfileAsync(db, content.Recipient, ct, false);
-        var conversation = await db.Conversations.SingleOrDefaultAsync(x => x.Id == source.ConversationId, ct);
+        var conversation = db.One<Conversation>("Id=$0", source.ConversationId);
         if (conversation is null)
         {
             conversation = new Conversation { Id = source.ConversationId, Kind = source.RecipientUserId == Guid.Empty ? ConversationKind.Group : ConversationKind.Direct };
-            db.Conversations.Add(conversation);
+            db.Insert(conversation);
         }
         if (source.RecipientUserId != Guid.Empty)
             foreach (var user in new[] { source.SenderUserId, source.RecipientUserId })
-                if (!await db.Members.AnyAsync(x => x.ConversationId == source.ConversationId && x.UserId == user, ct))
-                    db.Members.Add(new ConversationMember { Id = Guid.CreateVersion7(), ConversationId = source.ConversationId, UserId = user });
-        var local = await db.Settings.SingleAsync(ct);
-        var m = await db.Messages.SingleOrDefaultAsync(x => x.Id == entityId, ct);
+                if (!db.Exists<ConversationMember>("ConversationId=$0 AND UserId=$1", source.ConversationId, user))
+                    db.Insert(new ConversationMember { Id = LanChat.Domain.AppIdentity.NewId(), ConversationId = source.ConversationId, UserId = user });
+        var local = db.Required<LocalSettings>();
+        var m = db.One<Message>("Id=$0", entityId);
         if (m is null)
         {
             m = new Message { Id = source.Id, ClientMessageId = source.ClientMessageId, ConversationId = source.ConversationId,
@@ -48,7 +46,7 @@ public sealed partial class ChatStore
                 OriginSequence = source.OriginSequence, CreatedAtTicks = source.CreatedAtTicks, PhysicalTicks = source.PhysicalTicks,
                 LogicalCounter = source.LogicalCounter, Status = source.SenderUserId == local.UserId ? MessageStatus.LocalPending : MessageStatus.Delivered,
                 IsRead = source.SenderUserId == local.UserId };
-            db.Messages.Add(m);
+            db.Insert(m);
         }
         else if (m.ClientMessageId != source.ClientMessageId || m.SenderUserId != source.SenderUserId || m.ConversationId != source.ConversationId)
             throw new InvalidDataException("Xung đột MessageCreated.");
@@ -66,20 +64,20 @@ public sealed partial class ChatStore
         var reactions = events.Where(x => x.Type == ReplicationEventType.ReactionChanged && audience.Contains(x.ActorUserId))
             .Select(x => (Event: x, Change: JsonSerializer.Deserialize<ReactionChange>(x.PayloadJson)!))
             .GroupBy(x => (x.Event.ActorUserId, x.Change.Emoji)).Select(x => x.Last()).Where(x => x.Change.Active && !m.IsRecalled).ToArray();
-        var existingReactions = await db.Reactions.Where(x => x.MessageId == m.Id).ToListAsync(ct);
+        var existingReactions = db.Rows<MessageReaction>("MessageId=$0", m.Id);
         foreach (var row in existingReactions)
-            if (!reactions.Any(x => x.Event.ActorUserId == row.UserId && x.Change.Emoji == row.Emoji)) db.Reactions.Remove(row);
+            if (!reactions.Any(x => x.Event.ActorUserId == row.UserId && x.Change.Emoji == row.Emoji)) db.Delete<MessageReaction>("Id=$0", row.Id);
         foreach (var reaction in reactions)
         {
             if (!AllowedReactions.Contains(reaction.Change.Emoji)) throw new InvalidDataException("Reaction không hợp lệ.");
             if (!existingReactions.Any(x => x.UserId == reaction.Event.ActorUserId && x.Emoji == reaction.Change.Emoji))
-                db.Reactions.Add(new MessageReaction { Id = Guid.CreateVersion7(), MessageId = m.Id, UserId = reaction.Event.ActorUserId, Emoji = reaction.Change.Emoji });
+                db.Insert(new MessageReaction { Id = LanChat.Domain.AppIdentity.NewId(), MessageId = m.Id, UserId = reaction.Event.ActorUserId, Emoji = reaction.Change.Emoji });
         }
         foreach (var receipt in events.Where(x => x.Type == ReplicationEventType.ReceiptUpdated && audience.Contains(x.ActorUserId)).GroupBy(x => x.ActorUserId))
         {
             var values = receipt.Select(x => JsonSerializer.Deserialize<ReceiptChange>(x.PayloadJson)!).ToArray();
-            var row = await db.Receipts.SingleOrDefaultAsync(x => x.MessageId == m.Id && x.UserId == receipt.Key, ct);
-            if (row is null) { row = new MessageReceipt { Id = Guid.CreateVersion7(), MessageId = m.Id, UserId = receipt.Key }; db.Receipts.Add(row); }
+            var row = db.One<MessageReceipt>("MessageId=$0 AND UserId=$1", m.Id, receipt.Key);
+            if (row is null) { row = new MessageReceipt { Id = LanChat.Domain.AppIdentity.NewId(), MessageId = m.Id, UserId = receipt.Key }; db.Insert(row); }
             row.IsRead |= values.Any(x => x.IsRead); row.ReceivedAtTicks = values.Min(x => x.ReceivedAtTicks);
             if (row.UserId == local.UserId && row.IsRead) m.IsRead = true;
             if (m.SenderUserId == local.UserId && row.UserId != local.UserId) m.Status = MessageStatus.Delivered;
@@ -89,21 +87,21 @@ public sealed partial class ChatStore
             if (file.Id == Guid.Empty || file.FileSize < 0 || file.FileSize > 20L * 1024 * 1024 * 1024 || file.Sha256.Length != 64 ||
                 !file.Sha256.All(Uri.IsHexDigit) || file.FileName.Length > 255 || Path.GetFileName(file.FileName) != file.FileName)
                 throw new InvalidDataException("Metadata file không hợp lệ.");
-            var existing = await db.Attachments.SingleOrDefaultAsync(x => x.Id == file.Id, ct);
-            if (existing is null) db.Attachments.Add(new Attachment { Id = file.Id, MessageId = m.Id, FileName = file.FileName, MimeType = file.MimeType,
+            var existing = db.One<Attachment>("Id=$0", file.Id);
+            if (existing is null) db.Insert(new Attachment { Id = file.Id, MessageId = m.Id, FileName = file.FileName, MimeType = file.MimeType,
                 FileSize = file.FileSize, Sha256 = file.Sha256.ToLowerInvariant() });
             else if (existing.MessageId != m.Id || existing.Sha256 != file.Sha256.ToLowerInvariant()) throw new InvalidDataException("Xung đột attachment.");
         }
-        await db.SaveChangesAsync(ct);
+        db.SaveChanges();
     }
     private static async Task ProjectProfileAsync(ChatDbContext db, UserProfileDto profile, CancellationToken ct, bool overwrite)
     {
-        var user = await db.Users.SingleOrDefaultAsync(x => x.Id == profile.Id, ct);
-        if (user is null) { user = new LocalUserProfile { Id = profile.Id }; db.Users.Add(user); }
+        var user = db.One<LocalUserProfile>("Id=$0", profile.Id);
+        if (user is null) { user = new LocalUserProfile { Id = profile.Id }; db.Insert(user); }
         else if (!overwrite) return;
         user.DisplayName = profile.DisplayName; user.FullName = profile.FullName; user.Nickname = profile.Nickname; user.Department = profile.Department;
         user.Position = profile.Position; user.Phone = profile.Phone; user.StatusMessage = profile.StatusMessage;
-        await db.SaveChangesAsync(ct);
+        db.SaveChanges();
     }
     private static readonly string[] AllowedReactions = ["👍", "❤️", "😂", "😮", "😢"];
 
@@ -112,19 +110,19 @@ public sealed partial class ChatStore
     {
         if (text.Length > 16000 || (string.IsNullOrWhiteSpace(text) && (attachments is null || attachments.Length == 0)) || attachments?.Length > 20)
             throw new ArgumentException("Nhập nội dung hoặc chọn tối đa 20 file.");
-        var s = await db.Settings.SingleAsync(ct);
-        var conversation = await db.Conversations.SingleAsync(x => x.Id == conversationId, ct);
-        if (!await db.Members.AnyAsync(x => x.ConversationId == conversationId && x.UserId == s.UserId, ct)) throw new InvalidOperationException("Bạn không còn là thành viên cuộc trò chuyện.");
-        if (conversation.Kind == ConversationKind.Group && await db.Groups.AnyAsync(x => x.Id == conversationId && x.IsDeleted, ct)) throw new InvalidOperationException("Nhóm đã bị xóa.");
-        if (replyTo.HasValue && !await db.Messages.AnyAsync(x => x.Id == replyTo && x.ConversationId == conversationId, ct)) throw new ArgumentException("Tin được trả lời không thuộc cuộc trò chuyện.");
-        var other = conversation.Kind == ConversationKind.Direct ? await db.Members.Where(x => x.ConversationId == conversationId && x.UserId != s.UserId).Select(x => x.UserId).SingleAsync(ct) : Guid.Empty;
+        var s = db.Required<LocalSettings>();
+        var conversation = db.Required<Conversation>("Id=$0", conversationId);
+        if (!db.Exists<ConversationMember>("ConversationId=$0 AND UserId=$1", conversationId, s.UserId)) throw new InvalidOperationException("Bạn không còn là thành viên cuộc trò chuyện.");
+        if (conversation.Kind == ConversationKind.Group && db.Exists<Group>("Id=$0 AND IsDeleted=1", conversationId)) throw new InvalidOperationException("Nhóm đã bị xóa.");
+        if (replyTo.HasValue && !db.Exists<Message>("Id=$0 AND ConversationId=$1", replyTo, conversationId)) throw new ArgumentException("Tin được trả lời không thuộc cuộc trò chuyện.");
+        var other = conversation.Kind == ConversationKind.Direct ? db.Required<ConversationMember>("ConversationId=$0 AND UserId<>$1", conversationId, s.UserId).UserId : Guid.Empty;
         (s.PhysicalTicks, s.LogicalCounter) = HybridClock.Advance(s.PhysicalTicks, s.LogicalCounter);
-        var message = new Message { Id = Guid.CreateVersion7(), ClientMessageId = Guid.CreateVersion7(), ConversationId = conversationId,
+        var message = new Message { Id = LanChat.Domain.AppIdentity.NewId(), ClientMessageId = LanChat.Domain.AppIdentity.NewId(), ConversationId = conversationId,
             SenderUserId = s.UserId, RecipientUserId = other, OriginNodeId = s.NodeId, OriginSequence = ++s.LastSequence,
             Text = text.Trim(), Kind = attachments?.Length > 0 ? attachments.All(x => x.MimeType.StartsWith("image/")) ? MessageKind.Image : MessageKind.File : MessageKind.Text,
             CreatedAtTicks = DateTime.UtcNow.Ticks, PhysicalTicks = s.PhysicalTicks, LogicalCounter = s.LogicalCounter, IsRead = true,
             ReplyToMessageId = replyTo, ForwardedFromMessageId = forwardedFrom, Status = MessageStatus.LocalPending };
-        db.Messages.Add(message); await db.SaveChangesAsync(ct);
+        db.Insert(message); db.SaveChanges();
         await EmitMessageAsync(db, s, message, attachments?.Select(x => x with { MessageId = message.Id }).ToArray(), ct); return message;
     }, ct);
     public Task EditMessageAsync(Guid messageId, string text, CancellationToken ct = default) => MutateMessageAsync(messageId,
@@ -139,64 +137,72 @@ public sealed partial class ChatStore
     {
         await WriteAsync(async db =>
         {
-            var s = await db.Settings.SingleAsync(ct); var m = await db.Messages.SingleAsync(x => x.Id == id, ct);
-            if ((ownOnly && m.SenderUserId != s.UserId) || m.IsRecalled || !await db.Members.AnyAsync(x => x.ConversationId == m.ConversationId && x.UserId == s.UserId, ct))
+            var s = db.Required<LocalSettings>(); var m = db.Required<Message>("Id=$0", id);
+            if ((ownOnly && m.SenderUserId != s.UserId) || m.IsRecalled || !db.Exists<ConversationMember>("ConversationId=$0 AND UserId=$1", m.ConversationId, s.UserId))
                 throw new InvalidOperationException("Không được phép thực hiện thao tác với tin nhắn này.");
             await EmitAsync(db, s, type, m.Id, m.ConversationId, payload, ct); return true;
         }, ct);
     }
     public async Task DeleteLocalAsync(Guid messageId, CancellationToken ct = default) => await WriteAsync(async db =>
-    { var m = await db.Messages.SingleAsync(x => x.Id == messageId, ct); m.IsDeletedLocal = true; return true; }, ct);
+    { var m = db.Required<Message>("Id=$0", messageId); m.IsDeletedLocal = true; return true; }, ct);
     public async Task<MessageDetails> GetMessageDetailsAsync(Guid messageId, CancellationToken ct = default)
         => (await GetMessageDetailsBatchAsync([messageId], ct)).Single();
     public async Task<MessageDetails[]> GetMessageDetailsBatchAsync(Guid[] messageIds, CancellationToken ct = default)
     {
-        await using var db = await factory.CreateDbContextAsync(ct);
-        var messages = await db.Messages.AsNoTracking().Where(x => messageIds.Contains(x.Id)).ToArrayAsync(ct);
+        if (messageIds.Length == 0) return [];
+        if (messageIds.Length > 500)
+        {
+            var result = new List<MessageDetails>();
+            for (var start = 0; start < messageIds.Length; start += 500)
+                result.AddRange(await GetMessageDetailsBatchAsync(messageIds.Skip(start).Take(500).ToArray(), ct));
+            return result.ToArray();
+        }
+        using var db = database.Open(ct);
+        var messages = db.Rows<Message>(In("Id", messageIds), Args(messageIds));
         var senders = messages.Select(x => x.SenderUserId).Distinct().ToArray();
-        var names = await db.Users.Where(x => senders.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.DisplayName, ct);
-        var attachments = (await db.Attachments.AsNoTracking().Where(x => messageIds.Contains(x.MessageId)).ToArrayAsync(ct)).Select(ToAttachment).ToLookup(x => x.MessageId);
-        var reactions = (await db.Reactions.AsNoTracking().Where(x => messageIds.Contains(x.MessageId)).ToArrayAsync(ct)).ToLookup(x => x.MessageId);
-        var receipts = (await db.Receipts.AsNoTracking().Where(x => messageIds.Contains(x.MessageId)).ToArrayAsync(ct)).ToLookup(x => x.MessageId);
+        var names = db.Rows<LocalUserProfile>(In("Id", senders), Args(senders)).ToDictionary(x => x.Id, x => x.DisplayName);
+        var attachments = db.Rows<Attachment>(In("MessageId", messageIds), Args(messageIds)).Select(ToAttachment).ToLookup(x => x.MessageId);
+        var reactions = db.Rows<MessageReaction>(In("MessageId", messageIds), Args(messageIds)).ToLookup(x => x.MessageId);
+        var receipts = db.Rows<MessageReceipt>(In("MessageId", messageIds), Args(messageIds)).ToLookup(x => x.MessageId);
         var replyIds = messages.Where(x => x.ReplyToMessageId.HasValue).Select(x => x.ReplyToMessageId!.Value).ToArray();
-        var replies = await db.Messages.AsNoTracking().Where(x => replyIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, ct);
+        var replies = db.Rows<Message>(In("Id", replyIds), Args(replyIds)).ToDictionary(x => x.Id);
         return messages.Select(m => new MessageDetails(m, m.IsRecalled ? [] : attachments[m.Id].ToArray(), reactions[m.Id].Select(x => x.Emoji).ToArray(),
             receipts[m.Id].Count(x => x.UserId != m.SenderUserId), receipts[m.Id].Count(x => x.IsRead && x.UserId != m.SenderUserId),
-            m.ReplyToMessageId.HasValue && replies.TryGetValue(m.ReplyToMessageId.Value, out var reply) ? reply.IsDeletedLocal ? "Tin nhắn đã xóa phía bạn" : reply.Text : null, names.GetValueOrDefault(m.SenderUserId))).ToArray();
+            m.ReplyToMessageId.HasValue && replies.TryGetValue(m.ReplyToMessageId.Value, out var reply) ? reply.IsDeletedLocal ? "Tin nhắn đã xóa phía bạn" : reply.Text : null, names.TryGetValue(m.SenderUserId, out var senderName) ? senderName : null)).ToArray();
     }
+    private static string In(string column, Guid[] ids) => column + " IN (" + ChatDbContext.Parameters(ids.Length) + ")";
+    private static object[] Args(Guid[] ids) => ids.Cast<object>().ToArray();
     private static AttachmentDto ToAttachment(Attachment x) => new(x.Id, x.MessageId, x.FileName, x.MimeType, x.FileSize, x.Sha256);
     public async Task<Message[]> GetMessageWindowAsync(Guid conversationId, Guid anchorId, CancellationToken ct = default)
     {
-        await using var db = await factory.CreateDbContextAsync(ct);
-        return await db.Messages.FromSqlInterpolated($"WITH ordered AS (SELECT Id,ROW_NUMBER() OVER(ORDER BY PhysicalTicks,LogicalCounter,OriginNodeId,Id) AS n FROM Messages WHERE ConversationId={conversationId} AND IsDeletedLocal=0), anchor AS (SELECT n FROM ordered WHERE Id={anchorId}) SELECT m.* FROM Messages m JOIN ordered o ON m.Id=o.Id WHERE o.n BETWEEN (SELECT n FROM anchor)-50 AND (SELECT n FROM anchor)+50 ORDER BY o.n").AsNoTracking().ToArrayAsync(ct);
+        using var db = database.Open(ct);
+        return db.Query<Message>("WITH ordered AS (SELECT Id,ROW_NUMBER() OVER(ORDER BY PhysicalTicks,LogicalCounter,OriginNodeId,Id) AS n FROM Messages WHERE ConversationId=$0 AND IsDeletedLocal=0), anchor AS (SELECT n FROM ordered WHERE Id=$1) SELECT m.* FROM Messages m JOIN ordered o ON m.Id=o.Id WHERE o.n BETWEEN (SELECT n FROM anchor)-50 AND (SELECT n FROM anchor)+50 ORDER BY o.n", conversationId, anchorId);
     }
     public async Task<AttachmentDto[]> GetAttachmentsAsync(Guid? conversationId = null, CancellationToken ct = default)
     {
-        await using var db = await factory.CreateDbContextAsync(ct); var local = (await db.Settings.SingleAsync(ct)).UserId;
-        var files = await (from a in db.Attachments join m in db.Messages on a.MessageId equals m.Id
-            where !m.IsDeletedLocal && !m.IsRecalled && (!conversationId.HasValue || m.ConversationId == conversationId) &&
-                db.Members.Any(c => c.ConversationId == m.ConversationId && c.UserId == local) select a).AsNoTracking().ToArrayAsync(ct);
+        using var db = database.Open(ct); var local = (db.Required<LocalSettings>()).UserId;
+        var files = db.Query<Attachment>("SELECT a.* FROM Attachments a JOIN Messages m ON a.MessageId=m.Id WHERE m.IsDeletedLocal=0 AND m.IsRecalled=0 AND ($0 IS NULL OR m.ConversationId=$0) AND EXISTS(SELECT 1 FROM ConversationMembers c WHERE c.ConversationId=m.ConversationId AND c.UserId=$1)", conversationId, local);
         return files.Select(ToAttachment).ToArray();
     }
     public async Task<GroupSummary[]> GetGroupsAsync(CancellationToken ct = default)
     {
-        await using var db = await factory.CreateDbContextAsync(ct); var local = (await db.Settings.SingleAsync(ct)).UserId;
-        var groups = await db.Groups.AsNoTracking().Where(x => !x.IsDeleted && db.GroupMembers.Any(m => m.GroupId == x.Id && m.UserId == local)).ToArrayAsync(ct);
-        var members = await db.GroupMembers.AsNoTracking().ToArrayAsync(ct);
+        using var db = database.Open(ct); var local = (db.Required<LocalSettings>()).UserId;
+        var groups = db.Rows<Group>("IsDeleted=0 AND Id IN (SELECT GroupId FROM GroupMembers WHERE UserId=$0)", local);
+        var members = db.Rows<GroupMember>();
         return groups.Select(x => new GroupSummary(x.Id, x.Name, x.OwnerUserId, members.Where(m => m.GroupId == x.Id).Select(m => m.UserId).ToArray(), x.IsDeleted, x.AvatarBase64)).ToArray();
     }
     public async Task<SearchResult[]> SearchMessagesAsync(string text, Guid? conversationId = null, CancellationToken ct = default)
     {
-        var words = text.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(12).Select(w => "\"" + w.Replace("\"", "\"\"") + "\"*").ToArray();
+        var words = text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).Take(12).Select(w => "\"" + w.Replace("\"", "\"\"") + "\"*").ToArray();
         if (words.Length == 0) return [];
-        await using var db = await factory.CreateDbContextAsync(ct); var local = (await db.Settings.SingleAsync(ct)).UserId;
-        await db.Database.OpenConnectionAsync(ct); await using var command = db.Database.GetDbConnection().CreateCommand();
+        using var db = database.Open(ct); var local = (db.Required<LocalSettings>()).UserId;
+        using var command = db.Command("");
         command.CommandText = "SELECT m.Id,m.ConversationId,m.Text,m.CreatedAtTicks FROM MessageSearch s JOIN Messages m ON s.Id=m.Id WHERE MessageSearch MATCH $q AND m.IsDeletedLocal=0 AND m.IsRecalled=0 AND EXISTS(SELECT 1 FROM ConversationMembers cm WHERE cm.ConversationId=m.ConversationId AND cm.UserId=$u)" +
             (conversationId.HasValue ? " AND m.ConversationId=$c" : "") + " ORDER BY rank LIMIT 100";
         void Parameter(string name, object value) { var p = command.CreateParameter(); p.ParameterName = name; p.Value = value; command.Parameters.Add(p); }
         Parameter("$q", string.Join(" AND ", words)); Parameter("$u", local.ToString().ToUpperInvariant());
         if (conversationId.HasValue) Parameter("$c", conversationId.Value.ToString().ToUpperInvariant());
-        var rows = new List<SearchResult>(); await using var reader = await command.ExecuteReaderAsync(ct);
+        var rows = new List<SearchResult>(); using var reader = await command.ExecuteReaderAsync(ct);
         while (await reader.ReadAsync(ct)) rows.Add(new(Guid.Parse(reader.GetString(0)), Guid.Parse(reader.GetString(1)), reader.GetString(2), reader.GetInt64(3)));
         return rows.ToArray();
     }

@@ -1,33 +1,40 @@
-# LanChat — Chat nội bộ P2P bằng .NET 9 WinForms
+# LanChat — Chat nội bộ P2P cho Windows 11
 
 Đã triển khai Phase 1–5: chat trực tiếp/nhóm, tự bầu điều phối, lịch sử và sự kiện đồng bộ giữa các máy, làm việc khi mất kết nối, tệp P2P, tìm kiếm, TLS/HMAC và chẩn đoán. Ứng dụng chạy hoàn toàn trong LAN, giao diện WinForms native; mỗi máy có SQLite riêng.
 
 ## Mở bản chạy
 
-Mở **`artifacts/LanChat-1.0/LanChat.WinForms.exe`**. Khi chuyển sang máy khác, sao chép **toàn bộ thư mục** `artifacts/LanChat-1.0`. Bản này cần **.NET 9 Desktop Runtime** trên Windows.
+Giải nén **`LanChat-Win11-x64.zip`** rồi mở **`LanChat.WinForms.exe`** trong thư mục vừa giải nén. Giữ các DLL bên cạnh EXE. Ứng dụng dùng .NET Framework 4.8/4.8.1 có sẵn trên Windows 11 và chạy với tài khoản thường.
 
-1. Máy đầu tiên nhập tên và chọn **Tạo mạng chat**.
-2. Vào **Cài đặt → Mạng chat → Hiện mã mời tham gia**, chia sẻ mã cho người được phép tham gia.
-3. Máy khác nhập tên, dán cùng mã và chọn **Tham gia**. Các máy cần cùng LAN và cổng UDP discovery.
-4. Vào **Người dùng**, chọn tên để chat. Tin được lưu trước khi gửi ra mạng.
-5. Vào **Nhóm**, chọn thành viên và tạo nhóm. Chủ nhóm có thể đổi tên/ảnh, thêm/xóa thành viên, chuyển quyền và xóa nhóm.
-6. Kéo nhiều ảnh/tệp vào khung chat hoặc bấm **＋**; kiểm tra preview rồi bấm **Gửi**. Nội dung nhập cùng ảnh là **chú thích chung** cho các ảnh trong lần gửi đó. **Ảnh hiện trực tiếp trong tin nhắn**; bấm ảnh mở khung xem lớn có chú thích và dải ảnh của cuộc trò chuyện. Dùng **Trước/Sau**, phím **← →** hoặc bấm hình thu nhỏ để chuyển ảnh; cuộn chuột để zoom, kéo để di chuyển, **Vừa khung/100%** để đổi tỷ lệ và **Esc** để đóng.
-   **Bấm tên tệp khác để mở bằng ứng dụng mặc định của Windows**. Nếu chưa có local, LanChat tự tải vào dữ liệu máy, kiểm tra SHA256 rồi mở. Tải lâu sẽ hiện tiến độ và nút Hủy. Trong khung xem ảnh có nút **Ứng dụng ngoài**; menu **File** vẫn có màn hình xem chi tiết và **Lưu thành…**.
-7. Nhấp phải tin nhắn để trả lời, sao chép, chuyển tiếp, cảm xúc, sửa, thu hồi hoặc xóa phía tôi. Tìm nội dung tại **Tìm tin nhắn**; nhấp đúp kết quả để xem vị trí trong lịch sử.
+1. Mở LanChat để vào thẳng **Mạng mặc định**. Sửa **Tên** và **Đơn vị** trong **Cài đặt**.
+2. Vào **Mạng chat** để thêm mã, mỗi mã một dòng. Khi kết nối mạng riêng đầu tiên, LanChat hỏi có gỡ mạng mặc định hay giữ cả hai. Để mời máy khác vào một mạng, chọn **Chi tiết → Hiện mã mời tham gia**.
+3. Dùng các tab để đổi mạng. **Quét tất cả** tìm máy đồng thời trên các mạng đã kết nối. Vào **Mạng chat** để thêm mã, đổi tên hoặc gỡ mạng. Khi nhập lại mã cũ, LanChat mở lại lịch sử đã lưu của mạng đó.
+4. Vào **Danh bạ** hoặc tìm tên ở ô tìm hội thoại để chat. Tin được lưu trước khi gửi ra mạng.
+5. Vào **Nhóm**, chọn thành viên và tạo nhóm. Chủ nhóm có thể đổi tên, thêm/xóa thành viên, chuyển quyền và xóa nhóm.
+6. Kéo nhiều ảnh/tệp vào khung chat hoặc bấm **Đính kèm**; kiểm tra preview rồi bấm **Gửi**. Nội dung nhập cùng ảnh là **chú thích chung** cho các ảnh trong lần gửi đó. **Ảnh hiện trực tiếp trong tin nhắn**; bấm ảnh mở khung xem lớn có chú thích và dải ảnh của cuộc trò chuyện. Dùng **Trước/Sau**, phím **← →** hoặc bấm hình thu nhỏ để chuyển ảnh; cuộn chuột để zoom, kéo để di chuyển, **Vừa khung/100%** để đổi tỷ lệ và **Esc** để đóng.
+   **Bấm tên tệp khác để mở bằng ứng dụng mặc định của Windows**. Nếu chưa có local, LanChat tự tải vào dữ liệu máy, kiểm tra SHA256 rồi mở. Tải lâu sẽ hiện tiến độ và nút Hủy. Trong khung xem ảnh có nút **Ứng dụng ngoài**; Trong bảng **Thông tin**, chọn **Tệp** để tìm tệp đã gửi.
+7. Nhấp phải tin nhắn để trả lời, sao chép, chuyển tiếp, cảm xúc, sửa, thu hồi hoặc xóa phía tôi. Bấm **Tìm tin** trong hội thoại và nhấp đúp kết quả để mở đúng vị trí trong lịch sử.
 
-**Enter** gửi, **Shift+Enter** xuống dòng. Tin đã đồng bộ nghĩa là có ít nhất một bản sao tại peer khác; “đã nhận” và “đã đọc” dựa trên receipt của người tham gia. Ghim, im lặng và xóa phía tôi chỉ áp dụng trên máy này.
+**Enter** gửi, **Shift+Enter** xuống dòng, **Ctrl+K** tìm hội thoại/người dùng và **Ctrl+F** tìm tin. Tin đã đồng bộ nghĩa là có ít nhất một bản sao tại peer khác; “đã nhận” và “đã đọc” dựa trên receipt của người tham gia. Ghim, im lặng và xóa phía tôi chỉ áp dụng trên máy này.
 
 Nên có **ít nhất 3 máy đã tham gia ổn định** để chịu được một máy mất kết nối mà vẫn thay đổi nhóm được. Với 2 voter, cần cả hai cho quorum. Khi thiếu quorum, chat vẫn lưu local và đồng bộ qua các peer còn kết nối; các thay đổi cấu trúc nhóm bị từ chối.
 
-## Nâng cấp từ Phase 1
+Trong **Cài đặt**, bạn có thể sửa Tên, Đơn vị và bật **Khởi động cùng hệ thống** để mở LanChat khi đăng nhập Windows. LanChat dùng chữ cái làm ảnh đại diện và chỉ mở một tiến trình trên máy.
 
-Đóng ứng dụng và sao lưu toàn bộ thư mục dữ liệu trên từng máy trước khi dùng bản mới.
+## Mã mặc định cho nhiều máy
+
+LanChat tạo mạng mặc định riêng khi chạy lần đầu. Để nhiều máy vào cùng một mạng mặc định ngay khi mở, lấy mã của máy đã tạo mạng và cấp cho các máy mới bằng tệp `default-network.json` đặt cạnh EXE trước lần mở đầu tiên. Dùng JSON dạng `{"invitation":"MÃ_MỜI_ĐẦY_ĐỦ"}`. Tệp chứa thông tin tham gia mạng, nên chỉ cấp cho máy được phép và có thể bỏ sau khi LanChat đã lưu cấu hình. Mỗi mã có cơ sở dữ liệu riêng, kể cả mạng mặc định. Khi đã gỡ mạng mặc định, có thể chọn **Thêm lại mạng mặc định** trong **Mạng chat**.
+
+## Nâng cấp
+
+Đóng LanChat và sao lưu toàn bộ thư mục dữ liệu trên từng máy. Thay bản chạy trên cả cụm trong cùng đợt vì kết nối phiên bản mới dùng giao thức 3. Mã mời v2, danh tính, chứng chỉ và lịch sử cũ vẫn dùng được. Mở lại bằng cùng tài khoản Windows để đọc cấu hình DPAPI.
+
+Với dữ liệu Phase 1:
 
 - Mỗi máy vẫn dùng thư mục dữ liệu cũ của chính nó; giữ nguyên UserId/NodeId và lịch sử.
 - Cửa sổ **Nâng cấp mạng chat** xuất hiện với cấu hình cũ. Chọn **một máy duy nhất** tạo mã nâng cấp, áp dụng trên máy đó rồi nhập **cùng mã** cho các máy khác.
 - Máy tạo mã cần trực tuyến trong giai đoạn thiết lập membership ban đầu. Sau khi có đủ voter, các máy có thể tự bầu điều phối mới.
 - Migration tự thêm bảng sự kiện/outbox/cursor/control log và chỉ mục tìm kiếm; tin cũ được bổ sung vào event store một lần.
-- Protocol 2 không trao đổi với ứng dụng Phase 1. Nâng cấp tất cả máy trong cùng đợt.
 - Không ghép database của hai cluster và không chép database máy A thành dữ liệu cho máy B.
 
 ## Build, test và publish
@@ -35,27 +42,20 @@ Nên có **ít nhất 3 máy đã tham gia ổn định** để chịu được 
 PowerShell tại thư mục solution:
 
 ```powershell
-Set-Location 'C:\Users\Admin\source\repos\dattiphu2022\LANChatAppByMrD'
+# Chạy tại thư mục chứa LanChat.sln
 dotnet restore LanChat.sln
 dotnet build LanChat.sln --no-restore
 dotnet test tests/LanChat.Tests --no-restore
 dotnet run --project src/LanChat.WinForms --no-build
 ```
 
-Project khởi động trong Visual Studio: **LanChat.WinForms**. Môi trường kiểm tra: SDK 10.0.400, target .NET 9, Windows Desktop Runtime 9.0.19.
+Project khởi động trong Visual Studio: **LanChat.WinForms**. Cần .NET SDK có trình biên dịch C# 13 và bộ reference assemblies .NET Framework 4.8 trên máy phát triển. Máy người dùng chạy bằng Framework có sẵn.
 
 ```powershell
-dotnet publish src/LanChat.WinForms -c Release --no-restore --self-contained false -o artifacts/LanChat-1.0
+pwsh -NoProfile -File scripts/Publish-Windows.ps1
 ```
 
-Hai instance thử thủ công trên cùng máy, mỗi lệnh ở một cửa sổ:
-
-```powershell
-dotnet run --project src/LanChat.WinForms --no-build -- --data-dir .codex-temp/manual-A --port 54546
-dotnet run --project src/LanChat.WinForms --no-build -- --data-dir .codex-temp/manual-B --port 54547
-```
-
-Dùng cùng mã mời, giữ nguyên thư mục dữ liệu khi mở lại. Cổng được lưu trong cấu hình; tham số cổng trên dòng lệnh có quyền ưu tiên. Một thư mục chỉ được mở bởi một instance.
+Bản phát hành mở một cửa sổ. Dùng các tab để kết nối nhiều mạng từ cùng tiến trình.
 
 Kiểm tra tự động **hai tiến trình WinForms thật**, tạo dữ liệu riêng, chụp giao diện và tự đóng:
 
@@ -72,9 +72,11 @@ Script cần PowerShell 7. Mỗi lần tạo thư mục `.codex-temp/two-instanc
 
 Mặc định **UDP 54545** discovery; **TCP/TLS 54546** cho sự kiện, điều phối và truyền tệp. Không cần IP server cố định. UDP công bố cổng TCP của peer; quét TCP fallback dò cổng service đang cấu hình.
 
-Subnet tính từ IPv4 và mask thật; ưu tiên Ethernet/Wi-Fi đang hoạt động, lọc adapter ảo/VPN phổ biến. Quét có cancellation, 32 kết nối song song và timeout 600 ms; không phụ thuộc ping. Discovery chạy mỗi 5 giây, quét tự động mỗi 120 giây với mạng tối đa 4.096 host.
+LanChat phát discovery UDP có xác thực khi khởi động, đổi IP hoặc bấm **Quét lại**. TCP dự phòng bắt đầu sau 750 ms, ưu tiên địa chỉ đã biết và dò cổng LanChat trong subnet IPv4 cục bộ. Quét có thể hủy, chạy tối đa 64 kết nối đồng thời cho mỗi mạng. Các mạng dùng chung cổng UDP khám phá, có cổng TCP riêng được công bố qua UDP. Dò TCP dự phòng thử cổng mặc định, cổng tính từ mã mạng và các địa chỉ đã biết.
 
-Nếu Windows Firewall hỏi, cho phép trên mạng nội bộ tin cậy. Quản trị viên có thể tạo rule trên từng máy; ứng dụng không tự sửa firewall:
+**Mạng chat → Chi tiết** cho phép ứng cử, đề cử và lưu lựa chọn **Cho phép máy này làm trung tâm**. Sau 5 giây vắng heartbeat, các máy đủ điều kiện bắt đầu kiểm tra phiếu. Khi trung tâm có đa số và đã commit trong nhiệm kỳ mới, ứng dụng đánh thức đồng bộ. Khi thiếu đa số hoặc mọi máy rút lui, các máy còn kết nối vẫn có thể trao đổi tin nhắn.
+
+Nếu Windows Firewall hỏi, cho phép trên mạng nội bộ tin cậy. Quản trị viên có thể chạy các lệnh sau từ thư mục đã giải nén để tạo rule trên từng máy.
 
 ```powershell
 $lanChatExe = (Resolve-Path '.\artifacts\LanChat-1.0\LanChat.WinForms.exe').Path
@@ -82,7 +84,7 @@ New-NetFirewallRule -DisplayName 'LanChat TCP Private' -Direction Inbound -Progr
 New-NetFirewallRule -DisplayName 'LanChat UDP Private' -Direction Inbound -Program $lanChatExe -Protocol UDP -LocalPort 54545 -RemoteAddress LocalSubnet -Profile Private -Action Allow
 ```
 
-Sửa cổng theo cấu hình. VLAN, Wi-Fi client isolation và policy broadcast cần kiểm tra tại nơi triển khai.
+Khi bật nhiều mạng, xem cổng TCP thực tế trong **Mạng chat → Chi tiết → Kết nối** và thêm các cổng đó vào rule nếu môi trường yêu cầu lọc theo cổng. VLAN, Wi-Fi client isolation và policy broadcast cần kiểm tra tại nơi triển khai.
 
 ## Dữ liệu và giới hạn cần biết
 

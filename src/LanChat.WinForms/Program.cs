@@ -2,7 +2,8 @@ using LanChat.Application;
 using LanChat.Infrastructure;
 using LanChat.WinForms.Forms;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
+using System.Security.AccessControl;
+using System.Security.Principal;
 
 namespace LanChat.WinForms;
 
@@ -11,79 +12,116 @@ internal static class Program
     [STAThread]
     private static void Main(string[] args)
     {
-        ApplicationConfiguration.Initialize();
+        System.Windows.Forms.Application.EnableVisualStyles();
+        System.Windows.Forms.Application.SetCompatibleTextRenderingDefault(false);
         try
         {
             var options = new NodeOptions();
-            string? verificationReport = null;
+            string? verification = null;
+            var startup = false;
             for (var i = 0; i < args.Length; i++)
             {
                 string Value() => ++i < args.Length ? args[i] : throw new ArgumentException("Thiếu giá trị tham số.");
                 switch (args[i])
                 {
+                    case "--startup": startup = true; break;
                     case "--data-dir": options.DataDirectory = Path.GetFullPath(Value()); break;
                     case "--port": options.ServicePort = int.Parse(Value()); options.OverrideServicePort = true; break;
                     case "--discovery-port": options.DiscoveryPort = int.Parse(Value()); options.OverrideDiscoveryPort = true; break;
                     case "--discovery-target": options.DiscoveryTargets.Add(Value()); break;
                     case "--display-name": options.InitialDisplayName = Value(); break;
 #if DEBUG
-                    case "--verify-ui": verificationReport = Path.GetFullPath(Value()); break;
+                    case "--verify-ui": verification = Path.GetFullPath(Value()); break;
 #endif
                     default: throw new ArgumentException("Tham số không hỗ trợ: " + args[i]);
                 }
             }
+
+            // Release builds share a single process slot across Windows sessions and data directories.
+            var acquired = true;
+            using var instance = verification is null ? AcquireInstance(out acquired) : null;
+            if (instance is not null && !acquired)
+            {
+                instance.Dispose();
+                if (!startup) MessageBox.Show("LanChat đang chạy. Hãy mở cửa sổ hiện tại từ thanh tác vụ.", "LanChat",
+                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
             ServiceRegistration.ValidateDataDirectory(options.DataDirectory);
             Directory.CreateDirectory(options.DataDirectory);
             using var dataLock = new FileStream(Path.Combine(options.DataDirectory, "instance.lock"), FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
-            System.Windows.Forms.Application.Run(new StartupForm(options, verificationReport));
+#if DEBUG
+            if (verification is not null)
+            {
+                System.Windows.Forms.Application.Run(new VerificationStartup(options, verification));
+                return;
+            }
+#endif
+            using var window = new NetworkWorkspace(new NetworkCatalog(options), new WindowsStartup(options.DataDirectory));
+            window.Shown += async (_, _) =>
+            {
+                try { await window.StartAsync(); }
+                catch (OperationCanceledException) { window.Close(); }
+                catch (Exception ex)
+                {
+                    MessageBox.Show(window, ex.Message, "Không khởi động được LanChat", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    window.Close();
+                }
+            };
+            System.Windows.Forms.Application.Run(window);
         }
-        catch (Exception ex) { MessageBox.Show("Không khởi động được LanChat. Mỗi instance cần thư mục dữ liệu riêng.\n\n" + ex.Message, "LanChat", MessageBoxButtons.OK, MessageBoxIcon.Error); }
+        catch (Exception ex) { MessageBox.Show(ex.Message, "Không khởi động được LanChat", MessageBoxButtons.OK, MessageBoxIcon.Error); }
+    }
+
+    private static Mutex AcquireInstance(out bool acquired)
+    {
+        const string name = @"Global\LanChat.WinForms.3D1D7FFD9E1C47B499752218E7C71FF3";
+        var security = new MutexSecurity();
+        using var identity = WindowsIdentity.GetCurrent();
+        security.AddAccessRule(new MutexAccessRule(identity.User!, MutexRights.FullControl, AccessControlType.Allow));
+        security.AddAccessRule(new MutexAccessRule(new SecurityIdentifier(WellKnownSidType.AuthenticatedUserSid, null),
+            MutexRights.Synchronize, AccessControlType.Allow));
+        while (true)
+        {
+            try { return new Mutex(false, name, out acquired, security); }
+            catch (UnauthorizedAccessException)
+            {
+                try
+                {
+                    var existing = Mutex.OpenExisting(name, MutexRights.Synchronize);
+                    acquired = false;
+                    return existing;
+                }
+                catch (WaitHandleCannotBeOpenedException) { }
+            }
+        }
     }
 }
 
-internal sealed class StartupForm : Form
+#if DEBUG
+internal sealed class VerificationStartup : Form
 {
-    private IHost? _host;
-    public StartupForm(NodeOptions options, string? verificationReport = null)
+    public VerificationStartup(NodeOptions options, string report)
     {
-        Text = "LanChat"; ClientSize = new Size(410, 100); StartPosition = FormStartPosition.CenterScreen;
-        Controls.Add(new Label { Text = "Đang mở dữ liệu và kết nối mạng nội bộ…", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleCenter });
         Shown += async (_, _) =>
         {
             try
             {
-                if (!await ClusterConfigurationStore.LoadAsync(options))
-                {
-                    using var setup = new SetupForm();
-                    if (setup.ShowDialog(this) != DialogResult.OK) { Close(); return; }
-                    options.InitialDisplayName = setup.DisplayName;
-                    await ClusterConfigurationStore.SaveAsync(options, setup.Invitation, creator: setup.IsCreator);
-                }
-                if (options.TlsCertificatePfx.Length == 0 || options.BootstrapNodeId == Guid.Empty)
-                {
-                    using var upgrade = new ClusterUpgradeForm(options);
-                    if (upgrade.ShowDialog(this) != DialogResult.OK) { Close(); return; }
-                }
-                _host = ServiceRegistration.BuildHost(options, services => services.AddSingleton<Controls.ChatImageService>());
-                await _host.Services.GetRequiredService<IChatStore>().InitializeAsync();
-                await _host.StartAsync();
-                var main = ActivatorUtilities.CreateInstance<MainForm>(_host.Services);
-#if DEBUG
-                if (verificationReport is not null)
-                    main.Shown += async (_, _) => await main.VerifyUiAsync(verificationReport);
-#endif
-                main.FormClosed += async (_, _) =>
-                {
-                    try { using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(8)); await _host.StopAsync(timeout.Token); }
-                    finally { _host.Dispose(); _host = null; Close(); }
-                };
+                var catalog = new NetworkCatalog(options);
+                await catalog.LoadAsync();
+                var network = await catalog.StartAsync(catalog.Entries.Single(e => e.Primary), false, this);
+                var main = ActivatorUtilities.CreateInstance<MainForm>(network.Services);
+                main.Shown += async (_, _) => await main.VerifyUiAsync(report);
+                main.FormClosed += async (_, _) => { try { await network.StopAsync(); } finally { Close(); } };
                 main.Show(); Hide();
             }
             catch (Exception ex)
             {
-                MessageBox.Show(this, ex.Message, "Không khởi động được LanChat", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                if (_host is not null) { await _host.StopAsync(); _host.Dispose(); _host = null; } Close();
+                Environment.ExitCode = 1;
+                await FrameworkIO.WriteTextAsync(report, System.Text.Json.JsonSerializer.Serialize(new { Success = false, Error = ex.ToString() }));
+                Close();
             }
         };
     }
 }
+#endif

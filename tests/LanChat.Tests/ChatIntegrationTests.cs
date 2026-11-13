@@ -4,8 +4,6 @@ using System.Security.Cryptography;
 using LanChat.Application;
 using LanChat.Domain;
 using LanChat.Infrastructure;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
@@ -17,19 +15,15 @@ public sealed class ChatIntegrationTests
     [Fact]
     public async Task MigrationCreatesIndexedWalDatabaseAndIdentitySurvivesRestartAndRename()
     {
-        var cluster = Guid.NewGuid(); var secret = RandomNumberGenerator.GetBytes(32); string directory; NodeIdentity initial;
+        var cluster = Guid.NewGuid(); var secret = FrameworkIO.RandomBytes(32); string directory; NodeIdentity initial;
         await using (var node = new TestNode(cluster, secret, "Nguyễn Văn A"))
         {
             await node.InitializeAsync(); directory = node.Options.DataDirectory; initial = await node.Store.GetIdentityAsync();
             var profile = await node.Store.GetProfileAsync(); profile.DisplayName = "Tên mới"; await node.Store.SaveProfileAsync(profile);
-            await using var db = await node.Host.Services.GetRequiredService<IDbContextFactory<ChatDbContext>>().CreateDbContextAsync();
-            Assert.Equal(3, (await db.Database.GetAppliedMigrationsAsync()).Count()); Assert.Empty(await db.Database.GetPendingMigrationsAsync());
-            Assert.False(db.Database.HasPendingModelChanges());
-            var connection = db.Database.GetDbConnection(); await connection.OpenAsync();
-            using var command = connection.CreateCommand(); command.CommandText = "PRAGMA journal_mode;";
-            Assert.Equal("wal", await command.ExecuteScalarAsync());
-            command.CommandText = "SELECT count(*) FROM sqlite_master WHERE type='index' AND name='IX_Messages_OriginNodeId_OriginSequence'";
-            Assert.Equal(1L, await command.ExecuteScalarAsync());
+            using var db = node.Host.Services.GetRequiredService<ChatDatabase>().Open();
+            Assert.Equal(3L, db.Scalar("SELECT COUNT(*) FROM __EFMigrationsHistory"));
+            Assert.Equal("wal", db.TextScalar("PRAGMA journal_mode"));
+            Assert.Equal(1L, db.Scalar("SELECT count(*) FROM sqlite_master WHERE type='index' AND name='IX_Messages_OriginNodeId_OriginSequence'"));
         }
         await using var restarted = new TestNode(cluster, secret, "Ignored", directory); await restarted.InitializeAsync();
         var identity = await restarted.Store.GetIdentityAsync(); Assert.Equal(initial.NodeId, identity.NodeId); Assert.Equal(initial.UserId, identity.UserId);
@@ -39,7 +33,7 @@ public sealed class ChatIntegrationTests
     [Fact]
     public async Task DuplicateDeliveryIsIdempotentAndConflictingIdIsRejected()
     {
-        var cluster = Guid.NewGuid(); var secret = RandomNumberGenerator.GetBytes(32);
+        var cluster = Guid.NewGuid(); var secret = FrameworkIO.RandomBytes(32);
         await using var a = new TestNode(cluster, secret, "A"); await using var b = new TestNode(cluster, secret, "B");
         await a.InitializeAsync(); await b.InitializeAsync();
         await a.Store.RememberPeerAsync(await b.Store.GetNodeInfoAsync(), "127.0.0.1");
@@ -54,7 +48,7 @@ public sealed class ChatIntegrationTests
     [Fact]
     public async Task UdpDiscoveryAndBidirectionalTcpChatWorkWithoutServer()
     {
-        var cluster = Guid.NewGuid(); var secret = RandomNumberGenerator.GetBytes(32);
+        var cluster = Guid.NewGuid(); var secret = FrameworkIO.RandomBytes(32);
         await using var a = new TestNode(cluster, secret, "Máy A"); await using var b = new TestNode(cluster, secret, "Máy B");
         // Two real bound UDP sockets; directed loopback target makes the test independent of firewall broadcast policy.
         a.Options.DiscoveryTargets.Add($"127.0.0.1:{b.Options.DiscoveryPort}"); b.Options.DiscoveryTargets.Add($"127.0.0.1:{a.Options.DiscoveryPort}");
@@ -74,7 +68,7 @@ public sealed class ChatIntegrationTests
     [Fact]
     public async Task NetworkFailureRetainsPendingMessageAndRestartRetriesOverRealTcp()
     {
-        var cluster = Guid.NewGuid(); var secret = RandomNumberGenerator.GetBytes(32);
+        var cluster = Guid.NewGuid(); var secret = FrameworkIO.RandomBytes(32);
         await using var b = new TestNode(cluster, secret, "B"); await b.InitializeAsync();
         string directory; Message saved;
         await using (var a = new TestNode(cluster, secret, "A"))
@@ -96,8 +90,8 @@ public sealed class ChatIntegrationTests
     [Fact]
     public async Task WrongClusterCannotDiscoverOrSendToTcpNode()
     {
-        await using var a = new TestNode(Guid.NewGuid(), RandomNumberGenerator.GetBytes(32), "A");
-        await using var b = new TestNode(Guid.NewGuid(), RandomNumberGenerator.GetBytes(32), "B");
+        await using var a = new TestNode(Guid.NewGuid(), FrameworkIO.RandomBytes(32), "A");
+        await using var b = new TestNode(Guid.NewGuid(), FrameworkIO.RandomBytes(32), "B");
         await a.InitializeAsync(); await b.InitializeAsync(true);
         var rejected = await Record.ExceptionAsync(() => a.Host.Services.GetRequiredService<IPeerTransport>().GetNodeInfoAsync("127.0.0.1", b.Options.ServicePort, CancellationToken.None));
         Assert.True(rejected is IOException or System.Security.Authentication.AuthenticationException);
@@ -107,12 +101,12 @@ public sealed class ChatIntegrationTests
     [Fact]
     public async Task OfflineContactIsRetainedAndAddressChangesDoNotChangeConversation()
     {
-        var cluster = Guid.NewGuid(); var secret = RandomNumberGenerator.GetBytes(32);
+        var cluster = Guid.NewGuid(); var secret = FrameworkIO.RandomBytes(32);
         await using var a = new TestNode(cluster, secret, "A"); await using var b = new TestNode(cluster, secret, "B");
         await a.InitializeAsync(); await b.InitializeAsync(); var peer = await b.Store.GetNodeInfoAsync();
         await a.Store.RememberPeerAsync(peer, "10.0.0.2"); var first = await a.Store.OpenDirectAsync(peer.User.Id);
-        await using (var db = await a.Host.Services.GetRequiredService<IDbContextFactory<ChatDbContext>>().CreateDbContextAsync())
-            await db.Peers.ExecuteUpdateAsync(x => x.SetProperty(p => p.LastSeenTicks, DateTime.UtcNow.AddMinutes(-1).Ticks));
+        using (var db = a.Host.Services.GetRequiredService<ChatDatabase>().Open())
+            db.Execute("UPDATE PeerNodes SET LastSeenTicks=$0", DateTime.UtcNow.AddMinutes(-1).Ticks);
         Assert.Equal(PresenceStatus.Offline, Assert.Single(await a.Store.GetUsersAsync()).Presence);
         await a.Store.RememberPeerAsync(peer with { User = peer.User with { DisplayName = "Tên khác" } }, "10.0.0.99");
         Assert.Equal(first, await a.Store.OpenDirectAsync(peer.User.Id));
@@ -122,7 +116,7 @@ public sealed class ChatIntegrationTests
     [Fact]
     public async Task ConcurrentLocalSendsAllocateUniquePersistentSequences()
     {
-        var cluster = Guid.NewGuid(); var secret = RandomNumberGenerator.GetBytes(32);
+        var cluster = Guid.NewGuid(); var secret = FrameworkIO.RandomBytes(32);
         await using var a = new TestNode(cluster, secret, "A"); await using var b = new TestNode(cluster, secret, "B");
         await a.InitializeAsync(); await b.InitializeAsync(); var peer = await b.Store.GetNodeInfoAsync();
         await a.Store.RememberPeerAsync(peer, "127.0.0.1");
@@ -133,12 +127,15 @@ public sealed class ChatIntegrationTests
     [Fact]
     public async Task ScannerUsesTcpAndExcludesLocalAddressWithoutPing()
     {
-        var cluster = Guid.NewGuid(); var secret = RandomNumberGenerator.GetBytes(32);
+        var cluster = Guid.NewGuid(); var secret = FrameworkIO.RandomBytes(32);
         await using var a = new TestNode(cluster, secret, "A"); await using var b = new TestNode(cluster, secret, "B");
         await a.InitializeAsync(); await b.InitializeAsync(true);
         a.Options.ServicePort = b.Options.ServicePort;
-        var scanner = new LanScanner(new FixedNetworks(), a.Host.Services.GetRequiredService<IPeerTransport>(), a.Store, a.Options, NullLogger<LanScanner>.Instance);
+        using var scanner = new LanScanner(new FixedNetworks(), a.Host.Services.GetRequiredService<IPeerTransport>(), a.Store,
+            a.Host.Services.GetRequiredService<IDistributedStore>(), a.Options, a.Host.Services.GetRequiredService<PeerDiscoveryBackgroundService>());
         var peers = await scanner.ScanAsync(); Assert.Single(peers); Assert.Equal((await b.Store.GetIdentityAsync()).NodeId, peers[0].NodeId);
+        var caller = await a.Store.GetIdentityAsync();
+        Assert.Contains(await b.Store.GetUsersAsync(), u => u.NodeId == caller.NodeId);
         using var canceled = new CancellationTokenSource(); canceled.Cancel();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => scanner.ScanAsync(canceled.Token));
     }
@@ -150,7 +147,7 @@ public sealed class ChatIntegrationTests
     [Fact]
     public async Task LateMessageWithOldSenderClockStillCountsAsUnread()
     {
-        var cluster = Guid.NewGuid(); var secret = RandomNumberGenerator.GetBytes(32);
+        var cluster = Guid.NewGuid(); var secret = FrameworkIO.RandomBytes(32);
         await using var a = new TestNode(cluster, secret, "A"); await using var b = new TestNode(cluster, secret, "B");
         await a.InitializeAsync(); await b.InitializeAsync();
         var bInfo = await b.Store.GetNodeInfoAsync(); await a.Store.RememberPeerAsync(bInfo, "127.0.0.1");
@@ -168,31 +165,30 @@ public sealed class ChatIntegrationTests
     [Fact]
     public async Task UpgradeFromInitialSchemaRetainsUserIdentity()
     {
-        await using var node = new TestNode(Guid.NewGuid(), RandomNumberGenerator.GetBytes(32), "Upgrade");
-        await using var db = await node.Host.Services.GetRequiredService<IDbContextFactory<ChatDbContext>>().CreateDbContextAsync();
-        var migrator = db.GetService<Microsoft.EntityFrameworkCore.Migrations.IMigrator>();
-        await migrator.MigrateAsync("20260921071741_InitialPhase1");
+        await using var node = new TestNode(Guid.NewGuid(), FrameworkIO.RandomBytes(32), "Upgrade");
+        using var db = node.Host.Services.GetRequiredService<ChatDatabase>().Open();
+        node.Host.Services.GetRequiredService<ChatDatabase>().Migrate("20260921071741_InitialPhase1");
         var user = Guid.NewGuid(); var nodeId = Guid.NewGuid();
-        await db.Database.ExecuteSqlInterpolatedAsync($"INSERT INTO Users(Id,DisplayName) VALUES({user},{"Trước nâng cấp"})");
-        await db.Database.ExecuteSqlInterpolatedAsync($"INSERT INTO LocalSettings(Id,UserId,NodeId,CreatedAtTicks,LastSequence,PhysicalTicks,LogicalCounter) VALUES({Guid.NewGuid()},{user},{nodeId},{DateTime.UtcNow.Ticks},0,0,0)");
+        db.ExecuteInterpolated($"INSERT INTO Users(Id,DisplayName) VALUES({user},{"Trước nâng cấp"})");
+        db.ExecuteInterpolated($"INSERT INTO LocalSettings(Id,UserId,NodeId,CreatedAtTicks,LastSequence,PhysicalTicks,LogicalCounter) VALUES({Guid.NewGuid()},{user},{nodeId},{DateTime.UtcNow.Ticks},0,0,0)");
         await node.InitializeAsync();
         Assert.Equal(user, (await node.Store.GetIdentityAsync()).UserId); Assert.Equal(nodeId, (await node.Store.GetIdentityAsync()).NodeId);
         Assert.Equal("Trước nâng cấp", (await node.Store.GetProfileAsync()).DisplayName);
-        Assert.Empty(await db.Database.GetPendingMigrationsAsync());
+        Assert.Equal(3L, db.Scalar("SELECT COUNT(*) FROM __EFMigrationsHistory"));
     }
     [Fact]
     public async Task UpgradeBackfillsExistingMessagesIntoImmutableEventsAndSearch()
     {
-        var cluster = Guid.NewGuid(); var secret = RandomNumberGenerator.GetBytes(32);
+        var cluster = Guid.NewGuid(); var secret = FrameworkIO.RandomBytes(32);
         await using var node = new TestNode(cluster, secret, "Upgrade");
-        await using var db = await node.Host.Services.GetRequiredService<IDbContextFactory<ChatDbContext>>().CreateDbContextAsync();
-        await db.GetService<Microsoft.EntityFrameworkCore.Migrations.IMigrator>().MigrateAsync("20260921072743_LocalReadState");
+        using var db = node.Host.Services.GetRequiredService<ChatDatabase>().Open();
+        node.Host.Services.GetRequiredService<ChatDatabase>().Migrate("20260921072743_LocalReadState");
         var user = Guid.NewGuid(); var peer = Guid.NewGuid(); var nodeId = Guid.NewGuid(); var id = Guid.NewGuid(); var conversation = DirectConversation.GetId(cluster, user, peer); var now = DateTime.UtcNow.Ticks;
-        await db.Database.ExecuteSqlInterpolatedAsync($"INSERT INTO Users(Id,DisplayName) VALUES({user},{"Chủ máy"}),({peer},{"Người nhận"})");
-        await db.Database.ExecuteSqlInterpolatedAsync($"INSERT INTO LocalSettings(Id,UserId,NodeId,CreatedAtTicks,LastSequence,PhysicalTicks,LogicalCounter) VALUES({Guid.NewGuid()},{user},{nodeId},{now},1,{now},0)");
-        await db.Database.ExecuteSqlInterpolatedAsync($"INSERT INTO Conversations(Id,Kind,IsPinned,IsMuted,LastReadTicks) VALUES({conversation},0,1,0,0)");
-        await db.Database.ExecuteSqlInterpolatedAsync($"INSERT INTO ConversationMembers(Id,ConversationId,UserId) VALUES({Guid.NewGuid()},{conversation},{user}),({Guid.NewGuid()},{conversation},{peer})");
-        await db.Database.ExecuteSqlInterpolatedAsync($"INSERT INTO Messages(Id,ClientMessageId,ConversationId,SenderUserId,RecipientUserId,OriginNodeId,OriginSequence,Kind,Text,CreatedAtTicks,PhysicalTicks,LogicalCounter,Status,RetryCount,NextRetryTicks,IsRead) VALUES({id},{Guid.NewGuid()},{conversation},{user},{peer},{nodeId},1,0,{"Lịch sử trước nâng cấp"},{now},{now},0,2,0,0,1)");
+        db.ExecuteInterpolated($"INSERT INTO Users(Id,DisplayName) VALUES({user},{"Chủ máy"}),({peer},{"Người nhận"})");
+        db.ExecuteInterpolated($"INSERT INTO LocalSettings(Id,UserId,NodeId,CreatedAtTicks,LastSequence,PhysicalTicks,LogicalCounter) VALUES({Guid.NewGuid()},{user},{nodeId},{now},1,{now},0)");
+        db.ExecuteInterpolated($"INSERT INTO Conversations(Id,Kind,IsPinned,IsMuted,LastReadTicks) VALUES({conversation},0,1,0,0)");
+        db.ExecuteInterpolated($"INSERT INTO ConversationMembers(Id,ConversationId,UserId) VALUES({Guid.NewGuid()},{conversation},{user}),({Guid.NewGuid()},{conversation},{peer})");
+        db.ExecuteInterpolated($"INSERT INTO Messages(Id,ClientMessageId,ConversationId,SenderUserId,RecipientUserId,OriginNodeId,OriginSequence,Kind,Text,CreatedAtTicks,PhysicalTicks,LogicalCounter,Status,RetryCount,NextRetryTicks,IsRead) VALUES({id},{Guid.NewGuid()},{conversation},{user},{peer},{nodeId},1,0,{"Lịch sử trước nâng cấp"},{now},{now},0,2,0,0,1)");
         await node.InitializeAsync(); var distributed = node.Host.Services.GetRequiredService<IDistributedStore>();
         Assert.Equal(id, Assert.Single(await node.Store.GetMessagesAsync(conversation)).Id); Assert.True(Assert.Single(await node.Store.GetConversationsAsync()).IsPinned);
         Assert.Single(await distributed.SearchMessagesAsync("truoc nang cap")); Assert.Equal(2, (await distributed.GetDistributedDiagnosticsAsync()).EventCount);

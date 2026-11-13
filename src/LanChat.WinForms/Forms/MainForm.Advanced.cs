@@ -28,8 +28,21 @@ public sealed partial class MainForm
             foreach (var path in submission.Files) attachments.Add(await Files.ImportLocalAsync(path, _lifetime.Token));
             await Distributed.SendToConversationAsync(conversation, submission.Text, submission.ReplyTo, attachments: attachments.ToArray(), ct: _lifetime.Token);
         }
-        await RefreshAsync();
+        if (_activeConversation != conversation)
+        {
+            if (_drafts.TryGetValue(conversation, out var draft) && MatchesSubmission(draft, submission)) _drafts.Remove(conversation);
+            return;
+        }
+        if (MatchesSubmission(_chat.Draft(), submission)) _chat.ResetDraft();
+        try
+        {
+            await RefreshAsync();
+            if (_activeConversation == conversation && !_searchAnchor.HasValue) _chat.ScrollToEnd();
+        }
+        catch (Exception ex) { if (!IsDisposed && !_lifetime.IsCancellationRequested) _status.Text = ex.Message; }
     }
+    private static bool MatchesSubmission(ComposerDraft draft, ComposerSubmission submission) =>
+        draft.Text == submission.Text && draft.Reply == submission.ReplyTo && draft.Edit == submission.EditId && draft.Files.SequenceEqual(submission.Files);
     private async Task MessageActionAsync(LanChat.Domain.Message message, string action)
     {
         switch (action)
@@ -46,10 +59,10 @@ public sealed partial class MainForm
                     if (select.ShowDialog(this) != DialogResult.OK || select.SelectedId is not { } destination) return;
                     var details = await Distributed.GetMessageDetailsAsync(message.Id, _lifetime.Token);
                     await Distributed.SendToConversationAsync(destination, message.Text, forwardedFrom: message.Id,
-                        attachments: details.Attachments.Select(x => x with { Id = Guid.CreateVersion7(), MessageId = Guid.Empty }).ToArray(), ct: _lifetime.Token);
+                        attachments: details.Attachments.Select(x => x with { Id = LanChat.Domain.AppIdentity.NewId(), MessageId = Guid.Empty }).ToArray(), ct: _lifetime.Token);
                 }
                 break;
-            default: if (action.StartsWith("react:", StringComparison.Ordinal)) await Distributed.ReactAsync(message.Id, action[6..], true, _lifetime.Token); break;
+            default: if (action.StartsWith("react:", StringComparison.Ordinal)) await Distributed.ReactAsync(message.Id, action.Substring(6), true, _lifetime.Token); break;
         }
         await RefreshAsync();
     }
@@ -101,7 +114,7 @@ public sealed partial class MainForm
         if (form.ShowDialog(this) == DialogResult.OK && form.SelectedConversation is { } id)
         {
             var conversations = await _store.GetConversationsAsync(ct: _lifetime.Token); var selected = conversations.FirstOrDefault(x => x.Id == id);
-            if (selected is not null) { await SelectConversationAsync(id, selected.OtherUserId); _searchAnchor = form.SelectedMessage; _anchorScrolled = false; await RefreshAsync(); }
+            if (selected is not null) { await SelectConversationAsync(id); _searchAnchor = form.SelectedMessage; _anchorScrolled = false; await RefreshAsync(); }
         }
     }
     private async Task OpenFilesAsync()

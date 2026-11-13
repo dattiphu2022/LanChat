@@ -2,7 +2,6 @@ using System.Security.Cryptography;
 using LanChat.Application;
 using LanChat.Domain;
 using LanChat.Infrastructure;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
@@ -19,7 +18,7 @@ public sealed class DistributedTests
             long after = 0;
             while (after < origin.LastOriginSequence)
             {
-                var batch = await store.GetEventRangeAsync(new(origin.OriginNodeId, after)); result.AddRange(batch.Events); after = batch.Events[^1].OriginSequence;
+                var batch = await store.GetEventRangeAsync(new(origin.OriginNodeId, after)); result.AddRange(batch.Events); after = batch.Events[batch.Events.Length - 1].OriginSequence;
             }
         }
         return result.ToArray();
@@ -27,14 +26,14 @@ public sealed class DistributedTests
     [Fact]
     public async Task GappedCursorDuplicateAndOutOfOrderEditConverge()
     {
-        var cluster = Guid.NewGuid(); var secret = RandomNumberGenerator.GetBytes(32);
+        var cluster = Guid.NewGuid(); var secret = FrameworkIO.RandomBytes(32);
         await using var a = new TestNode(cluster, secret, "A"); await using var b = new TestNode(cluster, secret, "B");
         await a.InitializeAsync(); await b.InitializeAsync();
         await a.Store.RememberPeerAsync(await b.Store.GetNodeInfoAsync(), "127.0.0.1");
         var message = await a.Store.SaveOutgoingAsync((await b.Store.GetIdentityAsync()).UserId, "Nội dung ban đầu");
         await Distributed(a).EditMessageAsync(message.Id, "Đã sửa nội dung");
         var events = (await Events(a)).OrderBy(x => x.OriginSequence).ToArray();
-        await Distributed(b).ImportEventsAsync(new([events[^1]]));
+        await Distributed(b).ImportEventsAsync(new([events[events.Length - 1]]));
         var digest = await Distributed(b).GetDigestAsync();
         Assert.Equal(0, digest.Cursors.Single(x => x.OriginNodeId == events[0].OriginNodeId).LastOriginSequence);
         foreach (var e in events.Reverse()) await Distributed(b).ImportEventsAsync(new([e]));
@@ -46,7 +45,7 @@ public sealed class DistributedTests
     [Fact]
     public async Task RecallWinsOverLateEditLocalDeleteStaysLocalAndFtsUpdates()
     {
-        var cluster = Guid.NewGuid(); var secret = RandomNumberGenerator.GetBytes(32);
+        var cluster = Guid.NewGuid(); var secret = FrameworkIO.RandomBytes(32);
         await using var a = new TestNode(cluster, secret, "A"); await using var b = new TestNode(cluster, secret, "B");
         await a.InitializeAsync(); await b.InitializeAsync(); await a.Store.RememberPeerAsync(await b.Store.GetNodeInfoAsync(), "127.0.0.1");
         var m = await a.Store.SaveOutgoingAsync((await b.Store.GetIdentityAsync()).UserId, "Bình Mỹ Ninh Bình");
@@ -63,7 +62,7 @@ public sealed class DistributedTests
     [Fact]
     public async Task ThirdNodeObtainsWholeHistoryWithoutBecomingParticipant()
     {
-        var cluster = Guid.NewGuid(); var secret = RandomNumberGenerator.GetBytes(32);
+        var cluster = Guid.NewGuid(); var secret = FrameworkIO.RandomBytes(32);
         await using var a = new TestNode(cluster, secret, "A"); await using var b = new TestNode(cluster, secret, "B"); await using var c = new TestNode(cluster, secret, "C");
         await a.InitializeAsync(); await b.InitializeAsync(); await c.InitializeAsync();
         await a.Store.RememberPeerAsync(await b.Store.GetNodeInfoAsync(), "127.0.0.1");
@@ -76,15 +75,15 @@ public sealed class DistributedTests
     [Fact]
     public async Task EventStoreRejectsMutationAtSqliteLevel()
     {
-        await using var node = new TestNode(Guid.NewGuid(), RandomNumberGenerator.GetBytes(32), "A"); await node.InitializeAsync();
-        await using var db = await node.Host.Services.GetRequiredService<IDbContextFactory<ChatDbContext>>().CreateDbContextAsync();
-        await Assert.ThrowsAsync<Microsoft.Data.Sqlite.SqliteException>(() => db.Database.ExecuteSqlRawAsync("UPDATE ReplicationEvents SET PayloadJson='invalid'"));
-        await Assert.ThrowsAsync<Microsoft.Data.Sqlite.SqliteException>(() => db.Database.ExecuteSqlRawAsync("DELETE FROM ReplicationEvents"));
+        await using var node = new TestNode(Guid.NewGuid(), FrameworkIO.RandomBytes(32), "A"); await node.InitializeAsync();
+        using var db = node.Host.Services.GetRequiredService<ChatDatabase>().Open();
+        Assert.Throws<Microsoft.Data.Sqlite.SqliteException>(() => db.Execute("UPDATE ReplicationEvents SET PayloadJson='invalid'"));
+        Assert.Throws<Microsoft.Data.Sqlite.SqliteException>(() => db.Execute("DELETE FROM ReplicationEvents"));
     }
     [Fact]
     public async Task ThreeVotersElectFailOverAndMinorityCannotChangeGroup()
     {
-        var cluster = Guid.NewGuid(); var secret = RandomNumberGenerator.GetBytes(32); var bootstrap = Guid.NewGuid();
+        var cluster = Guid.NewGuid(); var secret = FrameworkIO.RandomBytes(32); var bootstrap = Guid.NewGuid();
         await using var a = new TestNode(cluster, secret, "A"); await using var b = new TestNode(cluster, secret, "B"); await using var c = new TestNode(cluster, secret, "C");
         var nodes = new[] { a, b, c };
         foreach (var n in nodes) { n.Options.BootstrapNodeId = bootstrap; n.Options.LeaderTimeout = TimeSpan.FromSeconds(2); n.Options.HeartbeatInterval = TimeSpan.FromMilliseconds(200); n.Options.ReconciliationInterval = TimeSpan.FromSeconds(2); }
@@ -125,7 +124,7 @@ public sealed class DistributedTests
     [Fact]
     public async Task ReactionsReceiptsReplyAndForwardConvergeWithOutOfOrderDelivery()
     {
-        var cluster = Guid.NewGuid(); var secret = RandomNumberGenerator.GetBytes(32);
+        var cluster = Guid.NewGuid(); var secret = FrameworkIO.RandomBytes(32);
         await using var a = new TestNode(cluster, secret, "A"); await using var b = new TestNode(cluster, secret, "B");
         await a.InitializeAsync(); await b.InitializeAsync(); await a.Store.RememberPeerAsync(await b.Store.GetNodeInfoAsync(), "127.0.0.1");
         var original = await a.Store.SaveOutgoingAsync((await b.Store.GetIdentityAsync()).UserId, "Nội dung gốc");
@@ -145,7 +144,7 @@ public sealed class DistributedTests
     [Fact]
     public async Task NewNodeRecoversMoreThanOnePageIncludingThirdPartyHistoryOverTls()
     {
-        var cluster = Guid.NewGuid(); var secret = RandomNumberGenerator.GetBytes(32);
+        var cluster = Guid.NewGuid(); var secret = FrameworkIO.RandomBytes(32);
         await using var a = new TestNode(cluster, secret, "A"); await using var b = new TestNode(cluster, secret, "B"); await using var d = new TestNode(cluster, secret, "D");
         await a.InitializeAsync(); await b.InitializeAsync(); await d.InitializeAsync();
         var recipient = await b.Store.GetNodeInfoAsync(); await a.Store.RememberPeerAsync(recipient, "127.0.0.1");
@@ -163,13 +162,13 @@ public sealed class DistributedTests
     [Fact]
     public async Task PersistedVotePreventsTwoCandidatesWinningTheSameTermAfterRestart()
     {
-        var cluster = Guid.NewGuid(); var secret = RandomNumberGenerator.GetBytes(32); var first = Guid.NewGuid(); var second = Guid.NewGuid(); string directory;
+        var cluster = Guid.NewGuid(); var secret = FrameworkIO.RandomBytes(32); var first = Guid.NewGuid(); var second = Guid.NewGuid(); string directory;
         await using (var voter = new TestNode(cluster, secret, "Voter"))
         {
             voter.Options.BootstrapNodeId = first; await voter.InitializeAsync(); directory = voter.Options.DataDirectory;
-            await using var db = await voter.Host.Services.GetRequiredService<IDbContextFactory<ChatDbContext>>().CreateDbContextAsync();
+            using var db = voter.Host.Services.GetRequiredService<ChatDatabase>().Open();
             var config = new ControlCommand(Guid.NewGuid(), ControlCommandType.FinalMembership, Guid.Empty, Guid.Empty, NewVoters: [first, second, (await voter.Store.GetIdentityAsync()).NodeId]);
-            db.ControlLog.Add(new ControlLogEntry { Id = config.Id, Index = 1, Term = 1, CommandJson = System.Text.Json.JsonSerializer.Serialize(config) }); await db.SaveChangesAsync();
+            db.Insert(new ControlLogEntry { Id = config.Id, Index = 1, Term = 1, CommandJson = System.Text.Json.JsonSerializer.Serialize(config) });
             var consensus = voter.Host.Services.GetRequiredService<ConsensusService>();
             var answers = await Task.WhenAll(consensus.VoteAsync(new(2, first, 1, 1), first, CancellationToken.None), consensus.VoteAsync(new(2, second, 1, 1), second, CancellationToken.None));
             Assert.Single(answers, x => x.Granted);
@@ -185,19 +184,19 @@ public sealed class DistributedTests
     [Fact]
     public async Task CommittedGroupOperationsEnforceOwnershipAndMembership()
     {
-        var cluster = Guid.NewGuid(); var secret = RandomNumberGenerator.GetBytes(32); var bootstrap = Guid.NewGuid();
+        var cluster = Guid.NewGuid(); var secret = FrameworkIO.RandomBytes(32); var bootstrap = Guid.NewGuid();
         await using var a = new TestNode(cluster, secret, "A"); await using var b = new TestNode(cluster, secret, "B"); await using var c = new TestNode(cluster, secret, "C");
         a.Options.BootstrapNodeId = bootstrap; a.Options.InitialNodeId = bootstrap; a.Options.HeartbeatInterval = TimeSpan.FromMilliseconds(150);
         await a.InitializeAsync(); await b.InitializeAsync(); await c.InitializeAsync();
         await a.Store.RememberPeerAsync(await b.Store.GetNodeInfoAsync(), "127.0.0.1"); await a.Store.RememberPeerAsync(await c.Store.GetNodeInfoAsync(), "127.0.0.1"); await a.Host.StartAsync();
         var service = a.Host.Services.GetRequiredService<IConsensusService>(); await TestNode.WaitUntilAsync(async () => (await service.GetStatusAsync()).HasQuorum);
         var owner = (await a.Store.GetIdentityAsync()).UserId; var userB = (await b.Store.GetIdentityAsync()).UserId; var userC = (await c.Store.GetIdentityAsync()).UserId; var group = Guid.NewGuid();
-        async Task Apply(ControlCommandType type, string? name = null, Guid? target = null, string? avatar = null)
+        async Task Apply(ControlCommandType type, string? name = null, Guid? target = null)
         {
-            var result = await service.ProposeAsync(new(Guid.NewGuid(), type, owner, group, name, target, Members: [owner, userB], AvatarBase64: avatar)); Assert.True(result.Success, result.Error);
+            var result = await service.ProposeAsync(new(Guid.NewGuid(), type, owner, group, name, target, Members: [owner, userB])); Assert.True(result.Success, result.Error);
         }
         await Apply(ControlCommandType.GroupCreated, "Nhóm đầu tiên"); await Apply(ControlCommandType.GroupRenamed, "Tên đã đổi");
-        await Apply(ControlCommandType.GroupAvatarChanged, avatar: "aGVsbG8="); await Apply(ControlCommandType.GroupMemberAdded, target: userC); await Apply(ControlCommandType.GroupMemberRemoved, target: userB);
+        Assert.False((await service.ProposeAsync(new(Guid.NewGuid(), ControlCommandType.GroupAvatarChanged, owner, group, AvatarBase64: "aGVsbG8="))).Success); await Apply(ControlCommandType.GroupMemberAdded, target: userC); await Apply(ControlCommandType.GroupMemberRemoved, target: userB);
         var projected = Assert.Single(await Distributed(a).GetGroupsAsync()); Assert.Equal("Tên đã đổi", projected.Name); Assert.Contains(userC, projected.Members); Assert.DoesNotContain(userB, projected.Members);
         await Apply(ControlCommandType.GroupOwnerChanged, target: userC);
         Assert.Equal(userC, Assert.Single(await Distributed(a).GetGroupsAsync()).OwnerUserId);
@@ -205,5 +204,101 @@ public sealed class DistributedTests
         var second = Guid.NewGuid(); Assert.True((await service.ProposeAsync(new(Guid.NewGuid(), ControlCommandType.GroupCreated, owner, second, "Xóa thử", Members: [owner]))).Success);
         Assert.True((await service.ProposeAsync(new(Guid.NewGuid(), ControlCommandType.GroupDeleted, owner, second))).Success);
         await Assert.ThrowsAsync<InvalidOperationException>(() => Distributed(a).SendToConversationAsync(second, "Nhóm đã xóa"));
+    }
+
+    [Fact]
+    public async Task NominationAndWithdrawalKeepVotesAndReplicateQueuedMessages()
+    {
+        var cluster = Guid.NewGuid();
+        var secret = FrameworkIO.RandomBytes(32);
+        var bootstrap = Guid.NewGuid();
+        await using var a = new TestNode(cluster, secret, "A");
+        await using var b = new TestNode(cluster, secret, "B");
+        await using var c = new TestNode(cluster, secret, "C");
+        var nodes = new[] { a, b, c };
+        a.Options.InitialNodeId = bootstrap;
+        foreach (var node in nodes)
+        {
+            node.Options.BootstrapNodeId = bootstrap;
+            node.Options.ReconciliationInterval = TimeSpan.FromHours(1);
+            await node.InitializeAsync();
+        }
+        foreach (var node in nodes)
+            foreach (var peer in nodes.Where(p => p != node))
+                await node.Store.RememberPeerAsync(await peer.Store.GetNodeInfoAsync(), "127.0.0.1");
+        foreach (var node in nodes) await node.Host.StartAsync();
+        var services = nodes.Select(n => n.Host.Services.GetRequiredService<IConsensusService>()).ToArray();
+        await TestNode.WaitUntilAsync(async () => (await Task.WhenAll(services.Select(s => s.GetStatusAsync())))
+            .All(s => s.Voters.Length == 3 && s.JointVoters is null && s.LeaderReady), 30);
+
+        var bId = await b.Store.GetIdentityAsync();
+        var cId = await c.Store.GetIdentityAsync();
+        var nomination = await services[2].NominateAsync(bId.NodeId);
+        Assert.True(nomination.Success, nomination.Error);
+        await TestNode.WaitUntilAsync(async () => (await services[1].GetStatusAsync()).HasQuorum);
+        Assert.True((await services[0].SetCanLeadAsync(false)).Success);
+
+        var conversation = await a.Store.OpenDirectAsync(cId.UserId);
+        var faults = a.Host.Services.GetRequiredService<FaultInjection>();
+        faults.PauseReplication = true;
+        var message = await Distributed(a).SendToConversationAsync(conversation, "Đồng bộ ngay sau bàn giao");
+        using (var db = a.Host.Services.GetRequiredService<ChatDatabase>().Open())
+            db.Execute("UPDATE OutboxItems SET NextRetryTicks=$0 WHERE Status=0", DateTime.UtcNow.AddHours(1).Ticks);
+        faults.PauseReplication = false;
+
+        var withdrawal = await services[1].SetCanLeadAsync(false);
+        Assert.True(withdrawal.Success, withdrawal.Error);
+        var center = await services[2].GetStatusAsync();
+        Assert.Equal(cId.NodeId, center.LeaderNodeId);
+        Assert.True(center.HasQuorum);
+        await TestNode.WaitUntilAsync(async () => (await c.Store.GetMessagesAsync(conversation)).Any(m => m.Id == message.Id), 4);
+
+        await services[2].SetCanLeadAsync(false);
+        await Task.Delay(5600);
+        var withdrawn = await Task.WhenAll(services.Select(s => s.GetStatusAsync()));
+        Assert.All(withdrawn, state => { Assert.False(state.CanLead); Assert.False(state.LeaderReady); });
+        Assert.All(withdrawn, state => Assert.Equal(center.Term, state.Term));
+        var queued = await Distributed(a).SendToConversationAsync(conversation, "Chat tiếp tục khi không có trung tâm");
+        await TestNode.WaitUntilAsync(async () => (await c.Store.GetMessagesAsync(conversation)).Any(m => m.Id == queued.Id), 6);
+        Assert.True((await services[2].SetCanLeadAsync(true)).Success);
+        await TestNode.WaitUntilAsync(async () => (await services[2].GetStatusAsync()).HasQuorum, 8);
+    }
+
+    [Fact]
+    public async Task LeaderLossStartsElectionAtFiveSecondsAndRecoversWithinSeven()
+    {
+        var cluster = Guid.NewGuid();
+        var secret = FrameworkIO.RandomBytes(32);
+        var bootstrap = Guid.NewGuid();
+        await using var a = new TestNode(cluster, secret, "A");
+        await using var b = new TestNode(cluster, secret, "B");
+        await using var c = new TestNode(cluster, secret, "C");
+        var nodes = new[] { a, b, c };
+        a.Options.InitialNodeId = bootstrap;
+        foreach (var node in nodes) { node.Options.BootstrapNodeId = bootstrap; await node.InitializeAsync(); }
+        foreach (var node in nodes)
+            foreach (var peer in nodes.Where(p => p != node))
+                await node.Store.RememberPeerAsync(await peer.Store.GetNodeInfoAsync(), "127.0.0.1");
+        foreach (var node in nodes) await node.Host.StartAsync();
+        var services = nodes.Select(n => n.Host.Services.GetRequiredService<IConsensusService>()).ToArray();
+        await TestNode.WaitUntilAsync(async () => (await Task.WhenAll(services.Select(s => s.GetStatusAsync())))
+            .All(s => s.Voters.Length == 3 && s.JointVoters is null && s.LeaderReady), 30);
+        a.Host.Services.GetRequiredService<FaultInjection>().SimulateLeaderFailure = true;
+        var states = await Task.WhenAll(services.Skip(1).Select(s => s.GetStatusAsync()));
+        var lastHeartbeat = states.Max(s => s.LastLeaderHeartbeatTicks);
+        var term = states.Max(s => s.Term);
+        long firstElection = 0;
+        long leaderReady = 0;
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(8));
+        while (leaderReady == 0)
+        {
+            var now = DateTime.UtcNow.Ticks;
+            states = await Task.WhenAll(services.Skip(1).Select(s => s.GetStatusAsync(timeout.Token)));
+            if (firstElection == 0 && states.Any(s => s.Term > term)) firstElection = now;
+            if (states.Any(s => s.HasQuorum)) leaderReady = now;
+            else await Task.Delay(25, timeout.Token);
+        }
+        Assert.InRange(TimeSpan.FromTicks(firstElection - lastHeartbeat).TotalSeconds, 4.9, 6.5);
+        Assert.InRange(TimeSpan.FromTicks(leaderReady - lastHeartbeat).TotalSeconds, 5, 7);
     }
 }
