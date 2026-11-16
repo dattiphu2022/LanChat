@@ -55,6 +55,8 @@ public sealed partial class MainForm : Form
     private Func<bool>? _isSelectedNetwork;
     private Guid? _notificationConversation;
     private long? _incomingPosition;
+    internal int UnreadCount { get; private set; }
+    internal event Action? UnreadCountChanged;
     private readonly NavigationItemControl _messageNav = new() { Caption = "Tin nhắn", Active = true };
     private readonly NavigationItemControl _usersNav = new() { Caption = "Danh bạ" };
     private readonly TableLayoutPanel _workspace = new() { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1, Margin = Padding.Empty };
@@ -297,7 +299,7 @@ public sealed partial class MainForm : Form
                 _summaries = summaries.Select(c => c.Kind == ConversationKind.Direct && presence.TryGetValue(c.OtherUserId, out var online)
                     ? c with { Presence = online } : c).ToArray();
                 BindConversations(); if (_showPeople) BindPeople();
-                _messageNav.SetBadge("Tin nhắn", _summaries.Sum(x => x.UnreadCount));
+                UpdateUnreadCount();
                 if (incoming is not null)
                 {
                     _incomingPosition = incoming.Position;
@@ -344,6 +346,17 @@ public sealed partial class MainForm : Form
             await UpdateStatusAsync();
         }
         finally { _refresh.Release(); }
+    }
+
+    private void UpdateUnreadCount()
+    {
+        var total = _summaries.Sum(x => x.UnreadCount);
+        if (UnreadCount == total) return;
+        var hadUnread = UnreadCount > 0;
+        UnreadCount = total;
+        _messageNav.SetUnreadCount(total);
+        if (_showNotification is null && hadUnread != (total > 0)) _notification.Icon = AppIcon.ForUnread(total > 0);
+        UnreadCountChanged?.Invoke();
     }
 
     private void NotifyIncoming(IncomingMessageNotice[] messages)

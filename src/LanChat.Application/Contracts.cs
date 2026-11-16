@@ -31,10 +31,11 @@ public sealed record DiscoveredPeerDto(Guid NodeId, Guid UserId, string DisplayN
 public sealed record DevicePublicKeys(string EncryptionKey, string SigningKey);
 public sealed record EncryptionIdentity(Guid UserId, string DisplayName, string Fingerprint, bool IsLocal);
 public sealed record NodeInfoDto(Guid NodeId, string DeviceName, int ServicePort, UserProfileDto User,
-    int ProtocolVersion = NodeInfoDto.CurrentProtocol, string ApplicationVersion = "1.2.0", NodeRole Role = NodeRole.Follower, long Term = 0, bool CanLead = true,
+    int ProtocolVersion = NodeInfoDto.CurrentProtocol, string ApplicationVersion = NodeInfoDto.CurrentApplicationVersion, NodeRole Role = NodeRole.Follower, long Term = 0, bool CanLead = true,
     DevicePublicKeys? DeviceKeys = null, string? KeyProof = null)
 {
     public const int CurrentProtocol = 4;
+    public const string CurrentApplicationVersion = "1.2.0";
 }
 public sealed record ChatMessageDto(Guid Id, Guid ClientMessageId, Guid ConversationId, Guid SenderUserId,
     Guid RecipientUserId, Guid OriginNodeId, long OriginSequence, MessageKind Kind, string Text,

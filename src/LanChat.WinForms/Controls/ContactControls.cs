@@ -6,13 +6,32 @@ namespace LanChat.WinForms.Controls;
 public sealed class NavigationItemControl : UserControl
 {
     private readonly Button _button = new() { Dock = DockStyle.Fill, FlatStyle = FlatStyle.Flat, TextAlign = ContentAlignment.MiddleCenter, Cursor = Cursors.Hand, ForeColor = Color.White, BackColor = Theme.Rail };
+    private int _unreadCount;
     public event EventHandler? Selected;
-    public NavigationItemControl() { _button.FlatAppearance.BorderSize = 0; _button.FlatAppearance.MouseOverBackColor = Theme.Blue; Size = new Size(102, 48); Padding = new Padding(5); Controls.Add(_button); _button.Click += (_, _) => Selected?.Invoke(this, EventArgs.Empty); }
+    public NavigationItemControl()
+    {
+        _button.FlatAppearance.BorderSize = 0; _button.FlatAppearance.MouseOverBackColor = Theme.Blue;
+        Size = new Size(102, 48); Padding = new Padding(5); Controls.Add(_button);
+        _button.Click += (_, _) => Selected?.Invoke(this, EventArgs.Empty);
+        _button.Paint += (_, e) =>
+        {
+            if (_unreadCount <= 0) return;
+            var size = LogicalToDeviceUnits(9);
+            UnreadBadge.PaintDot(e.Graphics, new Rectangle(_button.ClientSize.Width - size - LogicalToDeviceUnits(4),
+                LogicalToDeviceUnits(3), size, size));
+        };
+    }
     [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
     public string Caption { get => _button.Text; set => _button.Text = value; }
     [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
     public bool Active { set { _button.BackColor = value ? Theme.Blue : Theme.Rail; _button.ForeColor = Color.White; } }
-    public void SetBadge(string title, int count) => Caption = count > 0 ? $"{title} ({count})" : title;
+    internal void SetUnreadCount(int count)
+    {
+        if (_unreadCount == count) return;
+        _unreadCount = count;
+        _button.AccessibleName = count > 0 ? $"{Caption}, {count} tin nhắn chưa đọc" : Caption;
+        _button.Invalidate();
+    }
 }
 
 public sealed class UserItemControl : UserControl
@@ -45,17 +64,21 @@ public sealed class ConversationItemControl : UserControl
     private readonly Label _title = Theme.Label("", 11, true);
     private readonly Label _preview = Theme.Label("");
     private readonly Label _meta = Theme.Label("", 9);
+    private readonly UnreadBadge _unread = new();
     private ConversationSummary? _model;
     public event Action<ConversationSummary>? Selected;
     public event Action<ConversationSummary, string>? ActionRequested;
     public ConversationItemControl()
     {
         Height = 72; TabStop = true; Dock = DockStyle.Top; Cursor = Cursors.Hand;
-        var layout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 3, Padding = new Padding(8, 5, 8, 5) };
+        var layout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 3, Padding = new Padding(8, 5, 8, 5) };
         layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 44)); layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        layout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 21)); layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 20)); layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         layout.Controls.Add(_avatar, 0, 0); layout.SetRowSpan(_avatar, 3);
         layout.Controls.Add(_title, 1, 0); layout.Controls.Add(_preview, 1, 1); layout.Controls.Add(_meta, 1, 2);
+        layout.Controls.Add(_unread, 2, 0);
+        layout.SetColumnSpan(_preview, 2); layout.SetColumnSpan(_meta, 2);
         _avatar.ForeColor = Theme.Blue; _preview.AutoEllipsis = true; _preview.AutoSize = false;
         _title.AutoSize = false; _title.AutoEllipsis = true; _meta.AutoSize = false; _meta.AutoEllipsis = true;
         _preview.ForeColor = _meta.ForeColor = Theme.Muted;
@@ -69,7 +92,7 @@ public sealed class ConversationItemControl : UserControl
         menu.Items.Add("Xóa hội thoại phía tôi…", null, (_, _) => { if (_model is not null) ActionRequested?.Invoke(_model, "delete"); });
         menu.Opening += (_, e) => e.Cancel = _model?.Id == Guid.Empty;
         ContextMenuStrip = menu;
-        foreach (Control control in new Control[] { layout, _avatar, _title, _preview, _meta })
+        foreach (Control control in new Control[] { layout, _avatar, _title, _preview, _meta, _unread })
         { control.Click += (_, _) => { if (_model is not null) Selected?.Invoke(_model); }; control.ContextMenuStrip = menu; }
     }
     public void Bind(ConversationSummary c, bool active)
@@ -77,7 +100,8 @@ public sealed class ConversationItemControl : UserControl
         if (_model == c && BackColor == (active ? Theme.Selection : Color.White)) return;
         _model = c; _avatar.Text = string.Concat(c.DisplayName.Trim().Take(1)).ToUpperInvariant();
         _avatar.TextAlign = ContentAlignment.MiddleCenter;
-        _title.Text = c.DisplayName + (c.UnreadCount > 0 ? $"  ({Math.Min(99, c.UnreadCount)}{(c.UnreadCount > 99 ? "+" : "")})" : "");
+        _title.Text = c.DisplayName;
+        _unread.SetCount(c.UnreadCount);
         _preview.Text = c.Preview.NormalizeLines(" ");
         _meta.Text = $"{(c.Kind == ConversationKind.Group ? "♧ Nhóm" : c.Presence == PresenceStatus.Online ? "● Trực tuyến" : "○ Ngoại tuyến")}  {(c.IsPinned ? "◆ " : "")}{(c.IsMuted ? "Im lặng  " : "")}" +
             (c.LastMessageTicks > 0 ? new DateTime(c.LastMessageTicks, DateTimeKind.Utc).ToLocalTime().ToString("HH:mm") : "");

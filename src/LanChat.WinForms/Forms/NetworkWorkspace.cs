@@ -9,7 +9,8 @@ internal sealed class NetworkWorkspace : Form
 {
     private readonly NetworkCatalog _catalog;
     private readonly WindowsStartup _startup;
-    private readonly TabControl _tabs = new() { Dock = DockStyle.Fill };
+    private readonly TabControl _tabs = new() { Dock = DockStyle.Fill, ShowToolTips = true };
+    private readonly ImageList _tabIcons = new() { ColorDepth = ColorDepth.Depth32Bit, ImageSize = new Size(12, 12) };
     private readonly Dictionary<Guid, (RunningNetwork Network, MainForm View, TabPage Tab)> _running = new();
     private readonly Button _scanButton = Theme.Secondary("Quét tất cả");
     private readonly Label _feedback = Theme.Label("");
@@ -27,6 +28,13 @@ internal sealed class NetworkWorkspace : Form
         Font = new Font("Segoe UI", 10);
         AutoScaleMode = AutoScaleMode.Dpi;
         StartPosition = FormStartPosition.CenterScreen;
+        using (var dot = new Bitmap(_tabIcons.ImageSize.Width, _tabIcons.ImageSize.Height))
+        {
+            using (var graphics = Graphics.FromImage(dot)) UnreadBadge.PaintDot(graphics, new Rectangle(1, 1, 10, 10));
+            _tabIcons.Images.Add(dot);
+            _tabs.ImageList = _tabIcons;
+            _ = _tabIcons.Handle;
+        }
 
         var root = Theme.Stack(3);
         root.RowStyles.Add(new RowStyle(SizeType.Absolute, 50));
@@ -44,6 +52,7 @@ internal sealed class NetworkWorkspace : Form
         Button("Mạng chat", ManageAsync);
         Button("Khôi phục mạng mặc định", RestoreDefaultNetworkAsync);
         Button("Cài đặt", SettingsAsync);
+        Button("Giới thiệu", ShowAboutAsync);
         root.Controls.Add(actions, 0, 0); root.Controls.Add(_feedback, 0, 1); root.Controls.Add(_tabs, 0, 2);
         Controls.Add(root);
         var trayMenu = new ContextMenuStrip();
@@ -65,7 +74,7 @@ internal sealed class NetworkWorkspace : Form
             if (WindowState == FormWindowState.Minimized) Hide();
             else _restoreState = WindowState;
         };
-        FormClosed += (_, _) => trayMenu.Dispose();
+        FormClosed += (_, _) => { trayMenu.Dispose(); _tabIcons.Dispose(); };
         FormClosing += ClosingAsync;
     }
 
@@ -115,6 +124,7 @@ internal sealed class NetworkWorkspace : Form
             view.Dock = DockStyle.Fill;
             tab.Controls.Add(view); _tabs.TabPages.Add(tab);
             _running.Add(entry.Id, (network, view, tab));
+            view.UnreadCountChanged += UpdateUnreadBadges;
             view.Show();
             await view.StartViewAsync();
         }
@@ -123,9 +133,26 @@ internal sealed class NetworkWorkspace : Form
             _running.Remove(entry.Id);
             if (tab is not null) { _tabs.TabPages.Remove(tab); tab.Dispose(); }
             else view?.Dispose();
+            UpdateUnreadBadges();
             await _catalog.StopAsync(network);
             throw;
         }
+    }
+
+    private void UpdateUnreadBadges()
+    {
+        if (_exiting) return;
+        var hasUnread = false;
+        foreach (var item in _running.Values)
+        {
+            var count = item.View.UnreadCount;
+            var image = count > 0 ? 0 : -1;
+            if (item.Tab.ImageIndex != image) item.Tab.ImageIndex = image;
+            item.Tab.ToolTipText = count > 0 ? $"{count} tin nhắn chưa đọc" : "";
+            hasUnread |= count > 0;
+        }
+        var icon = AppIcon.ForUnread(hasUnread);
+        if (!ReferenceEquals(_tray.Icon, icon)) _tray.Icon = icon;
     }
 
     private void ShowNotification(Guid networkId, Guid conversationId, string title, string body)
@@ -146,6 +173,13 @@ internal sealed class NetworkWorkspace : Form
         catch (OperationCanceledException) { }
         catch (Exception ex) { if (!IsDisposed) MessageBox.Show(this, ex.Message, "LanChat", MessageBoxButtons.OK, MessageBoxIcon.Warning); }
         finally { _busy = false; }
+    }
+
+    private Task ShowAboutAsync()
+    {
+        using var dialog = new AboutForm();
+        dialog.ShowDialog(this);
+        return Task.CompletedTask;
     }
 
     private CancellationTokenSource? _scan;
@@ -228,6 +262,7 @@ internal sealed class NetworkWorkspace : Form
         if (!_running.TryGetValue(entry.Id, out var item)) return;
         _running.Remove(entry.Id);
         item.View.Close(); _tabs.TabPages.Remove(item.Tab); item.Tab.Dispose();
+        UpdateUnreadBadges();
         await _catalog.StopAsync(item.Network);
     }
 
