@@ -330,7 +330,7 @@ public sealed partial class MainForm : Form
                         if (id == _activeConversation && anchor == _searchAnchor)
                         {
                             _visibleMessages = data.messages;
-                            _chat.Bind(id.Value, data.messages, _localUser, data.details);
+                            _chat.Bind(id.Value, data.messages, _localUser, data.details, anchor.HasValue);
                             _boundConversation = id; _boundSearch = anchor; _boundOlder = previous;
                             _chat.SetHistoryAvailable(anchor.HasValue || (_hasOlder && (previous.Length > 0 || data.more)), anchor.HasValue);
                             if (anchor.HasValue && !_anchorScrolled) { _chat.FocusMessage(anchor.Value); _anchorScrolled = true; }
@@ -368,7 +368,8 @@ public sealed partial class MainForm : Form
 
     private bool IsReadingActiveConversation => Visible && (TopLevel ? Form.ActiveForm == this : Form.ActiveForm == TopLevelControl) &&
         WindowState != FormWindowState.Minimized &&
-        (_isSelectedNetwork?.Invoke() ?? true) && !_showPeople && !_searchAnchor.HasValue && _chat.AtBottom;
+        (_isSelectedNetwork?.Invoke() ?? true) && !_showPeople && !_searchAnchor.HasValue &&
+        _boundConversation == _activeConversation && _chat.Visible && _chat.AtBottom;
 
     private Task MarkActiveReadAsync()
     {

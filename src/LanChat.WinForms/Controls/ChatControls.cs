@@ -1,3 +1,5 @@
+using System.Drawing.Drawing2D;
+using System.Globalization;
 using LanChat.Domain;
 using LanChat.Application;
 using ChatMessage = LanChat.Domain.Message;
@@ -6,10 +8,23 @@ namespace LanChat.WinForms.Controls;
 
 public sealed class MessageBubbleControl : UserControl
 {
+    private static readonly (Color Background, Color Ink)[] SenderColors =
+    [
+        (Color.FromArgb(221, 233, 255), Color.FromArgb(37, 78, 161)),
+        (Color.FromArgb(218, 239, 231), Color.FromArgb(26, 100, 77)),
+        (Color.FromArgb(242, 229, 252), Color.FromArgb(107, 56, 137)),
+        (Color.FromArgb(251, 232, 219), Color.FromArgb(144, 69, 35)),
+        (Color.FromArgb(252, 226, 235), Color.FromArgb(143, 56, 88))
+    ];
+    private static readonly Color SentBackground = Color.FromArgb(228, 239, 255);
+    private static readonly Color SentBorder = Color.FromArgb(201, 219, 245);
+    private static readonly Color SystemBackground = Color.FromArgb(235, 240, 247);
+    private readonly TableLayoutPanel _card = new() { ColumnCount = 1, RowCount = 6, Margin = Padding.Empty };
+    private readonly Label _sender = Theme.Label("", 9, true);
     private readonly Label _body = Theme.Label("");
     private readonly Label _state = Theme.Label("", 8);
-    private readonly FlowLayoutPanel _files = new() { Dock = DockStyle.Fill, AutoScroll = true, WrapContents = false };
-    private readonly FlowLayoutPanel _pictures = new() { Dock = DockStyle.Fill, WrapContents = true };
+    private readonly FlowLayoutPanel _files = new() { Dock = DockStyle.Fill, AutoScroll = true, WrapContents = false, Margin = Padding.Empty };
+    private readonly FlowLayoutPanel _pictures = new() { Dock = DockStyle.Fill, WrapContents = true, Margin = Padding.Empty };
     private ChatImageService? _images;
     private bool _updatingHeight;
     private readonly ContextMenuStrip _menu = new();
@@ -17,18 +32,34 @@ public sealed class MessageBubbleControl : UserControl
     private ChatMessage? _message;
     private readonly Button _more = Theme.Secondary("…");
     private readonly FlowLayoutPanel _actions = new() { Dock = DockStyle.Fill, WrapContents = false, Margin = Padding.Empty };
-    private bool _own;
-    private MessageDetails? _details;
+    private bool _own, _startsGroup, _unread;
+    private AttachmentDto[] _attachments = [];
+    private Rectangle _bubbleBounds, _avatarBounds;
+    private Color _border;
+    private (Color Background, Color Ink) _avatarColor;
+    private string _initials = "";
+    internal Guid MessageId => _message?.Id ?? Guid.Empty;
+    internal bool Highlighted { get => _highlighted; set { _highlighted = value; Invalidate(); } }
+    private bool _highlighted;
     public event Action<ChatMessage, string>? ActionRequested;
     public event Action<AttachmentDto>? FileRequested;
     public MessageBubbleControl()
     {
-        Size = new Size(400, 120); Padding = new Padding(12, 8, 12, 8);
-        var layout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 5, Padding = new Padding(10) };
-        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100)); layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 0)); layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 0)); layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 22)); layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 34));
-        _body.AutoSize = false; _state.AutoSize = false;
-        layout.Controls.Add(_body, 0, 0); layout.Controls.Add(_pictures, 0, 1); layout.Controls.Add(_files, 0, 2); layout.Controls.Add(_state, 0, 3); layout.Controls.Add(_actions, 0, 4); Controls.Add(layout);
+        Size = new Size(400, 120); Margin = Padding.Empty;
+        BackColor = Theme.Canvas; DoubleBuffered = true; ResizeRedraw = true;
+        _card.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        foreach (var control in new Control[] { _sender, _body, _pictures, _files, _state, _actions })
+        {
+            _card.RowStyles.Add(new RowStyle(SizeType.Absolute, 0));
+            _card.Controls.Add(control, 0, _card.RowStyles.Count - 1);
+        }
+        foreach (var label in new[] { _sender, _body, _state })
+        {
+            label.AutoSize = false; label.Margin = Padding.Empty; label.UseMnemonic = false;
+        }
+        _sender.AutoEllipsis = true;
+        _state.AutoEllipsis = true;
+        Controls.Add(_card);
         foreach (var (caption, action) in new[] { ("Trả lời", "reply"), ("Sao chép", "copy"), ("Chuyển tiếp", "forward"), ("Sửa", "edit"), ("Thu hồi", "recall"), ("Xóa phía tôi", "delete") })
         {
             var item = _menu.Items.Add(caption); item.Tag = action;
@@ -64,95 +95,155 @@ public sealed class MessageBubbleControl : UserControl
         more.Click += (_, _) => _menu.Show(more, new Point(0, more.Height));
         Disposed += (_, _) => { _menu.Dispose(); _reactionMenu.Dispose(); };
         _menu.Opening += (_, _) => { foreach (ToolStripItem item in _menu.Items) item.Enabled = _message is not null && _message.Kind != MessageKind.System && ((string?)item.Tag == "delete" || (!_message.IsRecalled && ((string?)item.Tag is not ("edit" or "recall") || _own))); };
-        ContextMenuStrip = _body.ContextMenuStrip = _state.ContextMenuStrip = _menu;
-        Resize += (_, _) => UpdateHeight();
-        _pictures.ClientSizeChanged += (_, _) => UpdateHeight();
+        ContextMenuStrip = _card.ContextMenuStrip = _sender.ContextMenuStrip = _body.ContextMenuStrip = _state.ContextMenuStrip = _menu;
+        Resize += (_, _) => UpdateLayout();
+        DpiChangedAfterParent += (_, _) => UpdateLayout();
     }
     public void ConfigureImages(ChatImageService images) => _images = images;
-    private void UpdateHeight()
+    private void UpdateLayout()
     {
-        if (_updatingHeight || Controls.Count == 0) return;
+        if (_updatingHeight || _message is null) return;
         _updatingHeight = true;
         try
         {
-        var available = Math.Max(120, _pictures.ClientSize.Width > 0 ? _pictures.ClientSize.Width : Width - Padding.Horizontal - 30);
-        foreach (Control picture in _pictures.Controls) picture.Width = Math.Min(180, available - 8);
-        var columns = Math.Max(1, available / 188);
-        var picturesHeight = (_pictures.Controls.Count + columns - 1) / columns * 173;
-        var filesHeight = _files.Controls.Count > 0 ? 48 : 0;
-        ((TableLayoutPanel)Controls[0]).RowStyles[1].Height = picturesHeight;
-        ((TableLayoutPanel)Controls[0]).RowStyles[2].Height = filesHeight;
-        var measured = TextRenderer.MeasureText(_body.Text, _body.Font, new Size(Math.Max(100, Width - Padding.Horizontal - 40), int.MaxValue),
-            TextFormatFlags.WordBreak | TextFormatFlags.TextBoxControl | TextFormatFlags.NoPrefix);
-        var height = measured.Height + Padding.Vertical + 48 + (_actions.Visible ? 34 : 0) + filesHeight + picturesHeight;
-        if (Height != height) Height = height;
+            var system = _message.Kind == MessageKind.System;
+            var gutter = ScalePixels(14);
+            var avatarSpace = system ? 0 : ScalePixels(42);
+            var cardWidth = Math.Max(1, Math.Min(Width - gutter * 2 - avatarSpace,
+                Math.Min(ScalePixels(system ? 500 : 660), Math.Max(ScalePixels(340), Width * 4 / 5))));
+            var x = system ? (Width - cardWidth) / 2 : _own ? Width - gutter - avatarSpace - cardWidth : gutter + avatarSpace;
+            var y = ScalePixels(_startsGroup ? 12 : 3);
+            var insetX = ScalePixels(12);
+            var insetY = ScalePixels(7);
+            var contentWidth = Math.Max(1, cardWidth - insetX * 2);
+
+            _card.SuspendLayout();
+            var picturesHeight = 0;
+            if (_pictures.Controls.Count > 0)
+            {
+                var picture = _pictures.Controls[0];
+                var pictureWidth = Math.Max(1, Math.Min(ScalePixels(180), contentWidth - picture.Margin.Horizontal));
+                foreach (Control item in _pictures.Controls) item.Width = pictureWidth;
+                var columns = Math.Max(1, contentWidth / (pictureWidth + picture.Margin.Horizontal));
+                picturesHeight = (_pictures.Controls.Count + columns - 1) / columns * (picture.Height + picture.Margin.Vertical);
+            }
+            var bodyHeight = _body.Text.Length == 0 ? 0 : TextRenderer.MeasureText(_body.Text, _body.Font,
+                new Size(contentWidth, int.MaxValue), TextFormatFlags.WordBreak | TextFormatFlags.TextBoxControl | TextFormatFlags.NoPrefix).Height;
+            var rowHeights = new[] { !system && _startsGroup ? _sender.Font.Height + ScalePixels(5) : 0, bodyHeight,
+                picturesHeight, _files.Controls.Count > 0 ? ScalePixels(45) : 0, _state.Font.Height + ScalePixels(6),
+                system ? 0 : ScalePixels(29) };
+            for (var i = 0; i < rowHeights.Length; i++) _card.RowStyles[i].Height = rowHeights[i];
+            var height = rowHeights.Sum();
+            _card.SetBounds(x + insetX, y + insetY, contentWidth, height);
+            _card.ResumeLayout(true);
+            _bubbleBounds = new Rectangle(x, y, cardWidth, height + insetY * 2);
+            _avatarBounds = system || !_startsGroup ? Rectangle.Empty : new Rectangle(_own ? _bubbleBounds.Right + ScalePixels(8) : gutter,
+                y + ScalePixels(2), ScalePixels(32), ScalePixels(32));
+            var rowHeight = Math.Max(_bubbleBounds.Bottom, _avatarBounds.Bottom);
+            if (Height != rowHeight) Height = rowHeight;
+            Invalidate();
         }
         finally { _updatingHeight = false; }
     }
-    public void Bind(ChatMessage m, bool own)
+    private int ScalePixels(int pixels) => Math.Max(1, (int)Math.Round(pixels * DeviceDpi / 96d));
+
+    protected override void OnPaint(PaintEventArgs e)
     {
-        _message = m; _own = own;
-        _actions.Visible = m.Kind != MessageKind.System;
-        ((TableLayoutPanel)Controls[0]).RowStyles[4].Height = _actions.Visible ? 34 : 0;
+        base.OnPaint(e);
+        if (_bubbleBounds.Width <= 1 || _bubbleBounds.Height <= 1) return;
+        e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+        var bounds = _bubbleBounds;
+        bounds.Width--; bounds.Height--;
+        var diameter = Math.Min(ScalePixels(20), Math.Min(bounds.Width, bounds.Height));
+        using var shape = new GraphicsPath();
+        shape.AddArc(bounds.X, bounds.Y, diameter, diameter, 180, 90);
+        shape.AddArc(bounds.Right - diameter, bounds.Y, diameter, diameter, 270, 90);
+        shape.AddArc(bounds.Right - diameter, bounds.Bottom - diameter, diameter, diameter, 0, 90);
+        shape.AddArc(bounds.X, bounds.Bottom - diameter, diameter, diameter, 90, 90);
+        shape.CloseFigure();
+        using var fill = new SolidBrush(_card.BackColor);
+        using var edge = new Pen(_highlighted || _unread ? Theme.Blue : _border, _highlighted ? 2 : 1);
+        e.Graphics.FillPath(fill, shape);
+        e.Graphics.DrawPath(edge, shape);
+
+        if (_avatarBounds.IsEmpty) return;
+        using var avatar = new SolidBrush(_avatarColor.Background);
+        e.Graphics.FillEllipse(avatar, _avatarBounds);
+        TextRenderer.DrawText(e.Graphics, _initials, _sender.Font, _avatarBounds, _avatarColor.Ink,
+            TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix);
+    }
+
+    internal void Bind(ChatMessage m, MessageDetails? details, bool own, bool startsGroup, bool unread)
+    {
+        _message = m; _own = own; _startsGroup = startsGroup; _unread = unread;
+        var system = m.Kind == MessageKind.System;
+        var name = details?.SenderName?.Trim();
+        if (string.IsNullOrWhiteSpace(name)) name = own ? "Bạn" : "Người dùng";
+        _avatarColor = own ? SenderColors[0] : SenderColors[(int)((uint)m.SenderUserId.GetHashCode() % SenderColors.Length)];
+        _sender.Text = name;
+        _sender.ForeColor = _avatarColor.Ink;
+        _initials = Initials(name!);
+        AccessibleName = system ? "Thông báo nhóm" : name + (unread ? " · Chưa đọc" : "");
+        _sender.Visible = !system && startsGroup;
+        _actions.Visible = !system;
         foreach (var button in _actions.Controls.OfType<Button>()) button.Enabled = !m.IsRecalled || button == _more;
-        _body.Text = (!own && m.RecipientUserId == Guid.Empty && _details?.SenderName is { } sender ? sender + "\n" : "") + (_details?.ReplyPreview is { } reply ? "↪ " + reply.NormalizeLines(" ") + "\n" : "") + (m.ForwardedFromMessageId.HasValue ? "↗ Đã chuyển tiếp\n" : "") + m.Text;
+        _body.Text = (details?.ReplyPreview is { } reply ? "↪ " + reply.NormalizeLines(" ") + "\n" : "") +
+            (m.ForwardedFromMessageId.HasValue ? "↗ Đã chuyển tiếp\n" : "") + m.Text;
         _state.Text = new DateTime(m.CreatedAtTicks, DateTimeKind.Utc).ToLocalTime().ToString("dd/MM HH:mm") +
-            (m.IsEdited ? " · Đã sửa" : "") + (own ? _details?.ReadCount > 0 ? " · Đã đọc" : m.Status switch
+            (m.IsEdited ? " · Đã sửa" : "") + (own && !system ? details?.ReadCount > 0 ? " · Đã đọc" : m.Status switch
             { MessageStatus.Delivered => " · Đã nhận", MessageStatus.Synced => " · Đã đồng bộ", _ => " · Đã lưu trên máy" } : "") +
-            (_details is null ? "" : "  " + string.Join("  ", _details.Reactions));
+            (details is null ? "" : "  " + string.Join("  ", details.Reactions));
         _state.ForeColor = Theme.Muted;
-        Controls[0].BackColor = m.Kind == MessageKind.System ? Theme.Canvas : own ? Color.FromArgb(221, 236, 255) : Color.White;
-        _body.TextAlign = ContentAlignment.MiddleLeft;
-        _state.TextAlign = ContentAlignment.MiddleLeft;
+        _card.BackColor = system ? SystemBackground : own ? SentBackground : Color.White;
+        _border = own && !system ? SentBorder : Theme.Border;
+        _body.ForeColor = system ? Theme.Muted : Theme.Ink;
+        _body.TextAlign = system ? ContentAlignment.MiddleCenter : ContentAlignment.TopLeft;
+        _state.TextAlign = system ? ContentAlignment.MiddleCenter : ContentAlignment.MiddleLeft;
         _actions.FlowDirection = own ? FlowDirection.RightToLeft : FlowDirection.LeftToRight;
         var actionIndex = own ? 0 : 2;
         if (_actions.Controls.GetChildIndex(_more) != actionIndex) _actions.Controls.SetChildIndex(_more, actionIndex);
-        Padding = own ? new Padding(Math.Min(130, Width / 5), 5, 14, 5) : new Padding(14, 5, Math.Min(130, Width / 5), 5);
-        UpdateHeight();
+        BindAttachments(m.IsRecalled ? [] : details?.Attachments ?? []);
+        UpdateLayout();
     }
-    public void SetOwnership(bool own) => _own = own;
-    public void BindDetails(MessageDetails details)
+
+    private static string Initials(string name)
     {
-        var previous = _details;
-        if (previous is not null && SamePresentation(previous, details)) return;
-        _details = details;
-        var files = details.Message.IsRecalled ? [] : details.Attachments;
-        if (previous is null || !previous.Attachments.SequenceEqual(files) || previous.Message.IsRecalled != details.Message.IsRecalled)
-        {
-            foreach (Control c in _files.Controls.Cast<Control>().ToArray()) c.Dispose();
-            foreach (Control c in _pictures.Controls.Cast<Control>().ToArray()) c.Dispose();
-            foreach (var file in files)
-            {
-                if (_images is not null && ChatImageService.IsImage(file))
-                {
-                    var picture = new ImageThumbnailControl(file, _images); picture.Selected += f => FileRequested?.Invoke(f); _pictures.Controls.Add(picture); continue;
-                }
-                var label = file.MimeType == FolderAttachment.MimeType
-                    ? $"Thư mục · {file.FileName}"
-                    : $"▤ {file.FileName} ({file.FileSize / 1024d:N1} KB)";
-                var link = new LinkLabel { Text = label, AutoSize = true, Margin = new Padding(4, 10, 12, 4) };
-                link.LinkClicked += (_, _) => FileRequested?.Invoke(file); _files.Controls.Add(link);
-            }
-        }
-        _files.Visible = _files.Controls.Count > 0; _pictures.Visible = _pictures.Controls.Count > 0;
-        Bind(details.Message, _own);
-        EnsureImagesLoaded();
+        var words = name.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+        var first = StringInfo.GetNextTextElement(words[0]);
+        return (words.Length == 1 ? first : first + StringInfo.GetNextTextElement(words[words.Length - 1])).ToUpperInvariant();
     }
-    private static bool SamePresentation(MessageDetails old, MessageDetails next) =>
-        old.Message.Text == next.Message.Text && old.Message.Status == next.Message.Status && old.Message.IsEdited == next.Message.IsEdited &&
-        old.Message.IsRecalled == next.Message.IsRecalled && old.ReplyPreview == next.ReplyPreview && old.SenderName == next.SenderName &&
-        old.ReceivedCount == next.ReceivedCount && old.ReadCount == next.ReadCount && old.Attachments.SequenceEqual(next.Attachments) && old.Reactions.SequenceEqual(next.Reactions);
+
+    private void BindAttachments(AttachmentDto[] files)
+    {
+        if (_attachments.SequenceEqual(files)) return;
+        _attachments = files;
+        foreach (Control c in _files.Controls.Cast<Control>().ToArray()) c.Dispose();
+        foreach (Control c in _pictures.Controls.Cast<Control>().ToArray()) c.Dispose();
+        foreach (var file in files)
+        {
+            if (_images is not null && ChatImageService.IsImage(file))
+            {
+                var picture = new ImageThumbnailControl(file, _images); picture.Selected += f => FileRequested?.Invoke(f); _pictures.Controls.Add(picture); continue;
+            }
+            var label = file.MimeType == FolderAttachment.MimeType
+                ? $"Thư mục · {file.FileName}"
+                : $"▤ {file.FileName} ({file.FileSize / 1024d:N1} KB)";
+            var link = new LinkLabel { Text = label, AutoSize = true, Margin = new Padding(4, 10, 12, 4) };
+            link.LinkClicked += (_, _) => FileRequested?.Invoke(file); _files.Controls.Add(link);
+        }
+    }
     public void EnsureImagesLoaded() { foreach (var picture in _pictures.Controls.OfType<ImageThumbnailControl>()) picture.EnsureLoaded(); }
 }
 
 public sealed class MessageListControl : UserControl
 {
-    private readonly FlowLayoutPanel _flow = new() { Dock = DockStyle.Fill, AutoScroll = true, FlowDirection = FlowDirection.TopDown, WrapContents = false, BackColor = Theme.Canvas };
+    private readonly FlowLayoutPanel _flow = new() { Dock = DockStyle.Fill, AutoScroll = true, FlowDirection = FlowDirection.TopDown,
+        WrapContents = false, BackColor = Theme.Canvas, Padding = new Padding(0, 0, 0, 10) };
+    private readonly Label _unreadDivider = Theme.Label("Tin nhắn chưa đọc", 9, true);
     private readonly Dictionary<Guid, MessageBubbleControl> _bubbles = [];
     private Guid? _conversation;
-    private bool _resizing;
-    private bool _followEnd;
-    private (Guid Id, int Top)? _scrollAnchor;
+    private bool _resizing, _resizeQueued, _binding;
+    private Guid? _firstNewMessage;
     private Guid? _lastMessage;
     private Guid? _highlight;
     public event Action<bool>? NewMessages;
@@ -163,72 +254,136 @@ public sealed class MessageListControl : UserControl
     public MessageListControl()
     {
         Dock = DockStyle.Fill; Controls.Add(_flow);
-        _flow.ClientSizeChanged += (_, _) => ResizeItems();
-        _flow.Scroll += (_, _) => { foreach (var bubble in _bubbles.Values) bubble.EnsureImagesLoaded(); if (AtBottom) { NewMessages?.Invoke(false); ReachedBottom?.Invoke(); } };
+        _unreadDivider.Dock = DockStyle.None;
+        _unreadDivider.AutoSize = false;
+        _unreadDivider.TextAlign = ContentAlignment.MiddleCenter;
+        _unreadDivider.Margin = Padding.Empty;
+        _unreadDivider.BackColor = Theme.Canvas;
+        _unreadDivider.Paint += (_, e) =>
+        {
+            var halfText = TextRenderer.MeasureText(_unreadDivider.Text, _unreadDivider.Font).Width / 2 + 12;
+            var x = _unreadDivider.Width / 2; var y = _unreadDivider.Height / 2;
+            if (x - halfText <= 14) return;
+            using var line = new Pen(_unreadDivider.ForeColor);
+            e.Graphics.DrawLine(line, 14, y, x - halfText, y);
+            e.Graphics.DrawLine(line, x + halfText, y, _unreadDivider.Width - 14, y);
+        };
+        Disposed += (_, _) => _unreadDivider.Dispose();
+        _flow.SizeChanged += (_, _) => QueueResize();
+        DpiChangedAfterParent += (_, _) => QueueResize();
+        _flow.Scroll += (_, _) => OnScrolled();
+        _flow.MouseWheel += (_, _) => OnScrolled();
+    }
+    private void OnScrolled()
+    {
+        if (_binding || _resizing) return;
+        foreach (var bubble in _bubbles.Values) bubble.EnsureImagesLoaded();
+        if (AtBottom) { NewMessages?.Invoke(false); ReachedBottom?.Invoke(); }
     }
     public void ConfigureImages(ChatImageService images) { _images = images; foreach (var bubble in _bubbles.Values) bubble.ConfigureImages(images); }
+
+    private void QueueResize()
+    {
+        if (_resizeQueued || !_flow.IsHandleCreated || _flow.IsDisposed) return;
+        // Reflow after WinForms has finished calculating the viewport and its scrollbars.
+        _resizeQueued = true;
+        _flow.BeginInvoke((Action)(() =>
+        {
+            _resizeQueued = false;
+            if (!_flow.IsDisposed) ResizeItems();
+        }));
+    }
+
     private void ResizeItems()
     {
         if (_resizing) return;
         _resizing = true;
         try
         {
-            var scroll = _flow.AutoScrollPosition;
-            _flow.AutoScroll = false;
-            foreach (var bubble in _bubbles.Values) bubble.Width = Math.Max(180, _flow.ClientSize.Width - 28);
-            _flow.AutoScroll = true;
-            _flow.AutoScrollPosition = new Point(0, -scroll.Y);
+            var scrollBar = (int)Math.Ceiling(SystemInformation.VerticalScrollBarWidth * Math.Max(1d, _flow.DeviceDpi / 96d));
+            var width = Math.Max(1, Math.Min(_flow.ClientSize.Width, _flow.Width - scrollBar) - 2);
+            _flow.SuspendLayout();
+            foreach (var bubble in _bubbles.Values) bubble.Width = width;
+            _unreadDivider.Size = new Size(width, _unreadDivider.Font.Height + 14);
+            _flow.ResumeLayout(true);
         }
         finally { _resizing = false; }
     }
-    public void Bind(Guid conversation, IReadOnlyList<ChatMessage> messages, Guid localUser, bool hasDetails = false)
+    internal void Bind(Guid conversation, IReadOnlyList<ChatMessage> messages, Guid localUser, MessageDetails[] details, bool search = false)
     {
         var changedConversation = _conversation != conversation;
-        var nearBottom = AtBottom;
-        var anchor = _flow.Controls.OfType<MessageBubbleControl>().FirstOrDefault(c => c.Bottom > 0);
-        _scrollAnchor = anchor is null ? null : (_bubbles.First(x => x.Value == anchor).Key, anchor.Top);
-        _followEnd = changedConversation || nearBottom;
+        var followEnd = changedConversation || AtBottom;
+        var firstVisible = _flow.Controls.OfType<MessageBubbleControl>().FirstOrDefault(c => c.Bottom > 0);
+        var anchorId = firstVisible?.MessageId;
+        var anchorTop = firstVisible?.Top ?? 0;
         var last = messages.Count == 0 ? (Guid?)null : messages[messages.Count - 1].Id;
-        if (_followEnd) NewMessages?.Invoke(false);
-        else if (_lastMessage != last) NewMessages?.Invoke(true);
-        _lastMessage = last;
-        if (changedConversation) { foreach (Control c in _flow.Controls.Cast<Control>().ToArray()) c.Dispose(); _bubbles.Clear(); _conversation = conversation; }
+        var byId = new Dictionary<Guid, MessageDetails>(details.Length);
+        foreach (var detail in details) byId[detail.Message.Id] = detail;
+        var ids = new HashSet<Guid>(messages.Select(x => x.Id));
+        _binding = true;
         _flow.SuspendLayout();
-        foreach (var id in _bubbles.Keys.Except(messages.Select(x => x.Id)).ToArray()) { _bubbles[id].Dispose(); _bubbles.Remove(id); }
-        for (var i = 0; i < messages.Count; i++)
+        try
         {
-            var m = messages[i];
-            if (!_bubbles.TryGetValue(m.Id, out var bubble))
+            if (changedConversation)
             {
-                bubble = new MessageBubbleControl(); bubble.ActionRequested += (m, a) => ActionRequested?.Invoke(m, a); bubble.FileRequested += f => FileRequested?.Invoke(f);
-                if (_images is not null) bubble.ConfigureImages(_images);
-                _bubbles.Add(m.Id, bubble); _flow.Controls.Add(bubble);
+                _conversation = conversation;
+                _firstNewMessage = _highlight = null;
             }
-            if (!hasDetails) bubble.Bind(m, m.SenderUserId == localUser);
-            else bubble.SetOwnership(m.SenderUserId == localUser);
-            if (_flow.Controls.GetChildIndex(bubble) != i) _flow.Controls.SetChildIndex(bubble, i);
+            var firstUnread = search ? null : messages.FirstOrDefault(m => IsUnread(m, localUser));
+            if (firstUnread is not null) _firstNewMessage = firstUnread.Id;
+            var markerId = !search && _firstNewMessage is Guid id && ids.Contains(id) ? _firstNewMessage : null;
+            _unreadDivider.Text = firstUnread is null ? "Tin nhắn mới" : "Tin nhắn chưa đọc";
+            _unreadDivider.ForeColor = firstUnread is null ? Theme.Muted : Theme.Blue;
+            _unreadDivider.Visible = markerId.HasValue;
+            if (markerId.HasValue && _unreadDivider.Parent is null) _flow.Controls.Add(_unreadDivider);
+            foreach (var removed in _bubbles.Keys.Where(id => !ids.Contains(id)).ToArray())
+            { _bubbles[removed].Dispose(); _bubbles.Remove(removed); }
+
+            ChatMessage? previous = null;
+            var index = 0;
+            foreach (var m in messages)
+            {
+                var hasDivider = m.Id == markerId;
+                if (hasDivider) SetPosition(_unreadDivider, index++);
+                if (!_bubbles.TryGetValue(m.Id, out var bubble))
+                {
+                    bubble = new MessageBubbleControl(); bubble.ActionRequested += (message, action) => ActionRequested?.Invoke(message, action);
+                    bubble.FileRequested += file => FileRequested?.Invoke(file);
+                    if (_images is not null) bubble.ConfigureImages(_images);
+                    _bubbles.Add(m.Id, bubble); _flow.Controls.Add(bubble);
+                }
+                byId.TryGetValue(m.Id, out var detail);
+                var startsGroup = hasDivider || previous is null || m.Kind == MessageKind.System || previous.Kind == MessageKind.System ||
+                    previous.SenderUserId != m.SenderUserId || Math.Abs(m.CreatedAtTicks - previous.CreatedAtTicks) >= TimeSpan.FromMinutes(5).Ticks;
+                bubble.Bind(m, detail, m.SenderUserId == localUser, startsGroup, IsUnread(m, localUser));
+                bubble.Highlighted = m.Id == _highlight;
+                SetPosition(bubble, index++);
+                previous = m;
+            }
+            ResizeItems();
+            _flow.ResumeLayout(true);
+
+            if (changedConversation && firstUnread is not null) ScrollTo(_unreadDivider.Top);
+            else if (followEnd) ScrollToEnd();
+            else if (anchorId is Guid messageId && _bubbles.TryGetValue(messageId, out var anchor)) ScrollTo(anchor.Top - anchorTop);
+            if (AtBottom) NewMessages?.Invoke(false);
+            else if (changedConversation || _lastMessage != last) NewMessages?.Invoke(true);
+            _lastMessage = last;
         }
-        ResizeItems(); _flow.ResumeLayout(true);
-        if (!hasDetails) RestoreScroll();
+        finally { _flow.ResumeLayout(true); _binding = false; }
+        foreach (var bubble in _bubbles.Values) bubble.EnsureImagesLoaded();
     }
-    public void BindDetails(IEnumerable<MessageDetails> details)
-    {
-        _flow.SuspendLayout();
-        foreach (var d in details)
-            if (_bubbles.TryGetValue(d.Message.Id, out var bubble)) bubble.BindDetails(d);
-        _flow.ResumeLayout(true);
-        RestoreScroll();
-    }
+
+    private void SetPosition(Control child, int index)
+    { if (_flow.Controls.GetChildIndex(child) != index) _flow.Controls.SetChildIndex(child, index); }
+
+    private static bool IsUnread(ChatMessage message, Guid localUser) =>
+        message.Kind != MessageKind.System && message.SenderUserId != localUser && !message.IsRead;
 
     public bool AtBottom => !_flow.VerticalScroll.Visible ||
         _flow.VerticalScroll.Value + _flow.VerticalScroll.LargeChange >= _flow.VerticalScroll.Maximum - 24;
 
-    private void RestoreScroll()
-    {
-        if (_followEnd) ScrollToEnd();
-        else if (_scrollAnchor is { } anchor && _bubbles.TryGetValue(anchor.Id, out var control))
-            _flow.AutoScrollPosition = new Point(0, Math.Max(0, -_flow.AutoScrollPosition.Y + control.Top - anchor.Top));
-    }
+    private void ScrollTo(int delta) => _flow.AutoScrollPosition = new Point(0, Math.Max(0, delta - _flow.AutoScrollPosition.Y));
 
     public void ScrollToEnd()
     {
@@ -239,8 +394,9 @@ public sealed class MessageListControl : UserControl
     public void FocusMessage(Guid id)
     {
         if (!_bubbles.TryGetValue(id, out var bubble)) return;
-        if (_highlight is Guid last && _bubbles.TryGetValue(last, out var old)) old.BorderStyle = BorderStyle.None;
-        _flow.ScrollControlIntoView(bubble); bubble.BorderStyle = BorderStyle.FixedSingle; _highlight = id;
+        if (_highlight is Guid last && _bubbles.TryGetValue(last, out var old)) old.Highlighted = false;
+        _flow.ScrollControlIntoView(bubble); bubble.Highlighted = true; _highlight = id;
+        bubble.EnsureImagesLoaded();
     }
 }
 
@@ -410,20 +566,19 @@ public sealed class ChatViewControl : UserControl
         _title.Text = name; _subtitle.Text = group ? "Chat nhóm · Tin nhắn được lưu và đồng bộ giữa các máy" : online ? "● Đang trực tuyến · Chat trực tiếp trong mạng LAN" : "○ Đang offline · Tin nhắn sẽ tự gửi khi kết nối lại";
         _input.Enabled = true; _find.Enabled = _info.Enabled = true;
     }
-    internal void Bind(Guid id, IReadOnlyList<ChatMessage> messages, Guid user, MessageDetails[] details)
-    { _messages.Bind(id, messages, user, true); _messages.BindDetails(details); }
+    internal void Bind(Guid id, IReadOnlyList<ChatMessage> messages, Guid user, MessageDetails[] details, bool search)
+    { _searchWindow = search; _messages.Bind(id, messages, user, details, search); }
     internal ComposerDraft Draft() => _input.Draft();
     internal void RestoreDraft(ComposerDraft? draft) => _input.RestoreDraft(draft);
     internal void ScrollToEnd() => _messages.ScrollToEnd();
     internal bool AtBottom => _messages.AtBottom;
     public void ConfigureImages(ChatImageService images) => _messages.ConfigureImages(images);
-    public void BindDetails(IEnumerable<MessageDetails> details) => _messages.BindDetails(details);
     public void SetContext(ChatMessage message, bool edit) => _input.SetContext(message, edit);
     public void ResetContext() => _input.ResetContext();
     public void ResetDraft() => _input.ResetDraft();
     public void ClearConversation()
     {
-        _input.ResetDraft(); _input.Enabled = false; _find.Enabled = _info.Enabled = false; _messages.Bind(Guid.Empty, [], Guid.Empty);
+        _input.ResetDraft(); _input.Enabled = false; _find.Enabled = _info.Enabled = false; _messages.Bind(Guid.Empty, [], Guid.Empty, []);
         _searchWindow = false; _older.Visible = _new.Visible = false;
         _title.Text = "Chào mừng đến LanChat"; _subtitle.Text = "Chọn cuộc trò chuyện để tiếp tục.";
     }
