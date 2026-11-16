@@ -15,7 +15,8 @@ public sealed class ImageThumbnailControl : UserControl
     public event Action<AttachmentDto>? Selected;
     public ImageThumbnailControl(AttachmentDto file, ChatImageService images, bool compact = false)
     {
-        _file = file; _images = images; Size = compact ? new Size(96, 88) : new Size(180, 165);
+        _file = file; _images = images; Size = compact ? new Size(96, 66) : new Size(180, 165);
+        if (compact) _label.Height = 22;
         Margin = new Padding(4); Padding = new Padding(2); BackColor = Color.White;
         _label.Text = file.FileSize > ChatImageService.InlineLimit ? "Bấm để xem ảnh lớn" : file.FileName;
         Controls.Add(_picture); Controls.Add(_label);

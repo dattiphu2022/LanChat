@@ -31,9 +31,9 @@ internal sealed class UnreadBadge : Control
     public override Size GetPreferredSize(Size proposedSize)
     {
         if (Text.Length == 0) return Size.Empty;
-        var height = Math.Max(LogicalToDeviceUnits(18), Font.Height + LogicalToDeviceUnits(3));
+        var height = Math.Max(this.ScalePixels(18), Font.Height + this.ScalePixels(3));
         var textWidth = TextRenderer.MeasureText(Text, Font, Size.Empty, TextFormatFlags.NoPadding | TextFormatFlags.SingleLine).Width;
-        return new Size(Math.Max(height, textWidth + LogicalToDeviceUnits(10)), height);
+        return new Size(Math.Max(height, textWidth + this.ScalePixels(10)), height);
     }
 
     protected override void OnPaint(PaintEventArgs e)

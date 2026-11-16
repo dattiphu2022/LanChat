@@ -3,6 +3,7 @@ using System.Net.Sockets;
 using System.Text.Json;
 using LanChat.Application;
 using LanChat.Infrastructure;
+using LanChat.WinForms.Controls;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
@@ -20,11 +21,12 @@ internal sealed class NetworkCatalog(NodeOptions primary)
     private readonly HashSet<int> _ports = new();
     private readonly string _directory = primary.DataDirectory;
     private readonly string _provisionedPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "default-network.json");
+    private AppProfile? _savedProfile;
     private const string DefaultNetworkResource = "LanChat.DefaultNetwork";
     private bool HasProvisionedDefault => File.Exists(_provisionedPath) ||
         typeof(NetworkCatalog).Assembly.GetManifestResourceInfo(DefaultNetworkResource) is not null;
     public IReadOnlyList<NetworkEntry> Entries => _entries;
-    public AppProfile? Profile { get; private set; }
+    public AppProfile Profile => _savedProfile ?? new AppProfile(primary.InitialDisplayName, primary.InitialDepartment);
     public NetworkEntry? DefaultNetwork { get; private set; }
     public bool FirstPrivateCodeHandled { get; private set; }
     public bool NeedsDefaultChoice => !FirstPrivateCodeHandled && _entries.Any(IsDefault);
@@ -62,7 +64,7 @@ internal sealed class NetworkCatalog(NodeOptions primary)
             try { DefaultNetwork = await PrepareDefaultAsync(); }
             catch (Exception ex) when (_entries.Count > 0 && ex is IOException or JsonException or ArgumentException)
             {
-                DefaultNetworkError = "Mạng mặc định: " + ex.Message;
+                DefaultNetworkError = "Mạng mặc định: " + UiText.HideIpAddresses(ex.Message);
             }
             FirstPrivateCodeHandled = _entries.Any(e => !IsDefault(e));
             if (DefaultNetwork is not null)
@@ -83,12 +85,12 @@ internal sealed class NetworkCatalog(NodeOptions primary)
                 }
             }
             catch (Exception ex) when (ex is IOException or JsonException or ArgumentException)
-            { DefaultNetworkError = "Mạng mặc định: " + ex.Message; }
+            { DefaultNetworkError = "Mạng mặc định: " + UiText.HideIpAddresses(ex.Message); }
         }
 
         var profile = Path.Combine(_directory, "profile.json");
         if (File.Exists(profile))
-            Profile = JsonSerializer.Deserialize<AppProfile>(await FrameworkIO.ReadTextAsync(profile));
+            _savedProfile = JsonSerializer.Deserialize<AppProfile>(await FrameworkIO.ReadTextAsync(profile));
     }
 
     public async Task<NetworkEntry> RestoreDefaultAsync()
@@ -107,7 +109,7 @@ internal sealed class NetworkCatalog(NodeOptions primary)
     {
         var profile = new AppProfile(name, department);
         await WriteAsync("profile.json", profile);
-        Profile = profile;
+        _savedProfile = profile;
     }
 
     public async Task<NetworkEntry[]> AddAsync(IEnumerable<string> codes, bool creator = false)
@@ -188,7 +190,7 @@ internal sealed class NetworkCatalog(NodeOptions primary)
                 var store = host.Services.GetRequiredService<IChatStore>();
                 await Task.Run(() => store.InitializeAsync());
                 var saved = await store.GetProfileAsync();
-                if (Profile is null && (entry.Primary || !_entries.Any(e => e.Primary)))
+                if (_savedProfile is null && (entry.Primary || !_entries.Any(e => e.Primary)))
                     await SaveProfileAsync(saved.DisplayName, saved.Department);
                 await ApplyProfileAsync(store);
                 await host.StartAsync();
@@ -206,7 +208,7 @@ internal sealed class NetworkCatalog(NodeOptions primary)
 
     public async Task ApplyProfileAsync(IChatStore store)
     {
-        if (Profile is not { } profile) return;
+        if (_savedProfile is not { } profile) return;
         var user = await store.GetProfileAsync();
         if (user.DisplayName == profile.Name && (user.Department ?? "") == (profile.Department ?? "")) return;
         user.DisplayName = profile.Name; user.Department = profile.Department;
@@ -216,14 +218,14 @@ internal sealed class NetworkCatalog(NodeOptions primary)
     private NodeOptions OptionsFor(NetworkEntry entry)
     {
         if (entry.Primary) return primary;
-        var options = new NodeOptions
+        var profile = Profile;
+        return new NodeOptions
         {
             DataDirectory = Path.Combine(_directory, "Networks", entry.Id.ToString("N")),
             ServicePort = ClusterPorts.Alternate(entry.Id),
-            InitialDisplayName = Profile?.Name ?? primary.InitialDisplayName,
-            InitialDepartment = Profile?.Department
+            InitialDisplayName = profile.Name,
+            InitialDepartment = profile.Department
         };
-        return options;
     }
 
     public async Task StopAsync(RunningNetwork network)

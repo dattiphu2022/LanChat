@@ -24,7 +24,8 @@ internal sealed class PromptTextBox : TextBox
         if (m.Msg == PaintMessage && Multiline && !Focused && TextLength == 0 && _placeholderText.Length > 0)
         {
             using var graphics = Graphics.FromHwnd(Handle);
-            var bounds = Rectangle.Inflate(ClientRectangle, -4, -4);
+            var inset = this.ScalePixels(4);
+            var bounds = Rectangle.Inflate(ClientRectangle, -inset, -inset);
             if (bounds.Width > 0 && bounds.Height > 0)
                 TextRenderer.DrawText(graphics, _placeholderText, Font, bounds, Theme.Muted, TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
         }

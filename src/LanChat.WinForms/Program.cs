@@ -1,5 +1,6 @@
 using LanChat.Application;
 using LanChat.Infrastructure;
+using LanChat.WinForms.Controls;
 using LanChat.WinForms.Forms;
 using Microsoft.Extensions.DependencyInjection;
 using System.Security.AccessControl;
@@ -64,13 +65,13 @@ internal static class Program
                 catch (OperationCanceledException) { window.ExitApplication(); }
                 catch (Exception ex)
                 {
-                    MessageBox.Show(window, ex.Message, "Không khởi động được LanChat", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    MessageBox.Show(window, UiText.HideIpAddresses(ex.Message), "Không khởi động được LanChat", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     window.ExitApplication();
                 }
             };
             System.Windows.Forms.Application.Run(window);
         }
-        catch (Exception ex) { MessageBox.Show(ex.Message, "Không khởi động được LanChat", MessageBoxButtons.OK, MessageBoxIcon.Error); }
+        catch (Exception ex) { MessageBox.Show(UiText.HideIpAddresses(ex.Message), "Không khởi động được LanChat", MessageBoxButtons.OK, MessageBoxIcon.Error); }
     }
 
     private static Mutex AcquireInstance(out bool acquired)

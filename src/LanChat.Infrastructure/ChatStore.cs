@@ -201,7 +201,8 @@ public sealed partial class ChatStore(ChatDatabase database, NodeOptions options
             var u = users[otherId.Value];
             var last = db.One<Message>("ConversationId=$0 AND IsDeletedLocal=0" + NewestFirst + " LIMIT 1", c.Id);
             var unread = (int)db.Count<Message>("ConversationId=$0 AND SenderUserId=$1 AND IsRead=0 AND IsDeletedLocal=0", c.Id, u.UserId);
-            result.Add(new(c.Id, u.UserId, u.DisplayName, last?.Text ?? "Bắt đầu trò chuyện", last?.CreatedAtTicks ?? 0, unread, c.IsPinned, c.IsMuted, u.Presence));
+            result.Add(new(c.Id, u.UserId, u.DisplayName, last?.Text ?? "Bắt đầu trò chuyện", last?.CreatedAtTicks ?? 0, unread, c.IsPinned, c.IsMuted, u.Presence)
+                { Department = u.Department });
         }
         return result.OrderByDescending(x => x.IsPinned).ThenByDescending(x => x.LastMessageTicks).ToArray();
     }

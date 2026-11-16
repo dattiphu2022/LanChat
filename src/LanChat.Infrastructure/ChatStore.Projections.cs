@@ -177,15 +177,21 @@ public sealed partial class ChatStore
         using var db = database.Open(ct);
         var messages = db.Rows<Message>(In("Id", messageIds), Args(messageIds));
         var senders = messages.Select(x => x.SenderUserId).Distinct().ToArray();
-        var names = db.Rows<LocalUserProfile>(In("Id", senders), Args(senders)).ToDictionary(x => x.Id, x => x.DisplayName);
+        var profiles = db.Rows<LocalUserProfile>(In("Id", senders), Args(senders)).ToDictionary(x => x.Id);
         var attachments = db.Rows<Attachment>(In("MessageId", messageIds), Args(messageIds)).Select(ToAttachment).ToLookup(x => x.MessageId);
         var reactions = db.Rows<MessageReaction>(In("MessageId", messageIds), Args(messageIds)).ToLookup(x => x.MessageId);
         var receipts = db.Rows<MessageReceipt>(In("MessageId", messageIds), Args(messageIds)).ToLookup(x => x.MessageId);
         var replyIds = messages.Where(x => x.ReplyToMessageId.HasValue).Select(x => x.ReplyToMessageId!.Value).ToArray();
         var replies = db.Rows<Message>(In("Id", replyIds), Args(replyIds)).ToDictionary(x => x.Id);
-        return messages.Select(m => new MessageDetails(m, m.IsRecalled ? [] : attachments[m.Id].ToArray(), reactions[m.Id].Select(x => x.Emoji).ToArray(),
-            receipts[m.Id].Count(x => x.UserId != m.SenderUserId), receipts[m.Id].Count(x => x.IsRead && x.UserId != m.SenderUserId),
-            m.ReplyToMessageId.HasValue && replies.TryGetValue(m.ReplyToMessageId.Value, out var reply) ? reply.IsDeletedLocal ? "Tin nhắn đã xóa phía bạn" : reply.Text : null, names.TryGetValue(m.SenderUserId, out var senderName) ? senderName : null)).ToArray();
+        return messages.Select(m =>
+        {
+            profiles.TryGetValue(m.SenderUserId, out var sender);
+            var replyPreview = m.ReplyToMessageId is Guid replyId && replies.TryGetValue(replyId, out var reply)
+                ? reply.IsDeletedLocal ? "Tin nhắn đã xóa phía bạn" : reply.Text : null;
+            return new MessageDetails(m, m.IsRecalled ? [] : attachments[m.Id].ToArray(), reactions[m.Id].Select(x => x.Emoji).ToArray(),
+                receipts[m.Id].Count(x => x.UserId != m.SenderUserId), receipts[m.Id].Count(x => x.IsRead && x.UserId != m.SenderUserId), replyPreview, sender?.DisplayName)
+                { SenderDepartment = sender?.Department };
+        }).ToArray();
     }
     private static string In(string column, Guid[] ids) => column + " IN (" + ChatDbContext.Parameters(ids.Length) + ")";
     private static object[] Args(Guid[] ids) => ids.Cast<object>().ToArray();

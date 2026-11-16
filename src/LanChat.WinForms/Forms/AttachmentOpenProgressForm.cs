@@ -3,7 +3,7 @@ using LanChat.WinForms.Controls;
 
 namespace LanChat.WinForms.Forms;
 
-internal sealed class AttachmentOpenProgressForm : Form
+internal sealed class AttachmentOpenProgressForm : DpiForm
 {
     private readonly Label _state = Theme.Label("Đang chuẩn bị tệp…");
     private readonly ProgressBar _progress = new() { Dock = DockStyle.Fill, Style = ProgressBarStyle.Marquee, Maximum = 1000 };

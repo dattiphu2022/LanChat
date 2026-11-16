@@ -3,7 +3,7 @@ using LanChat.WinForms.Controls;
 
 namespace LanChat.WinForms.Forms;
 
-internal sealed class NetworkManagerForm : Form
+internal sealed class NetworkManagerForm : DpiForm
 {
     private readonly ListBox _list = new() { Dock = DockStyle.Fill, DisplayMember = nameof(NetworkEntry.Name), AccessibleName = "Mạng đã lưu" };
     private readonly TextBox _codes = new() { Dock = DockStyle.Fill, Multiline = true, ScrollBars = ScrollBars.Vertical, AccessibleName = "Mã tham gia, mỗi mã một dòng" };
@@ -15,16 +15,16 @@ internal sealed class NetworkManagerForm : Form
     {
         Icon = AppIcon.Value;
         Text = "Mạng chat"; ClientSize = new Size(750, 408); MinimumSize = new Size(720, 385);
-        Font = new Font("Segoe UI", 10); StartPosition = FormStartPosition.CenterParent; AutoScaleMode = AutoScaleMode.Dpi;
+        StartPosition = FormStartPosition.CenterParent;
         var layout = Theme.Stack(6); layout.Padding = new Padding(12);
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 24));
         layout.RowStyles.Add(new RowStyle(SizeType.Percent, 56));
-        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 51));
+        layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 26));
         layout.RowStyles.Add(new RowStyle(SizeType.Percent, 44));
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 56));
         layout.Controls.Add(Theme.Label("Mạng đã lưu", 10, true), 0, 0); layout.Controls.Add(_list, 0, 1);
-        var actions = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false };
+        var actions = Theme.Toolbar();
         var show = Theme.Secondary("Chi tiết");
         var retry = Theme.Secondary("Kết nối lại");
         var rename = Theme.Secondary("Đổi tên");
@@ -62,7 +62,7 @@ internal sealed class NetworkManagerForm : Form
             _busy = true; layout.Enabled = false;
             try { await action(); }
             catch (OperationCanceledException) { }
-            catch (Exception ex) { _status.Text = ex.Message; }
+            catch (Exception ex) { _status.Text = UiText.HideIpAddresses(ex.Message); }
             finally { _busy = false; layout.Enabled = true; UpdateButtons(); }
         }
         Shown += async (_, _) => await RunAsync(OfferToRemoveDefaultAsync);
@@ -75,7 +75,7 @@ internal sealed class NetworkManagerForm : Form
             var errors = new List<string>();
             foreach (var item in added)
                 try { await connect(item, false); }
-                catch (Exception ex) { errors.Add(item.Name + " · " + ex.Message); }
+                catch (Exception ex) { errors.Add(item.Name + " · " + UiText.HideIpAddresses(ex.Message)); }
             var connectedNetwork = added.FirstOrDefault(item => connected(item.Id));
             if (connectedNetwork is not null)
             {

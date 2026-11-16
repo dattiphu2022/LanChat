@@ -18,9 +18,25 @@ public sealed partial class MainForm
         try
         {
             Directory.CreateDirectory(Path.GetDirectoryName(reportPath)!);
+            var profile = await _store.GetProfileAsync(deadline.Token);
+            var firstInstance = profile.DisplayName.EndsWith("A", StringComparison.Ordinal);
+            profile.Department = firstInstance ? "Phòng kỹ thuật" : "Đội hậu cần";
+            await _store.SaveProfileAsync(profile, deadline.Token);
+            await UpdateProfileAsync();
+            var otherDepartment = firstInstance ? "Đội hậu cần" : "Phòng kỹ thuật";
             IReadOnlyList<UserSummary> contacts;
-            do { await Task.Delay(200, deadline.Token); contacts = await _store.GetUsersAsync(ct: deadline.Token); } while (contacts.Count == 0);
-            var other = contacts[0]; var profile = await _store.GetProfileAsync(deadline.Token);
+            do { await Task.Delay(200, deadline.Token); contacts = await _store.GetUsersAsync(ct: deadline.Token); }
+            while (contacts.Count == 0 || contacts[0].Department != otherDepartment);
+            await RefreshAsync();
+            ShowPeople(true);
+            foreach (var label in Descendants(_people).OfType<Label>())
+                VerifyNoPeerIp(label.Text, contacts);
+            var other = contacts[0];
+            var otherName = new PersonName(other.DisplayName, other.Department);
+            var expectedDepartment = firstInstance ? "ĐỘI HẬU CẦN" : "PHÒNG KỸ THUẬT";
+            if (!Descendants(_people).OfType<PersonNameLabel>().Any(l => l.Text == $"{expectedDepartment} {other.DisplayName}") ||
+                new PersonName("Tên", " ").ToString() != "Tên")
+                throw new InvalidOperationException("Đơn vị chưa được định dạng đúng trong danh bạ.");
             var conversation = await _store.OpenDirectAsync(other.UserId, deadline.Token);
             await SelectConversationAsync(conversation);
             var text = $"Xin chào từ {profile.DisplayName} 👋\nTin nhắn nhiều dòng qua TCP, không có server riêng.";
@@ -30,9 +46,13 @@ public sealed partial class MainForm
             {
                 await Task.Delay(200, deadline.Token); messages = await _store.GetMessagesAsync(conversation, ct: deadline.Token);
             } while (messages.Count < 2 || await _store.GetPendingCountAsync(deadline.Token) != 0);
+            await RefreshAsync();
+            if (!Descendants(_conversations).OfType<PersonNameLabel>().Any(l => l.Person == otherName) ||
+                !Descendants(_chat).OfType<MessageBubbleControl>().SelectMany(Descendants).OfType<PersonNameLabel>().Any(l => l.Person == otherName))
+                throw new InvalidOperationException("Hội thoại hoặc tin nhắn thiếu đơn vị của người dùng.");
             foreach (var size in new[] { new Size(1240, 800), new Size(1020, 650) })
             {
-                ClientSize = size; await RefreshAsync(); await Task.Delay(350, deadline.Token);
+                ResizeForVerification(this, size); await RefreshAsync(); await Task.Delay(350, deadline.Token);
                 var path = Path.ChangeExtension(reportPath, $"{size.Width}.png"); CaptureForm(this, path); captures.Add(path);
                 static object Describe(Control c) => new { Type = c.GetType().Name, Bounds = c.Bounds.ToString(), Minimum = c.MinimumSize.ToString(), c.AutoSize, Dock = c.Dock.ToString(), Children = c.Controls.Cast<Control>().Select(Describe).ToArray() };
                 await FrameworkIO.WriteTextAsync(Path.ChangeExtension(reportPath, $"{size.Width}.layout.json"), JsonSerializer.Serialize(Describe(this), new JsonSerializerOptions { WriteIndented = true }));
@@ -44,7 +64,7 @@ public sealed partial class MainForm
             var match = (await Distributed.SearchMessagesAsync("Xin chào", conversation, deadline.Token)).First();
             await JumpAsync(match);
             if (_searchAnchor != match.MessageId) throw new InvalidOperationException("Không mở được kết quả tìm tin.");
-            ClientSize = new Size(1240, 800);
+            ResizeForVerification(this, new Size(1240, 800));
             await OpenPanelAsync(true);
             await SearchInPanelAsync("Xin chào");
             await Task.Delay(250, deadline.Token);
@@ -55,13 +75,19 @@ public sealed partial class MainForm
             _chat.ResetDraft();
             var own = messages.Single(m => m.SenderUserId == profile.Id); var theirs = messages.Single(m => m.SenderUserId != profile.Id);
             await MessageActionAsync(own, "edit"); await _chat.SubmitForVerificationAsync("Nội dung đã sửa từ " + profile.DisplayName);
-            await MessageActionAsync(theirs, "react:👍"); await MessageActionAsync(theirs, "reply");
+            _chat.FocusMessage(theirs.Id);
+            Descendants(_chat).OfType<MessageBubbleControl>().Single(c => c.MessageId == theirs.Id).ClickActionsForVerification("👍");
+            if (_chat.Draft().Reply != theirs.Id) throw new InvalidOperationException("Nút trích dẫn chưa chọn đúng tin nhắn.");
+            while (!(await Distributed.GetMessageDetailsAsync(theirs.Id, deadline.Token)).Reactions.Any(x => x.StartsWith("👍", StringComparison.Ordinal)))
+                await Task.Delay(100, deadline.Token);
             var textFile = Path.ChangeExtension(reportPath, "attachment.txt"); await FrameworkIO.WriteTextAsync(textFile, "Tệp thử nghiệm của " + profile.DisplayName, deadline.Token);
             var imageFile = Path.ChangeExtension(reportPath, "attachment.png");
             var portraitFile = Path.ChangeExtension(reportPath, "portrait.png");
             using (var bitmap = new Bitmap(800, 450)) { using var graphics = Graphics.FromImage(bitmap); graphics.Clear(Color.CornflowerBlue); graphics.DrawString(profile.DisplayName + " · Ảnh ngang", Font, Brushes.White, new PointF(200, 200)); bitmap.Save(imageFile, ImageFormat.Png); }
             using (var bitmap = new Bitmap(450, 800)) { using var graphics = Graphics.FromImage(bitmap); graphics.Clear(Color.SeaGreen); graphics.DrawString(profile.DisplayName + " · Ảnh dọc", Font, Brushes.White, new PointF(100, 350)); bitmap.Save(portraitFile, ImageFormat.Png); }
-            ClientSize = new Size(1240, 800); _chat.DropForVerification([textFile, imageFile, portraitFile]); await Task.Delay(200, deadline.Token);
+            ResizeForVerification(this, new Size(1240, 800));
+            _chat.DropForVerification([textFile, imageFile, portraitFile]); await Task.Delay(200, deadline.Token);
+            VerifyComposerLayout();
             var previewPath = Path.ChangeExtension(reportPath, "drop-preview.png"); CaptureForm(this, previewPath); captures.Add(previewPath);
             await _chat.SubmitForVerificationAsync("Bộ ảnh của " + profile.DisplayName + "\nChú thích chung cho ảnh ngang và ảnh dọc.");
             // The recipient must still receive the sent snapshot after originals change or disappear.
@@ -70,7 +96,6 @@ public sealed partial class MainForm
             AttachmentDto[] attachments;
             do { await Task.Delay(200, deadline.Token); messages = await _store.GetMessagesAsync(conversation, ct: deadline.Token); attachments = await Distributed.GetAttachmentsAsync(conversation, deadline.Token); }
             while (messages.Count != 4 || attachments.Length != 6 || messages.Count(m => m.IsEdited) != 2);
-            static IEnumerable<Control> Descendants(Control parent) => parent.Controls.Cast<Control>().SelectMany(c => Descendants(c).Prepend(c));
             var inlineImagesLoaded = 0;
             await RefreshAsync();
             foreach (var message in messages.Where(m => attachments.Any(f => f.MessageId == m.Id)))
@@ -82,7 +107,7 @@ public sealed partial class MainForm
                 if (await Files.GetLocalPathAsync(file.Sha256, deadline.Token) is null) throw new InvalidOperationException("Ảnh inline chưa tự tải về local.");
             foreach (var size in new[] { new Size(1240, 800), new Size(1020, 650) })
             {
-                ClientSize = size; await RefreshAsync(); _chat.FocusMessage(messages.Last(m => attachments.Any(f => f.MessageId == m.Id)).Id);
+                ResizeForVerification(this, size); await RefreshAsync(); _chat.FocusMessage(messages.Last(m => attachments.Any(f => f.MessageId == m.Id)).Id);
                 do { await Task.Delay(200, deadline.Token); inlineImagesLoaded = Descendants(this).OfType<ImageThumbnailControl>().Count(c => c.HasImage); } while (inlineImagesLoaded < 2);
                 var path = Path.ChangeExtension(reportPath, $"inline-images-{size.Width}.png"); CaptureForm(this, path); captures.Add(path);
             }
@@ -91,14 +116,15 @@ public sealed partial class MainForm
             _attachmentLaunchForVerification = path => openedPaths.Add(path);
             _galleryForVerification = async (items, selected) =>
             {
-                if (items.Length != 4 || items.Any(x => !x.Caption.Contains(x.Sender))) throw new InvalidOperationException("Album thiếu ảnh hoặc chú thích không đúng người gửi.");
+                if (items.Length != 4 || items.Any(x => !x.Caption.Contains(x.Sender.Name) || string.IsNullOrEmpty(x.Sender.Department)))
+                    throw new InvalidOperationException("Album thiếu ảnh, đơn vị hoặc chú thích không đúng người gửi.");
                 using var gallery = new ImageGalleryForm(items, selected, _images, Files);
                 gallery.Show(this); await gallery.VerifyAsync();
                 if (verifiedGalleries == 0)
                 {
                     foreach (var size in new[] { new Size(1080, 800), new Size(780, 580) })
                     {
-                        gallery.ClientSize = size; await Task.Delay(300, deadline.Token); gallery.VerifyLayout();
+                        ResizeForVerification(gallery, size); await Task.Delay(300, deadline.Token); gallery.VerifyLayout();
                         var path = Path.ChangeExtension(reportPath, $"gallery-{size.Width}.png"); CaptureForm(gallery, path); captures.Add(path);
                     }
                 }
@@ -118,7 +144,7 @@ public sealed partial class MainForm
             await OpenAttachmentAsync(attachments.First(x => !ChatImageService.IsImage(x)));
             if (openedPaths.Count != 3 || openedPaths[0] != openedPaths[openedPaths.Count - 1]) throw new InvalidOperationException("Bấm lại chưa tái sử dụng tệp local.");
             _attachmentLaunchForVerification = null; _galleryForVerification = null;
-            if (profile.DisplayName.EndsWith("A", StringComparison.Ordinal))
+            if (firstInstance)
             {
                 var command = new ControlCommand(LanChat.Domain.AppIdentity.NewId(), Domain.ControlCommandType.GroupCreated, profile.Id, LanChat.Domain.AppIdentity.NewId(), "Nhóm thử nghiệm LAN", Members: [profile.Id, other.UserId]);
                 ControlResult result;
@@ -141,15 +167,16 @@ public sealed partial class MainForm
             using (var diagnostics = ActivatorUtilities.CreateInstance<ClusterDiagnosticsForm>(_services))
             {
                 diagnostics.Show(this); await Task.Delay(350, deadline.Token);
+                VerifyNoPeerIp(diagnostics.BuildReport(), contacts);
                 var path = Path.ChangeExtension(reportPath, "diagnostics.png"); CaptureForm(diagnostics, path); captures.Add(path); diagnostics.Close();
             }
             var identity = await _store.GetIdentityAsync(deadline.Token);
-            await FrameworkIO.WriteTextAsync(reportPath, JsonSerializer.Serialize(new { Success = true, identity.NodeId, identity.UserId,
+            await FrameworkIO.WriteTextAsync(reportPath, JsonSerializer.Serialize(new { Success = true, identity.NodeId, identity.UserId, DeviceDpi,
                 Messages = messages.Select(x => new { x.Id, x.Text, x.Status, x.IsEdited, x.ReplyToMessageId }).ToArray(),
                 GroupId = group.Id, GroupMessageIds = groupMessages.Select(x => x.Id).ToArray(), VerifiedFiles = attachments.Length, VerifiedOpenRequests = openedPaths.Count,
                 VerifiedGalleries = verifiedGalleries, InlineImagesLoaded = inlineImagesLoaded, VerifiedSourceChanges = 3,
                 Consensus = await Consensus.GetStatusAsync(deadline.Token), Captures = captures }, new JsonSerializerOptions { WriteIndented = true }), deadline.Token);
-            var partnerReport = Path.Combine(Path.GetDirectoryName(reportPath)!, profile.DisplayName.EndsWith("A", StringComparison.Ordinal) ? "B.json" : "A.json");
+            var partnerReport = Path.Combine(Path.GetDirectoryName(reportPath)!, firstInstance ? "B.json" : "A.json");
             while (!File.Exists(partnerReport)) await Task.Delay(200, deadline.Token);
         }
         catch (Exception ex)
@@ -161,7 +188,6 @@ public sealed partial class MainForm
     }
     private void VerifyVisibleControls()
     {
-        static IEnumerable<Control> Descendants(Control parent) => parent.Controls.Cast<Control>().SelectMany(c => Descendants(c).Prepend(c));
         var controls = Descendants(this).ToArray();
         if (controls.OfType<MessageBubbleControl>().Count() < 2) throw new InvalidOperationException("UI chưa render đủ tin nhắn.");
         foreach (var control in controls.Where(c => c is NavigationItemControl or MessageBubbleControl or ChatInputControl))
@@ -173,6 +199,35 @@ public sealed partial class MainForm
                 throw new InvalidOperationException($"Control bị khuất: {control.GetType().Name}, bounds={original}, visible={visible}");
         }
     }
+
+    private void VerifyComposerLayout()
+    {
+        var composer = Descendants(_chat).OfType<ChatInputControl>().Single();
+        var editor = Descendants(composer).OfType<TextBox>().Single();
+        var layout = (TableLayoutPanel)composer.Parent;
+        var messages = Descendants(_chat).OfType<MessageListControl>().Single();
+        if (layout.GetRowHeights().Any(h => h < 0) || messages.Height < this.ScalePixels(24) ||
+            editor.Height < this.ScalePixels(32) || editor.Width < this.ScalePixels(80))
+            throw new InvalidOperationException("Bố cục nhập tin hoặc lịch sử bị thu hẹp khi thêm tệp.");
+    }
+
+    private static void VerifyNoPeerIp(string text, IEnumerable<UserSummary> contacts)
+    {
+        if (contacts.Any(user => user.IPAddress.Length > 0 && text.Contains(user.IPAddress)))
+            throw new InvalidOperationException("Giao diện hoặc bản chẩn đoán còn hiển thị địa chỉ IP.");
+    }
+
+    private static IEnumerable<Control> Descendants(Control parent) =>
+        parent.Controls.Cast<Control>().SelectMany(c => Descendants(c).Prepend(c));
+
+    private static void ResizeForVerification(Form form, Size logicalSize)
+    {
+        var area = Screen.FromControl(form).WorkingArea.Size;
+        form.ClientSize = new Size(
+            Math.Min(form.ScalePixels(logicalSize.Width), area.Width - (form.Width - form.ClientSize.Width)),
+            Math.Min(form.ScalePixels(logicalSize.Height), area.Height - (form.Height - form.ClientSize.Height)));
+    }
+
     private static void CaptureForm(Form form, string path)
     {
         using var bitmap = new Bitmap(form.Width, form.Height); form.DrawToBitmap(bitmap, form.ClientRectangle with { Width = form.Width, Height = form.Height });

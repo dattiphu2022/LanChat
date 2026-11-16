@@ -57,7 +57,7 @@ public sealed partial class MainForm
             await RefreshAsync();
             if (_activeConversation == conversation && !_searchAnchor.HasValue) _chat.ScrollToEnd();
         }
-        catch (Exception ex) { if (!IsDisposed && !_lifetime.IsCancellationRequested) _status.Text = ex.Message; }
+        catch (Exception ex) { if (!IsDisposed && !_lifetime.IsCancellationRequested) _status.Text = UiText.HideIpAddresses(ex.Message); }
     }
     private static bool MatchesSubmission(ComposerDraft draft, ComposerSubmission submission) =>
         draft.Text == submission.Text && draft.Reply == submission.ReplyTo && draft.Edit == submission.EditId && draft.Files.SequenceEqual(submission.Files);
@@ -72,7 +72,7 @@ public sealed partial class MainForm
             case "unreact": foreach (var emoji in new[] { "👍", "❤️", "😂", "😮", "😢" }) await Distributed.ReactAsync(message.Id, emoji, false, _lifetime.Token); break;
             case "forward":
                 var conversations = await _store.GetConversationsAsync(ct: _lifetime.Token);
-                using (var select = new SelectionForm("Chuyển tiếp đến", conversations.Select(x => new SelectionItem(x.Id, x.DisplayName))))
+                using (var select = new SelectionForm("Chuyển tiếp đến", conversations.Select(x => new SelectionItem(x.Id, x.DisplayName, x.Department))))
                 {
                     if (select.ShowDialog(this) != DialogResult.OK || select.SelectedId is not { } destination) return;
                     var details = await Distributed.GetMessageDetailsAsync(message.Id, _lifetime.Token);
@@ -115,7 +115,8 @@ public sealed partial class MainForm
         var files = (await Distributed.GetAttachmentsAsync(detail.Message.ConversationId, _lifetime.Token)).Where(ChatImageService.IsImage).ToLookup(x => x.MessageId);
         var messages = await Distributed.GetMessageDetailsBatchAsync(files.Select(g => g.Key).ToArray(), _lifetime.Token);
         return messages.OrderBy(x => x.Message.PhysicalTicks).ThenBy(x => x.Message.LogicalCounter).ThenBy(x => x.Message.OriginNodeId).ThenBy(x => x.Message.Id)
-            .SelectMany(m => files[m.Message.Id].OrderBy(x => x.Id).Select(f => new GalleryImage(f, m.Message.Text, m.SenderName ?? "", m.Message.CreatedAtTicks))).ToArray();
+            .SelectMany(m => files[m.Message.Id].OrderBy(x => x.Id).Select(f =>
+                new GalleryImage(f, m.Message.Text, new PersonName(m.SenderName ?? "", m.SenderDepartment), m.Message.CreatedAtTicks))).ToArray();
     }
     private async Task OpenImageGalleryAsync(AttachmentDto file)
     {

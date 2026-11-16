@@ -14,13 +14,14 @@ internal sealed class TestNode : IAsyncDisposable
     public NodeOptions Options { get; }
     public IHost Host { get; }
     public IChatStore Store => Host.Services.GetRequiredService<IChatStore>();
-    public TestNode(Guid cluster, byte[] secret, string name, string? directory = null, DiscoverySockets? discovery = null,
+    public TestNode(Guid cluster, byte[] secret, string? name = null, string? directory = null, DiscoverySockets? discovery = null,
         Func<long>? utcSeconds = null)
     {
-        Options = new NodeOptions { ClusterId = cluster, ClusterSecret = secret, InitialDisplayName = name,
+        Options = new NodeOptions { ClusterId = cluster, ClusterSecret = secret,
             TlsCertificatePfx = Certificates.GetOrAdd(cluster, ClusterTls.CreateCertificate),
             ServicePort = FreeTcpPort(), DiscoveryPort = FreeUdpPort(),
             DataDirectory = directory ?? Path.Combine(Path.GetTempPath(), "LanChat.Tests", Guid.NewGuid().ToString("N")) };
+        if (name is not null) Options.InitialDisplayName = name;
         Host = ServiceRegistration.BuildHost(Options, services =>
         {
             if (discovery is not null) services.AddSingleton(discovery);

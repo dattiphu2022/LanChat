@@ -64,7 +64,7 @@ public sealed partial class ChatStore
     {
         using var db = database.Open(ct);
         var local = db.Required<LocalSettings>().UserId;
-        using var query = db.Command("SELECT t.UserId,u.DisplayName,t.EncryptionKey,t.SigningKey FROM TrustedDevices t JOIN Users u ON u.Id=t.UserId ORDER BY u.DisplayName");
+        using var query = db.Command("SELECT t.UserId,u.DisplayName,t.EncryptionKey,t.SigningKey,u.Department FROM TrustedDevices t JOIN Users u ON u.Id=t.UserId ORDER BY u.DisplayName");
         using var reader = query.ExecuteReader();
         var identities = new List<EncryptionIdentity>();
         while (reader.Read())
@@ -72,7 +72,7 @@ public sealed partial class ChatStore
             var id = reader.GetGuid(0);
             var fingerprint = BitConverter.ToString(FrameworkIO.Hash(Convert.FromBase64String(reader.GetString(2))
                 .Concat(Convert.FromBase64String(reader.GetString(3))).ToArray())).Replace("-", "");
-            identities.Add(new(id, reader.GetString(1), fingerprint, id == local));
+            identities.Add(new(id, reader.GetString(1), fingerprint, id == local) { Department = reader.IsDBNull(4) ? null : reader.GetString(4) });
         }
         return Task.FromResult(identities.ToArray());
     }

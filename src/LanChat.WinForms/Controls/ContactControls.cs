@@ -16,9 +16,9 @@ public sealed class NavigationItemControl : UserControl
         _button.Paint += (_, e) =>
         {
             if (_unreadCount <= 0) return;
-            var size = LogicalToDeviceUnits(9);
-            UnreadBadge.PaintDot(e.Graphics, new Rectangle(_button.ClientSize.Width - size - LogicalToDeviceUnits(4),
-                LogicalToDeviceUnits(3), size, size));
+            var size = this.ScalePixels(9);
+            UnreadBadge.PaintDot(e.Graphics, new Rectangle(_button.ClientSize.Width - size - this.ScalePixels(4),
+                this.ScalePixels(3), size, size));
         };
     }
     [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
@@ -36,32 +36,46 @@ public sealed class NavigationItemControl : UserControl
 
 public sealed class UserItemControl : UserControl
 {
-    private readonly Label _title = Theme.Label("", 11, true);
-    private readonly Label _detail = Theme.Label("");
+    private readonly PersonNameLabel _title = Theme.NameLabel("", 11, true);
+    private readonly Label _device = Theme.Label("", 9);
+    private readonly Label _presence = Theme.Label("", 9);
     public Guid UserId { get; private set; }
     public event Action<Guid>? Selected;
     public UserItemControl()
     {
         Height = 78; Dock = DockStyle.Top; BackColor = Color.White; Cursor = Cursors.Hand;
-        var stack = Theme.Stack(2); stack.Padding = new Padding(10); stack.Controls.Add(_title); stack.Controls.Add(_detail);
-        stack.RowStyles.Add(new RowStyle(SizeType.Absolute, 24)); stack.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        _title.AutoSize = false; _title.AutoEllipsis = true;
-        Controls.Add(stack); _title.Click += SelectUser; _detail.Click += SelectUser; stack.Click += SelectUser;
-        _detail.ForeColor = Theme.Muted;
+        var stack = Theme.Stack(3);
+        stack.Padding = new Padding(10, 6, 10, 6);
+        stack.RowStyles.Add(new RowStyle(SizeType.Absolute, 24));
+        stack.RowStyles.Add(new RowStyle(SizeType.Absolute, 21));
+        stack.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        _device.ForeColor = _presence.ForeColor = Theme.Muted;
+        foreach (var label in new[] { _title, _device, _presence })
+        {
+            label.AutoSize = false;
+            label.AutoEllipsis = true;
+            label.UseMnemonic = false;
+            label.Click += SelectUser;
+            stack.Controls.Add(label);
+        }
+        stack.Click += SelectUser;
+        Controls.Add(stack);
     }
     private void SelectUser(object? sender, EventArgs e) => Selected?.Invoke(UserId);
     public void Bind(UserSummary u)
     {
         UserId = u.UserId;
-        _title.Text = $"{(u.Presence == PresenceStatus.Online ? "●" : "○")}  {u.DisplayName}";
-        _detail.Text = $"{u.DeviceName}  ·  {u.IPAddress}\n{(u.Presence == PresenceStatus.Online ? "Đang trực tuyến" : u.LastSeenTicks > 0 ? "Lần cuối: " + new DateTime(u.LastSeenTicks, DateTimeKind.Utc).ToLocalTime().ToString("dd/MM HH:mm") : "Chưa rõ trạng thái")}";
+        _title.SetName(new PersonName(u.DisplayName, u.Department));
+        _device.Text = UiText.HideIpAddresses(u.DeviceName);
+        _presence.Text = u.Presence == PresenceStatus.Online ? "● Đang trực tuyến" : u.LastSeenTicks > 0
+            ? $"○ Lần cuối: {new DateTime(u.LastSeenTicks, DateTimeKind.Utc).ToLocalTime():dd/MM HH:mm}" : "○ Chưa rõ trạng thái";
     }
 }
 
 public sealed class ConversationItemControl : UserControl
 {
     private readonly Label _avatar = Theme.Label("", 16, true);
-    private readonly Label _title = Theme.Label("", 11, true);
+    private readonly PersonNameLabel _title = Theme.NameLabel("", 11, true);
     private readonly Label _preview = Theme.Label("");
     private readonly Label _meta = Theme.Label("", 9);
     private readonly UnreadBadge _unread = new();
@@ -81,6 +95,7 @@ public sealed class ConversationItemControl : UserControl
         layout.SetColumnSpan(_preview, 2); layout.SetColumnSpan(_meta, 2);
         _avatar.ForeColor = Theme.Blue; _preview.AutoEllipsis = true; _preview.AutoSize = false;
         _title.AutoSize = false; _title.AutoEllipsis = true; _meta.AutoSize = false; _meta.AutoEllipsis = true;
+        _avatar.UseMnemonic = _title.UseMnemonic = _preview.UseMnemonic = _meta.UseMnemonic = false;
         _preview.ForeColor = _meta.ForeColor = Theme.Muted;
         Controls.Add(layout);
         var menu = new ContextMenuStrip();
@@ -100,7 +115,7 @@ public sealed class ConversationItemControl : UserControl
         if (_model == c && BackColor == (active ? Theme.Selection : Color.White)) return;
         _model = c; _avatar.Text = string.Concat(c.DisplayName.Trim().Take(1)).ToUpperInvariant();
         _avatar.TextAlign = ContentAlignment.MiddleCenter;
-        _title.Text = c.DisplayName;
+        _title.SetName(new PersonName(c.DisplayName, c.Department));
         _unread.SetCount(c.UnreadCount);
         _preview.Text = c.Preview.NormalizeLines(" ");
         _meta.Text = $"{(c.Kind == ConversationKind.Group ? "♧ Nhóm" : c.Presence == PresenceStatus.Online ? "● Trực tuyến" : "○ Ngoại tuyến")}  {(c.IsPinned ? "◆ " : "")}{(c.IsMuted ? "Im lặng  " : "")}" +
@@ -112,7 +127,7 @@ public sealed class ConversationItemControl : UserControl
 public sealed class ConversationListControl : UserControl
 {
     private readonly PromptTextBox _search = new() { Dock = DockStyle.Top, PlaceholderText = "Tìm cuộc trò chuyện…", Margin = new Padding(8) };
-    private readonly Panel _items = new() { Dock = DockStyle.Fill, AutoScroll = true, BackColor = Color.White };
+    private readonly Panel _items = new BufferedPanel { Dock = DockStyle.Fill, AutoScroll = true, BackColor = Color.White };
     private readonly Dictionary<Guid, ConversationItemControl> _rows = [];
     private static Guid Key(ConversationSummary row) => row.Id == Guid.Empty ? row.OtherUserId : row.Id;
     private readonly Label _empty = Theme.Label("Chưa có cuộc trò chuyện.\nMở Người dùng để bắt đầu.");
@@ -142,7 +157,8 @@ public sealed class ConversationListControl : UserControl
             if (!_rows.TryGetValue(Key(c), out var row))
             {
                 row = new ConversationItemControl(); row.Selected += x => Selected?.Invoke(x); row.ActionRequested += (x, a) => ActionRequested?.Invoke(x, a);
-                _rows.Add(Key(c), row); _items.Controls.Add(row);
+                _rows.Add(Key(c), row);
+                Theme.AddAtCurrentDpi(_items, row);
             }
             row.Bind(c, activeId == c.Id);
         }

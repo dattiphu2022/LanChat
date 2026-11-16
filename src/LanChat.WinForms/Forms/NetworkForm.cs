@@ -7,22 +7,30 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace LanChat.WinForms.Forms;
 
-public sealed class NetworkForm : Form
+public sealed class NetworkForm : DpiForm
 {
-    private readonly TextBox _network = new() { Multiline = true, ReadOnly = true, Dock = DockStyle.Fill, ScrollBars = ScrollBars.Both };
-    private readonly TextBox _cluster = new() { Multiline = true, ReadOnly = true, Dock = DockStyle.Fill };
+    private readonly TextBox _network = new() { Multiline = true, ReadOnly = true, Dock = DockStyle.Fill, ScrollBars = ScrollBars.Vertical };
+    private readonly TextBox _cluster = new() { Multiline = true, ReadOnly = true, Dock = DockStyle.Fill, ScrollBars = ScrollBars.Vertical };
     public NetworkForm(IChatStore store, NodeOptions options, ILocalNetworkInfoProvider networks, IConsensusService consensus, ILanScanner scanner, IServiceProvider services)
     {
         Icon = AppIcon.Value;
-        Text = "Quản lý kết nối mạng chat"; StartPosition = FormStartPosition.CenterParent; ClientSize = new Size(740, 640); MinimumSize = new Size(650, 600); Font = new Font("Segoe UI", 10);
+        Text = "Quản lý kết nối mạng chat"; StartPosition = FormStartPosition.CenterParent; ClientSize = new Size(740, 640); MinimumSize = new Size(650, 450);
         var tabs = new TabControl { Dock = DockStyle.Fill };
         var network = new TabPage("Kết nối"); var cluster = new TabPage("Điều phối và mã mời"); var storage = new TabPage("Lưu trữ");
         var diagnostics = new TabPage("Chẩn đoán"); var encryption = new TabPage("Khóa mã hóa");
         tabs.TabPages.AddRange([cluster, network, encryption, storage, diagnostics]); Controls.Add(tabs);
         var showDiagnostics = Theme.Button("Mở chẩn đoán mạng chat"); diagnostics.Controls.Add(showDiagnostics);
         showDiagnostics.Click += (_, _) => { using var form = ActivatorUtilities.CreateInstance<ClusterDiagnosticsForm>(services); form.ShowDialog(this); };
-        var networkLayout = Theme.Stack(2); networkLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100)); networkLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 52));
-        var scan = Theme.Button("Quét mạng"); networkLayout.Controls.Add(_network, 0, 0); networkLayout.Controls.Add(scan, 0, 1); network.Controls.Add(networkLayout);
+        var networkLayout = Theme.Stack(3); networkLayout.Padding = new Padding(8);
+        networkLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        networkLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        networkLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        var scan = Theme.Button("Quét mạng"); scan.Dock = DockStyle.Left;
+        var scanStatus = Theme.Label(""); scanStatus.AutoSize = false; scanStatus.AutoEllipsis = true;
+        networkLayout.Controls.Add(_network, 0, 0);
+        networkLayout.Controls.Add(scanStatus, 0, 1);
+        networkLayout.Controls.Add(scan, 0, 2);
+        network.Controls.Add(networkLayout);
         var scanLifetime = new CancellationTokenSource(); FormClosed += (_, _) => scanLifetime.Cancel();
         var keysLayout = Theme.Stack(3); keysLayout.Padding = new Padding(10);
         keysLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 58));
@@ -38,10 +46,10 @@ public sealed class NetworkForm : Form
             {
                 var known = await Task.Run(() => store.GetEncryptionIdentitiesAsync(scanLifetime.Token), scanLifetime.Token);
                 if (!IsDisposed) fingerprints.Text = string.Join("\r\n\r\n", known.OrderByDescending(x => x.IsLocal).Select(x =>
-                    $"{x.DisplayName}{(x.IsLocal ? " (máy này)" : "")}\r\n{x.Fingerprint}"));
+                    $"{new PersonName(x.DisplayName, x.Department)}{(x.IsLocal ? " (máy này)" : "")}\r\n{x.Fingerprint}"));
             }
             catch (OperationCanceledException) when (scanLifetime.IsCancellationRequested) { }
-            catch (Exception ex) { if (!IsDisposed) fingerprints.Text = ex.Message; }
+            catch (Exception ex) { if (!IsDisposed) fingerprints.Text = UiText.HideIpAddresses(ex.Message); }
         }
         refreshKeys.Click += async (_, _) => await ReadFingerprintsAsync();
         tabs.SelectedIndexChanged += async (_, _) => { if (tabs.SelectedTab == encryption) await ReadFingerprintsAsync(); };
@@ -50,16 +58,19 @@ public sealed class NetworkForm : Form
         {
             if (currentScan is not null) { currentScan.Cancel(); return; }
             var stop = CancellationTokenSource.CreateLinkedTokenSource(scanLifetime.Token);
-            currentScan = stop; scan.Text = "Dừng quét";
+            currentScan = stop; scan.Text = "Dừng quét"; scanStatus.Text = "Đang quét mạng…";
             try
             {
-                var saved = _network.Text;
-                var progress = new Progress<LanScanProgress>(p => { if (!IsDisposed && currentScan == stop) _network.Text = $"Đã kiểm tra {p.Checked} địa chỉ · {p.Discovered} máy\r\n\r\n{saved}"; });
+                var progress = new Progress<LanScanProgress>(p =>
+                {
+                    if (!IsDisposed && currentScan == stop)
+                        scanStatus.Text = $"Đã kiểm tra {p.Checked} địa chỉ · {p.Discovered} máy";
+                });
                 var peers = await scanner.ScanAsync(stop.Token, progress);
-                if (!IsDisposed) _network.Text = $"Đã tìm thấy {peers.Count} máy.\r\n\r\n{saved}";
+                if (!IsDisposed) scanStatus.Text = $"Đã tìm thấy {peers.Count} máy.";
             }
-            catch (OperationCanceledException) { }
-            catch (Exception ex) { if (!IsDisposed) _network.Text = ex.Message; }
+            catch (OperationCanceledException) { if (!IsDisposed) scanStatus.Text = "Đã dừng quét."; }
+            catch (Exception ex) { if (!IsDisposed) scanStatus.Text = UiText.HideIpAddresses(ex.Message); }
             finally { currentScan = null; stop.Dispose(); if (!IsDisposed) scan.Text = "Quét mạng"; }
         };
         var clusterLayout = Theme.Stack(4); clusterLayout.Padding = new Padding(8);
@@ -70,10 +81,10 @@ public sealed class NetworkForm : Form
         clusterLayout.Controls.Add(_cluster, 0, 0);
         var leadership = Theme.Stack(3);
         leadership.RowStyles.Add(new RowStyle(SizeType.Absolute, 27));
-        leadership.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
+        leadership.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         leadership.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         var allow = new CheckBox { Text = "Cho phép máy này làm trung tâm", Dock = DockStyle.Fill, Enabled = false };
-        var actions = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false };
+        var actions = Theme.Toolbar();
         var campaign = Theme.Secondary("Ứng cử"); var nominate = Theme.Secondary("Đề cử máy khác");
         actions.Controls.Add(campaign); actions.Controls.Add(nominate);
         var feedback = Theme.Label(""); feedback.ForeColor = Theme.Muted;
@@ -95,9 +106,10 @@ public sealed class NetworkForm : Form
             var data = await Task.Run(async () => (await consensus.GetStatusAsync(ct), await store.GetIdentityAsync(ct), await store.GetUsersAsync(ct: ct)), ct);
             if (IsDisposed || leadershipBusy) return;
             var (state, identity, peers) = data;
+            var leader = peers.FirstOrDefault(p => p.NodeId == state.LeaderNodeId);
             var center = state.LeaderReady ? (state.LeaderNodeId == identity.NodeId ? "Máy này" :
-                peers.FirstOrDefault(p => p.NodeId == state.LeaderNodeId)?.DisplayName ?? "Máy trong LAN") : "Đang chờ";
-            _cluster.Text = $"Máy trung tâm: {center}\r\n{state.StatusText}\r\nMáy bỏ phiếu: {state.Voters.Length}   ·   Nhiệm kỳ: {state.Term}\r\nMáy đã biết: {peers.Count}\r\nID mạng: {options.ClusterId:N} · Giao thức: v{NodeInfoDto.CurrentProtocol}";
+                leader is null ? "Máy trong LAN" : new PersonName(leader.DisplayName, leader.Department).ToString()) : "Đang chờ";
+            _cluster.Text = $"Máy trung tâm: {center}\r\n{UiText.HideIpAddresses(state.StatusText)}\r\nMáy bỏ phiếu: {state.Voters.Length}   ·   Nhiệm kỳ: {state.Term}\r\nMáy đã biết: {peers.Count}\r\nID mạng: {options.ClusterId:N} · Giao thức: v{NodeInfoDto.CurrentProtocol}";
             loadingLeadership = true; allow.Checked = state.CanLead; allow.Enabled = true; loadingLeadership = false;
             campaign.Enabled = state.CanLead && state.Role != NodeRole.Leader &&
                 state.Voters.Concat(state.JointVoters ?? []).Contains(identity.NodeId);
@@ -111,14 +123,14 @@ public sealed class NetworkForm : Form
             try
             {
                 var result = await action();
-                if (!IsDisposed) feedback.Text = result.Success ? success : result.Error;
+                if (!IsDisposed) feedback.Text = result.Success ? success : UiText.HideIpAddresses(result.Error);
             }
-            catch (Exception ex) { if (!IsDisposed && !scanLifetime.IsCancellationRequested) feedback.Text = ex.Message; }
+            catch (Exception ex) { if (!IsDisposed && !scanLifetime.IsCancellationRequested) feedback.Text = UiText.HideIpAddresses(ex.Message); }
             finally
             {
                 leadershipBusy = false;
                 try { await UpdateLeadershipAsync(); }
-                catch (Exception ex) { if (!IsDisposed && !scanLifetime.IsCancellationRequested) feedback.Text = ex.Message; }
+                catch (Exception ex) { if (!IsDisposed && !scanLifetime.IsCancellationRequested) feedback.Text = UiText.HideIpAddresses(ex.Message); }
             }
         }
         allow.CheckedChanged += async (_, _) =>
@@ -134,7 +146,7 @@ public sealed class NetworkForm : Form
             var voters = new HashSet<Guid>(state.Voters.Concat(state.JointVoters ?? []));
             var users = await store.GetUsersAsync(ct: scanLifetime.Token);
             var candidates = users.Where(u => u.Presence == PresenceStatus.Online && voters.Contains(u.NodeId) && u.NodeId != state.LeaderNodeId)
-                .Select(u => new SelectionItem(u.NodeId, u.DisplayName)).ToArray();
+                .Select(u => new SelectionItem(u.NodeId, u.DisplayName, u.Department)).ToArray();
             if (candidates.Length == 0) return new(false, "Chưa có máy trực tuyến để đề cử.");
             using var select = new SelectionForm("Đề cử máy trung tâm", candidates);
             return select.ShowDialog(this) == DialogResult.OK && select.SelectedId is Guid id
@@ -144,7 +156,7 @@ public sealed class NetworkForm : Form
         {
             if (tabs.SelectedTab != cluster) return;
             try { await UpdateLeadershipAsync(); }
-            catch (Exception ex) { if (!IsDisposed && !scanLifetime.IsCancellationRequested) feedback.Text = ex.Message; }
+            catch (Exception ex) { if (!IsDisposed && !scanLifetime.IsCancellationRequested) feedback.Text = UiText.HideIpAddresses(ex.Message); }
         };
         FormClosed += (_, _) => leadershipTimer.Dispose();
         var storageLayout = Theme.Stack(3); storageLayout.Controls.Add(Theme.Label("Dữ liệu riêng trên máy này:\n" + options.DataDirectory + "\n\nNhật ký: Logs\\lanchat-*.log\nSao lưu cả thư mục khi ứng dụng đã đóng.\nMã mời cho phép tham gia mạng chat; chỉ chia sẻ với người được phép."));
@@ -154,12 +166,17 @@ public sealed class NetworkForm : Form
         {
             try
             {
-                var state = await consensus.GetStatusAsync();
-                await UpdateLeadershipAsync(); leadershipTimer.Start();
-                _network.Text = $"TCP/TLS: {options.ServicePort}   UDP: {options.DiscoveryPort}\r\nLeader: {state.LeaderNodeId}\r\nRole: {state.Role} · Term: {state.Term}\r\n\r\n" + string.Join("\r\n\r\n", networks.GetNetworks().Select(n =>
-                    $"{n.Adapter}\r\nIPv4: {n.Address}/{n.PrefixLength}\r\nMask: {n.Mask}\r\nNetwork: {n.Network}    Broadcast: {n.Broadcast}\r\nHosts: {n.FirstHost} → {n.LastHost}\r\nGateway: {n.Gateway}"));
+                var ct = scanLifetime.Token;
+                var details = await Task.Run(async () => (State: await consensus.GetStatusAsync(ct), Count: networks.GetNetworks().Count), ct);
+                if (IsDisposed) return;
+                _network.Text = $"TCP/TLS: {options.ServicePort}   UDP: {options.DiscoveryPort}\r\n" +
+                    $"Cấu hình IPv4 đang hoạt động: {details.Count}\r\nMáy trung tâm: {details.State.LeaderNodeId}\r\n" +
+                    $"Vai trò: {details.State.Role} · Nhiệm kỳ: {details.State.Term}";
+                await UpdateLeadershipAsync();
+                if (!scanLifetime.IsCancellationRequested) leadershipTimer.Start();
             }
-            catch (Exception ex) { MessageBox.Show(this, ex.Message, "Không tải được cài đặt"); }
+            catch (OperationCanceledException) when (scanLifetime.IsCancellationRequested) { }
+            catch (Exception ex) { if (!IsDisposed) MessageBox.Show(this, UiText.HideIpAddresses(ex.Message), "Không tải được cài đặt"); }
         };
     }
 }

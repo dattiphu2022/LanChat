@@ -3,7 +3,7 @@ using LanChat.WinForms.Controls;
 
 namespace LanChat.WinForms.Forms;
 
-internal sealed class AboutForm : Form
+internal sealed class AboutForm : DpiForm
 {
     public AboutForm()
     {
@@ -12,9 +12,6 @@ internal sealed class AboutForm : Form
         StartPosition = FormStartPosition.CenterParent;
         FormBorderStyle = FormBorderStyle.FixedDialog;
         ShowInTaskbar = MinimizeBox = MaximizeBox = false;
-        AutoScaleDimensions = new SizeF(96, 96);
-        AutoScaleMode = AutoScaleMode.Dpi;
-        Font = new Font("Segoe UI", 10);
         ClientSize = new Size(524, 386);
 
         var layout = Theme.Stack(4);
@@ -22,7 +19,7 @@ internal sealed class AboutForm : Form
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 91));
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 76));
         layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 46));
+        layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
         var header = new TableLayoutPanel { Dock = DockStyle.Fill, Margin = Padding.Empty, ColumnCount = 2, RowCount = 3 };
         header.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 66));
@@ -60,8 +57,9 @@ internal sealed class AboutForm : Form
         introduction.AutoSize = false;
         introduction.Margin = new Padding(0, 12, 0, 0);
 
-        var footer = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.RightToLeft,
-            WrapContents = false, Margin = Padding.Empty };
+        var footer = Theme.Toolbar();
+        footer.FlowDirection = FlowDirection.RightToLeft;
+        footer.Margin = Padding.Empty;
         var close = Theme.Button("Đóng");
         close.DialogResult = DialogResult.OK;
         footer.Controls.Add(close);

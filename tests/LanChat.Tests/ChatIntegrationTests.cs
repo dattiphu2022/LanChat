@@ -23,10 +23,15 @@ public sealed class ChatIntegrationTests
     public async Task MigrationCreatesIndexedWalDatabaseAndIdentitySurvivesRestartAndRename()
     {
         var cluster = Guid.NewGuid(); var secret = FrameworkIO.RandomBytes(32); string directory; NodeIdentity initial;
-        await using (var node = new TestNode(cluster, secret, "Nguyễn Văn A"))
+        await using (var node = new TestNode(cluster, secret))
         {
             await node.InitializeAsync(); directory = node.Options.DataDirectory; initial = await node.Store.GetIdentityAsync();
-            var profile = await node.Store.GetProfileAsync(); profile.DisplayName = "Tên mới"; await node.Store.SaveProfileAsync(profile);
+            var profile = await node.Store.GetProfileAsync();
+            Assert.Equal("Tên Người Dùng", profile.DisplayName);
+            Assert.Equal("Tên Đơn Vị", profile.Department);
+            profile.DisplayName = "Tên mới";
+            profile.Department = "Đơn vị mới";
+            await node.Store.SaveProfileAsync(profile);
             using var db = node.Host.Services.GetRequiredService<ChatDatabase>().Open();
             Assert.Equal((long)ChatDatabase.MigrationIds.Count, db.Scalar("SELECT COUNT(*) FROM __EFMigrationsHistory"));
             Assert.Equal("wal", db.TextScalar("PRAGMA journal_mode"));
@@ -34,7 +39,9 @@ public sealed class ChatIntegrationTests
         }
         await using var restarted = new TestNode(cluster, secret, "Ignored", directory); await restarted.InitializeAsync();
         var identity = await restarted.Store.GetIdentityAsync(); Assert.Equal(initial.NodeId, identity.NodeId); Assert.Equal(initial.UserId, identity.UserId);
-        Assert.Equal("Tên mới", (await restarted.Store.GetProfileAsync()).DisplayName);
+        var saved = await restarted.Store.GetProfileAsync();
+        Assert.Equal("Tên mới", saved.DisplayName);
+        Assert.Equal("Đơn vị mới", saved.Department);
     }
 
     [Fact]

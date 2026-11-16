@@ -13,8 +13,8 @@ public sealed class NodeOptions
     public Guid ClusterId { get; set; }
     public byte[] ClusterSecret { get; set; } = [];
     public List<string> DiscoveryTargets { get; set; } = [];
-    public string? InitialDepartment { get; set; }
-    public string InitialDisplayName { get; set; } = Environment.UserName;
+    public string? InitialDepartment { get; set; } = "Tên Đơn Vị";
+    public string InitialDisplayName { get; set; } = "Tên Người Dùng";
     public Guid BootstrapNodeId { get; set; }
     public Guid? InitialNodeId { get; set; }
     public byte[] TlsCertificatePfx { get; set; } = [];
@@ -29,7 +29,10 @@ public sealed record DiscoveredPeerDto(Guid NodeId, Guid UserId, string DisplayN
     string IPAddress, int ServicePort, NodeRole CurrentRole, long Term, int ProtocolVersion,
     string ApplicationVersion, Guid ClusterId);
 public sealed record DevicePublicKeys(string EncryptionKey, string SigningKey);
-public sealed record EncryptionIdentity(Guid UserId, string DisplayName, string Fingerprint, bool IsLocal);
+public sealed record EncryptionIdentity(Guid UserId, string DisplayName, string Fingerprint, bool IsLocal)
+{
+    public string? Department { get; init; }
+}
 public sealed record NodeInfoDto(Guid NodeId, string DeviceName, int ServicePort, UserProfileDto User,
     int ProtocolVersion = NodeInfoDto.CurrentProtocol, string ApplicationVersion = NodeInfoDto.CurrentApplicationVersion, NodeRole Role = NodeRole.Follower, long Term = 0, bool CanLead = true,
     DevicePublicKeys? DeviceKeys = null, string? KeyProof = null)
@@ -43,7 +46,10 @@ public sealed record ChatMessageDto(Guid Id, Guid ClientMessageId, Guid Conversa
 public sealed record UserSummary(Guid UserId, string DisplayName, string? Department, string DeviceName,
     string IPAddress, int ServicePort, Guid NodeId, long LastSeenTicks, PresenceStatus Presence);
 public sealed record ConversationSummary(Guid Id, Guid OtherUserId, string DisplayName, string Preview,
-    long LastMessageTicks, int UnreadCount, bool IsPinned, bool IsMuted, PresenceStatus Presence, ConversationKind Kind = ConversationKind.Direct, string? AvatarBase64 = null);
+    long LastMessageTicks, int UnreadCount, bool IsPinned, bool IsMuted, PresenceStatus Presence, ConversationKind Kind = ConversationKind.Direct, string? AvatarBase64 = null)
+{
+    public string? Department { get; init; }
+}
 public sealed record IncomingMessageNotice(Guid ConversationId, string Preview);
 public sealed record IncomingMessageBatch(long Position, IncomingMessageNotice[] Messages);
 public sealed record NetworkInfo(string Adapter, string Address, string Mask, int PrefixLength,

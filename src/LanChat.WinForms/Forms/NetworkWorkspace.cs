@@ -5,12 +5,12 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace LanChat.WinForms.Forms;
 
-internal sealed class NetworkWorkspace : Form
+internal sealed class NetworkWorkspace : DpiForm
 {
     private readonly NetworkCatalog _catalog;
     private readonly WindowsStartup _startup;
     private readonly TabControl _tabs = new() { Dock = DockStyle.Fill, ShowToolTips = true };
-    private readonly ImageList _tabIcons = new() { ColorDepth = ColorDepth.Depth32Bit, ImageSize = new Size(12, 12) };
+    private readonly ImageList _tabIcons = new() { ColorDepth = ColorDepth.Depth32Bit };
     private readonly Dictionary<Guid, (RunningNetwork Network, MainForm View, TabPage Tab)> _running = new();
     private readonly Button _scanButton = Theme.Secondary("Quét tất cả");
     private readonly Label _feedback = Theme.Label("");
@@ -24,23 +24,17 @@ internal sealed class NetworkWorkspace : Form
         _catalog = catalog; _startup = startup;
         Icon = AppIcon.Value;
         Text = "LanChat";
-        ClientSize = new Size(1260, 840); MinimumSize = new Size(900, 660);
-        Font = new Font("Segoe UI", 10);
-        AutoScaleMode = AutoScaleMode.Dpi;
+        ClientSize = new Size(1260, 840); MinimumSize = new Size(660, 450);
         StartPosition = FormStartPosition.CenterScreen;
-        using (var dot = new Bitmap(_tabIcons.ImageSize.Width, _tabIcons.ImageSize.Height))
-        {
-            using (var graphics = Graphics.FromImage(dot)) UnreadBadge.PaintDot(graphics, new Rectangle(1, 1, 10, 10));
-            _tabIcons.Images.Add(dot);
-            _tabs.ImageList = _tabIcons;
-            _ = _tabIcons.Handle;
-        }
-
+        Load += (_, _) => UpdateTabIcons();
+        DpiChanged += (_, _) => UpdateTabIcons();
         var root = Theme.Stack(3);
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 50));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 24));
+        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        var actions = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false, Padding = new Padding(8, 0, 0, 0) };
+        var actions = Theme.Toolbar();
+        actions.Padding = new Padding(8, 0, 0, 0);
+        _feedback.AutoSize = false; _feedback.AutoEllipsis = true;
         void Button(string label, Func<Task> action)
         {
             var button = Theme.Secondary(label);
@@ -78,6 +72,21 @@ internal sealed class NetworkWorkspace : Form
         FormClosing += ClosingAsync;
     }
 
+    private void UpdateTabIcons()
+    {
+        var size = new Size(LogicalToDeviceUnits(12), LogicalToDeviceUnits(12));
+        if (_tabIcons.Images.Count > 0 && _tabIcons.ImageSize == size) return;
+        _tabIcons.Images.Clear();
+        _tabIcons.ImageSize = size;
+        var inset = LogicalToDeviceUnits(1);
+        using var dot = new Bitmap(size.Width, size.Height);
+        using (var graphics = Graphics.FromImage(dot))
+            UnreadBadge.PaintDot(graphics, Rectangle.Inflate(new Rectangle(Point.Empty, size), -inset, -inset));
+        _tabIcons.Images.Add(dot);
+        _tabs.ImageList = _tabIcons;
+        _ = _tabIcons.Handle;
+    }
+
     private void RestoreWindow()
     {
         if (_exiting) return;
@@ -101,7 +110,7 @@ internal sealed class NetworkWorkspace : Form
         foreach (var entry in _catalog.Entries.OrderByDescending(e => e.Primary))
         {
             try { await OpenNetworkAsync(entry, allowUpgrade: true); }
-            catch (Exception ex) { failures.Add(entry.Name + " · " + ex.Message); }
+            catch (Exception ex) { failures.Add(entry.Name + " · " + UiText.HideIpAddresses(ex.Message)); }
         }
         if (_catalog.DefaultNetwork is { } selectedDefault && _running.TryGetValue(selectedDefault.Id, out var defaultNetwork))
             _tabs.SelectedTab = defaultNetwork.Tab;
@@ -171,7 +180,7 @@ internal sealed class NetworkWorkspace : Form
         _busy = true;
         try { await action(); }
         catch (OperationCanceledException) { }
-        catch (Exception ex) { if (!IsDisposed) MessageBox.Show(this, ex.Message, "LanChat", MessageBoxButtons.OK, MessageBoxIcon.Warning); }
+        catch (Exception ex) { if (!IsDisposed) MessageBox.Show(this, UiText.HideIpAddresses(ex.Message), "LanChat", MessageBoxButtons.OK, MessageBoxIcon.Warning); }
         finally { _busy = false; }
     }
 
@@ -209,7 +218,7 @@ internal sealed class NetworkWorkspace : Form
 
     private Task SettingsAsync()
     {
-        var profile = _catalog.Profile ?? new AppProfile(Environment.UserName, "");
+        var profile = _catalog.Profile;
         using var dialog = new SettingsForm(profile.Name, profile.Department, _startup.Enabled, async (name, department, startup) =>
         {
             if (_startup.NeedsUpdate(startup)) _startup.SetEnabled(startup);

@@ -24,7 +24,10 @@ public sealed record EventRangeRequest(Guid OriginNodeId, long AfterSequence, in
 public sealed record EventBatch(EventDto[] Events);
 public sealed record EventAck(Guid[] EventIds);
 public sealed record GroupSummary(Guid Id, string Name, Guid OwnerUserId, Guid[] Members, bool IsDeleted, string? AvatarBase64);
-public sealed record MessageDetails(Message Message, AttachmentDto[] Attachments, string[] Reactions, int ReceivedCount, int ReadCount, string? ReplyPreview, string? SenderName = null);
+public sealed record MessageDetails(Message Message, AttachmentDto[] Attachments, string[] Reactions, int ReceivedCount, int ReadCount, string? ReplyPreview, string? SenderName = null)
+{
+    public string? SenderDepartment { get; init; }
+}
 public sealed record SearchResult(Guid MessageId, Guid ConversationId, string Text, long CreatedAtTicks);
 public sealed record DistributedDiagnostics(int EventCount, int OutboxPending, CursorDto[] Cursors, long LastSyncTicks);
 public sealed record PeerDiagnostic(Guid NodeId, string DeviceName, string Address, NodeRole Role, long Term, long LastSeenTicks);

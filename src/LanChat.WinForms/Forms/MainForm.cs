@@ -7,7 +7,7 @@ using Message = LanChat.Domain.Message;
 
 namespace LanChat.WinForms.Forms;
 
-public sealed partial class MainForm : Form
+public sealed partial class MainForm : DpiForm
 {
     private readonly IChatStore _store;
     private readonly ILanScanner _scanner;
@@ -19,10 +19,10 @@ public sealed partial class MainForm : Form
     private readonly Panel _people = new() { Dock = DockStyle.Fill, Visible = false, BackColor = Color.White };
     private readonly PromptTextBox _userSearch = new() { Dock = DockStyle.Fill, PlaceholderText = "Tìm người dùng…" };
     private readonly Label _peopleEmpty = Theme.Label("Chưa tìm thấy người dùng trong mạng này.");
-    private readonly Panel _userRows = new() { Dock = DockStyle.Fill, AutoScroll = true };
+    private readonly Panel _userRows = new BufferedPanel { Dock = DockStyle.Fill, AutoScroll = true };
     private readonly Dictionary<Guid, UserItemControl> _users = new();
     private readonly Dictionary<Guid, ComposerDraft> _drafts = new();
-    private readonly Label _profile = Theme.Label("LanChat", 10, true);
+    private readonly PersonNameLabel _profile = Theme.NameLabel("LanChat", 10, true);
     private readonly Label _initial = Theme.Label("", 20, true);
     private readonly NavigationItemControl _networkNav = new() { Caption = "Mạng chat" };
     private readonly ToolStripStatusLabel _status = new() { Spring = true, TextAlign = ContentAlignment.MiddleLeft };
@@ -37,6 +37,8 @@ public sealed partial class MainForm : Form
     private bool _anchorScrolled;
     private bool _panelOpen;
     private bool _showPeople;
+    private bool _layoutQueued;
+    private bool _ticking;
     private Message[] _olderMessages = [];
     private Message[] _visibleMessages = [];
     private long _revision = -1;
@@ -68,29 +70,40 @@ public sealed partial class MainForm : Form
         _images = images; _chat.ConfigureImages(images);
         Icon = AppIcon.Value;
         Text = "LanChat — Chat nội bộ - phát triển bởi Trung tá Nguyễn Quốc Đạt";
-        ClientSize = new Size(1240, 800); MinimumSize = new Size(860, 600);
-        StartPosition = FormStartPosition.CenterScreen; AutoScaleMode = AutoScaleMode.Dpi;
-        Font = new Font("Segoe UI", 10); BackColor = Theme.Canvas;
+        ClientSize = new Size(1240, 800); MinimumSize = new Size(660, 420);
+        StartPosition = FormStartPosition.CenterScreen; BackColor = Theme.Canvas;
         var root = Theme.Stack(2);
-        root.RowStyles.Add(new RowStyle(SizeType.Percent, 100)); root.RowStyles.Add(new RowStyle(SizeType.Absolute, 28));
+        root.RowStyles.Add(new RowStyle(SizeType.Percent, 100)); root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         var workspace = _workspace;
+        workspace.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         workspace.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 104));
         workspace.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 292));
         workspace.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         root.Controls.Add(workspace, 0, 0);
 
-        var navigation = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false,
-            AutoScroll = true, BackColor = Theme.Rail, Padding = new Padding(1, 12, 1, 0), Margin = Padding.Empty };
-        _profile.Width = 90; _profile.Height = 32; _profile.Dock = DockStyle.None; _profile.AutoSize = false;
-        _profile.AutoEllipsis = true; _profile.ForeColor = Color.White; _profile.TextAlign = ContentAlignment.MiddleCenter;
-        _initial.Dock = DockStyle.None; _initial.Width = 90; _initial.Height = 44; _initial.AutoSize = false;
-        _initial.TextAlign = ContentAlignment.MiddleCenter; _initial.ForeColor = Color.White;
-        navigation.Controls.Add(_initial); navigation.Controls.Add(_profile);
+        var navigation = new BufferedPanel { Dock = DockStyle.Fill, AutoScroll = true, BackColor = Theme.Rail,
+            Padding = new Padding(1, 12, 1, 0), Margin = Padding.Empty };
+        var navLayout = Theme.Stack(8);
+        navLayout.Dock = DockStyle.Top; navLayout.AutoSize = true; navLayout.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+        navLayout.BackColor = Theme.Rail;
+        navLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 44));
+        navLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));
+        foreach (var label in new[] { _initial, _profile })
+        {
+            label.AutoSize = false; label.AutoEllipsis = true; label.UseMnemonic = false;
+            label.TextAlign = ContentAlignment.MiddleCenter; label.ForeColor = Color.White;
+            navLayout.Controls.Add(label);
+        }
         var groups = new NavigationItemControl { Caption = "Nhóm" };
         var files = new NavigationItemControl { Caption = "Tệp" };
         var scan = new NavigationItemControl { Caption = "Quét lại" };
         foreach (var item in new[] { _messageNav, _usersNav, groups, files, scan, _networkNav })
-        { item.Width = 96; item.Margin = Padding.Empty; navigation.Controls.Add(item); }
+        {
+            item.Dock = DockStyle.Fill; item.MinimumSize = new Size(0, 48); item.Margin = Padding.Empty;
+            navLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            navLayout.Controls.Add(item);
+        }
+        navigation.Controls.Add(navLayout);
         workspace.Controls.Add(navigation, 0, 0);
         var left = new Panel { Dock = DockStyle.Fill, Margin = new Padding(0, 0, 1, 0), BackColor = Theme.Border };
         left.Controls.Add(_conversations); left.Controls.Add(_people); workspace.Controls.Add(left, 1, 0);
@@ -103,6 +116,7 @@ public sealed partial class MainForm : Form
         _userRows.Controls.Add(_peopleEmpty);
         _people.Controls.Add(peopleLayout);
         _chatArea.Margin = Padding.Empty;
+        _chatArea.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         _chatArea.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         _chatArea.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 0));
         _chatArea.Controls.Add(_chat, 0, 0); _chatArea.Controls.Add(_info, 1, 0);
@@ -137,7 +151,7 @@ public sealed partial class MainForm : Form
             if (c.Id == Guid.Empty) return;
             if (action == "delete")
             {
-                if (MessageBox.Show(this, $"Xóa hội thoại “{c.DisplayName}” trên máy này?\n\nLịch sử trên máy khác vẫn được giữ. Hội thoại sẽ hiện lại khi có tin mới.",
+                if (MessageBox.Show(this, $"Xóa hội thoại “{new PersonName(c.DisplayName, c.Department)}” trên máy này?\n\nLịch sử trên máy khác vẫn được giữ. Hội thoại sẽ hiện lại khi có tin mới.",
                     "Xóa hội thoại phía tôi", MessageBoxButtons.YesNo, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2) != DialogResult.Yes) return;
                 await _store.DeleteConversationLocalAsync(c.Id, _lifetime.Token);
                 _drafts.Remove(c.Id);
@@ -158,8 +172,11 @@ public sealed partial class MainForm : Form
         _info.FileRequested += async file => await RunUiAsync(() => OpenAttachmentAsync(file));
         _info.SearchRequested += async query => await RunUiAsync(() => SearchInPanelAsync(query));
         _info.ResultSelected += async result => await RunUiAsync(() => JumpAsync(result));
-        _chatArea.Resize += (_, _) => LayoutPanel();
-        _workspace.Resize += (_, _) => LayoutWorkspace();
+        _chatArea.SizeChanged += (_, _) => QueueWorkspaceLayout();
+        _workspace.SizeChanged += (_, _) => QueueWorkspaceLayout();
+        Load += (_, _) => QueueWorkspaceLayout();
+        DpiChanged += (_, _) => QueueWorkspaceLayout();
+        DpiChangedAfterParent += (_, _) => QueueWorkspaceLayout();
         _timer.Tick += async (_, _) => await TickAsync();
         Shown += async (_, _) => { if (_showNotification is null) await StartViewAsync(); };
         Activated += async (_, _) => await RunUiAsync(MarkActiveReadAsync);
@@ -225,7 +242,8 @@ public sealed partial class MainForm : Form
     {
         var profile = await Task.Run(() => _store.GetProfileAsync(_lifetime.Token), _lifetime.Token);
         if (IsDisposed) return;
-        _localUser = profile.Id; _profile.Text = profile.DisplayName;
+        _localUser = profile.Id;
+        _profile.SetName(new PersonName(profile.DisplayName, profile.Department));
         _initial.Text = string.Concat(profile.DisplayName.Trim().Take(1)).ToUpperInvariant();
     }
 
@@ -256,12 +274,13 @@ public sealed partial class MainForm : Form
     {
         try { await action(); }
         catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { }
-        catch (Exception ex) { if (!IsDisposed) MessageBox.Show(this, ex.Message, "LanChat", MessageBoxButtons.OK, MessageBoxIcon.Warning); }
+        catch (Exception ex) { if (!IsDisposed) MessageBox.Show(this, UiText.HideIpAddresses(ex.Message), "LanChat", MessageBoxButtons.OK, MessageBoxIcon.Warning); }
     }
 
     private async Task TickAsync()
     {
-        if (_refresh.CurrentCount == 0 || IsDisposed) return;
+        if (_ticking || _refresh.CurrentCount == 0 || IsDisposed) return;
+        _ticking = true;
         try
         {
             if (_revision != _store.Revision || _presenceRevision != _store.PresenceRevision || DateTime.UtcNow - _lastPresence > TimeSpan.FromSeconds(4))
@@ -269,7 +288,8 @@ public sealed partial class MainForm : Form
             else await UpdateStatusAsync();
         }
         catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { }
-        catch (Exception ex) { if (!IsDisposed) _status.Text = ex.Message; }
+        catch (Exception ex) { if (!IsDisposed) _status.Text = UiText.HideIpAddresses(ex.Message); }
+        finally { _ticking = false; }
     }
 
     public async Task RefreshAsync()
@@ -314,7 +334,7 @@ public sealed partial class MainForm : Form
                 if (current is null) ClearActiveConversation();
                 else
                 {
-                    _chat.SelectConversation(current.DisplayName, current.Presence == PresenceStatus.Online, current.Kind == ConversationKind.Group);
+                    _chat.SelectConversation(new PersonName(current.DisplayName, current.Department), current.Presence == PresenceStatus.Online, current.Kind == ConversationKind.Group);
                     if (changed || _boundConversation != id || _boundSearch != anchor || _boundOlder != previous)
                     {
                         var data = await Task.Run(async () =>
@@ -371,11 +391,12 @@ public sealed partial class MainForm : Form
         var preview = latest.Preview.NormalizeLines(" ").Trim();
         if (preview.Length > 160) preview = preview.Substring(0, 160) + "…";
         var body = pending.Length > 1 ? $"{pending.Length} tin nhắn mới · {preview}" : preview;
-        if (_showNotification is not null) _showNotification(conversation.Id, conversation.DisplayName, body);
+        var title = new PersonName(conversation.DisplayName, conversation.Department).ToString();
+        if (_showNotification is not null) _showNotification(conversation.Id, title, body);
         else
         {
             _notificationConversation = conversation.Id;
-            _notification.ShowBalloonTip(3000, conversation.DisplayName, body, ToolTipIcon.Info);
+            _notification.ShowBalloonTip(3000, title, body, ToolTipIcon.Info);
         }
     }
 
@@ -398,25 +419,30 @@ public sealed partial class MainForm : Form
         if (!IsDisposed)
         {
             var online = _contacts.Count(x => x.Presence == PresenceStatus.Online);
-            _status.Text = _health.Error ?? (online == 0 ? _health.DiscoveryIssue : null)
-                ?? $"{state.Item1.StatusText}   ·   {online} máy trực tuyến   ·   {state.Item2} tin chờ";
+            _status.Text = UiText.HideIpAddresses(_health.Error ?? (online == 0 ? _health.DiscoveryIssue : null)
+                ?? $"{state.Item1.StatusText}   ·   {online} máy trực tuyến   ·   {state.Item2} tin chờ");
         }
     }
 
     private void BindConversations()
     {
         var text = _conversations.SearchText;
-        var matches = _summaries.Where(c => ChatStore.NameMatches(c.DisplayName, text));
+        IEnumerable<ConversationSummary> matches = _summaries;
         if (text.Length > 0)
-            matches = matches.Concat(_contacts.Where(u => ChatStore.NameMatches(u.DisplayName, text) &&
+        {
+            matches = matches.Where(c => ChatStore.NameMatches(new PersonName(c.DisplayName, c.Department).ToString(), text));
+            matches = matches.Concat(_contacts.Where(u => ChatStore.NameMatches(new PersonName(u.DisplayName, u.Department).ToString(), text) &&
                 !_summaries.Any(c => c.OtherUserId == u.UserId))
-                .Select(u => new ConversationSummary(Guid.Empty, u.UserId, u.DisplayName, "Bắt đầu trò chuyện", 0, 0, false, false, u.Presence)));
+                .Select(u => new ConversationSummary(Guid.Empty, u.UserId, u.DisplayName, "Bắt đầu trò chuyện", 0, 0, false, false, u.Presence)
+                    { Department = u.Department }));
+        }
         _conversations.Bind(matches.ToArray(), _activeConversation);
     }
 
     private void BindPeople()
     {
-        var contacts = _contacts.Where(u => ChatStore.NameMatches(u.DisplayName, _userSearch.Text.Trim())).ToArray();
+        var query = _userSearch.Text.Trim();
+        var contacts = _contacts.Where(u => query.Length == 0 || ChatStore.NameMatches(new PersonName(u.DisplayName, u.Department).ToString(), query)).ToArray();
         _userRows.SuspendLayout();
         foreach (var id in _users.Keys.Except(contacts.Select(x => x.UserId)).ToArray()) { _users[id].Dispose(); _users.Remove(id); }
         for (var index = 0; index < contacts.Length; index++)
@@ -430,7 +456,8 @@ public sealed partial class MainForm : Form
                     var c = await _store.OpenDirectAsync(user, _lifetime.Token);
                     await SelectConversationAsync(c);
                 });
-                _users.Add(u.UserId, row); _userRows.Controls.Add(row);
+                _users.Add(u.UserId, row);
+                Theme.AddAtCurrentDpi(_userRows, row);
             }
             row.Bind(u);
             var targetIndex = contacts.Length - index - 1;
@@ -466,19 +493,36 @@ public sealed partial class MainForm : Form
         _info.Visible = visible;
         LayoutPanel();
     }
-    private int ScaleWidth(int pixels) => (int)Math.Round(pixels * DeviceDpi / 96d);
-    private bool IsCompactChat => _chatArea.Width < ScaleWidth(570);
+    private bool IsCompactChat => _chatArea.ClientSize.Width < this.ScalePixels(660);
+
+    private void QueueWorkspaceLayout()
+    {
+        if (_layoutQueued || !IsHandleCreated || Disposing) return;
+        _layoutQueued = true;
+        BeginInvoke((Action)(() =>
+        {
+            try
+            {
+                if (IsDisposed) return;
+                LayoutWorkspace();
+                LayoutPanel();
+            }
+            finally { _layoutQueued = false; }
+        }));
+    }
+
     private void LayoutWorkspace()
     {
-        var listWidth = _workspace.Width < ScaleWidth(1000) ? ScaleWidth(248) : ScaleWidth(292);
+        var width = _workspace.ClientSize.Width;
+        var preferredListWidth = this.ScalePixels(width < this.ScalePixels(1000) ? 248 : 292);
+        var listWidth = Math.Min(preferredListWidth, width * 3 / 10);
         if (_workspace.ColumnStyles[1].Width != listWidth) _workspace.ColumnStyles[1].Width = listWidth;
     }
     private void LayoutPanel()
     {
-        var width = !_panelOpen ? 0 : IsCompactChat ? _chatArea.ClientSize.Width : ScaleWidth(288);
+        var width = !_panelOpen ? 0 : IsCompactChat ? _chatArea.ClientSize.Width : this.ScalePixels(288);
         if (_chatArea.ColumnStyles[1].Width != width) _chatArea.ColumnStyles[1].Width = width;
-        var showChat = !_panelOpen || !IsCompactChat;
-        if (_chat.Visible != showChat) _chat.Visible = showChat;
+        _chat.Visible = !_panelOpen || !IsCompactChat;
     }
     private async Task OpenPanelAsync(bool search)
     {
@@ -492,7 +536,7 @@ public sealed partial class MainForm : Form
     {
         var ct = _lifetime.Token;
         var data = await Task.Run(async () => (await Distributed.GetAttachmentsAsync(id, ct), (await Distributed.GetGroupsAsync(ct)).FirstOrDefault(g => g.Id == id)), ct);
-        if (id == _activeConversation && !IsDisposed) _info.Bind(data.Item1, data.Item2, _contacts, _localUser);
+        if (id == _activeConversation && !IsDisposed) _info.Bind(data.Item1, data.Item2, _contacts, _localUser, _profile.Person);
     }
     private async Task SearchInPanelAsync(string query)
     {
@@ -525,7 +569,7 @@ public sealed partial class MainForm : Form
             if (!IsDisposed) { _scanState.Text = peers.Count == 0 ? "Chưa tìm thấy máy" : $"Tìm thấy {peers.Count} máy"; await RefreshAsync(); }
         }
         catch (OperationCanceledException) { if (!IsDisposed) _scanState.Text = "Đã dừng quét"; }
-        catch (Exception ex) { if (!IsDisposed) _scanState.Text = "Quét mạng: " + ex.Message; }
+        catch (Exception ex) { if (!IsDisposed) _scanState.Text = "Quét mạng: " + UiText.HideIpAddresses(ex.Message); }
         finally { _scanCancellation = null; cancellation.Dispose(); if (!IsDisposed) button.Caption = "Quét lại"; }
     }
 }
