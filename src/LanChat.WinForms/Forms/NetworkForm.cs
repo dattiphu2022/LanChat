@@ -17,13 +17,34 @@ public sealed class NetworkForm : Form
         Text = "Quản lý kết nối mạng chat"; StartPosition = FormStartPosition.CenterParent; ClientSize = new Size(740, 640); MinimumSize = new Size(650, 600); Font = new Font("Segoe UI", 10);
         var tabs = new TabControl { Dock = DockStyle.Fill };
         var network = new TabPage("Kết nối"); var cluster = new TabPage("Điều phối và mã mời"); var storage = new TabPage("Lưu trữ");
-        var diagnostics = new TabPage("Chẩn đoán");
-        tabs.TabPages.AddRange([cluster, network, storage, diagnostics]); Controls.Add(tabs);
+        var diagnostics = new TabPage("Chẩn đoán"); var encryption = new TabPage("Khóa mã hóa");
+        tabs.TabPages.AddRange([cluster, network, encryption, storage, diagnostics]); Controls.Add(tabs);
         var showDiagnostics = Theme.Button("Mở chẩn đoán mạng chat"); diagnostics.Controls.Add(showDiagnostics);
         showDiagnostics.Click += (_, _) => { using var form = ActivatorUtilities.CreateInstance<ClusterDiagnosticsForm>(services); form.ShowDialog(this); };
         var networkLayout = Theme.Stack(2); networkLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100)); networkLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 52));
         var scan = Theme.Button("Quét mạng"); networkLayout.Controls.Add(_network, 0, 0); networkLayout.Controls.Add(scan, 0, 1); network.Controls.Add(networkLayout);
         var scanLifetime = new CancellationTokenSource(); FormClosed += (_, _) => scanLifetime.Cancel();
+        var keysLayout = Theme.Stack(3); keysLayout.Padding = new Padding(10);
+        keysLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 58));
+        keysLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        keysLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 48));
+        keysLayout.Controls.Add(Theme.Label("Đối chiếu dấu vân tay với mã trên máy của người liên hệ qua một kênh tin cậy, nhất là trước khi gửi nội dung nhạy cảm lần đầu."), 0, 0);
+        var fingerprints = new TextBox { Multiline = true, ReadOnly = true, Dock = DockStyle.Fill, ScrollBars = ScrollBars.Vertical };
+        var refreshKeys = Theme.Secondary("Làm mới"); refreshKeys.Dock = DockStyle.Left;
+        keysLayout.Controls.Add(fingerprints, 0, 1); keysLayout.Controls.Add(refreshKeys, 0, 2); encryption.Controls.Add(keysLayout);
+        async Task ReadFingerprintsAsync()
+        {
+            try
+            {
+                var known = await Task.Run(() => store.GetEncryptionIdentitiesAsync(scanLifetime.Token), scanLifetime.Token);
+                if (!IsDisposed) fingerprints.Text = string.Join("\r\n\r\n", known.OrderByDescending(x => x.IsLocal).Select(x =>
+                    $"{x.DisplayName}{(x.IsLocal ? " (máy này)" : "")}\r\n{x.Fingerprint}"));
+            }
+            catch (OperationCanceledException) when (scanLifetime.IsCancellationRequested) { }
+            catch (Exception ex) { if (!IsDisposed) fingerprints.Text = ex.Message; }
+        }
+        refreshKeys.Click += async (_, _) => await ReadFingerprintsAsync();
+        tabs.SelectedIndexChanged += async (_, _) => { if (tabs.SelectedTab == encryption) await ReadFingerprintsAsync(); };
         CancellationTokenSource? currentScan = null;
         scan.Click += async (_, _) =>
         {

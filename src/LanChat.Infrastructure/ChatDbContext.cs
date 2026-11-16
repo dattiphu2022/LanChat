@@ -9,7 +9,7 @@ public sealed class ChatDatabase
     public static readonly IReadOnlyList<string> MigrationIds = Array.AsReadOnly(new[]
     {
         "20260921071741_InitialPhase1", "20260921072743_LocalReadState", "20260921081251_DistributedPhases",
-        "20261113093000_LocalConversationVisibility", "20261116100000_PeerAddresses"
+        "20261113093000_LocalConversationVisibility", "20261116100000_PeerAddresses", "20261116130000_EndToEndEncryption"
     });
     private readonly string _connectionString;
     public ChatDatabase(string dataDirectory)
@@ -34,6 +34,7 @@ public sealed class ChatDatabase
     {
         using var db = Open(ct);
         db.Execute("PRAGMA journal_mode=WAL;");
+        db.Execute("PRAGMA secure_delete=ON;");
         db.Begin();
         db.Execute("CREATE TABLE IF NOT EXISTS __EFMigrationsHistory (MigrationId TEXT NOT NULL PRIMARY KEY, ProductVersion TEXT NOT NULL);");
         using (var command = db.Command("SELECT MigrationId FROM __EFMigrationsHistory"))

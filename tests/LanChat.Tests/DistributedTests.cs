@@ -60,16 +60,22 @@ public sealed class DistributedTests
         Assert.Empty(await b.Store.GetMessagesAsync(m.ConversationId)); Assert.Single(await a.Store.GetMessagesAsync(m.ConversationId));
     }
     [Fact]
-    public async Task ThirdNodeObtainsWholeHistoryWithoutBecomingParticipant()
+    public async Task ThirdNodeRelaysCiphertextWithoutProjectingOrSearchingPrivateMessages()
     {
         var cluster = Guid.NewGuid(); var secret = FrameworkIO.RandomBytes(32);
         await using var a = new TestNode(cluster, secret, "A"); await using var b = new TestNode(cluster, secret, "B"); await using var c = new TestNode(cluster, secret, "C");
         await a.InitializeAsync(); await b.InitializeAsync(); await c.InitializeAsync();
         await a.Store.RememberPeerAsync(await b.Store.GetNodeInfoAsync(), "127.0.0.1");
-        var m = await a.Store.SaveOutgoingAsync((await b.Store.GetIdentityAsync()).UserId, "Lịch sử toàn mạng");
+        var m = await a.Store.SaveOutgoingAsync((await b.Store.GetIdentityAsync()).UserId, "PRIVATE MESSAGE 67cd1290");
         await Distributed(c).ImportEventsAsync(new(await Events(a)));
-        Assert.Single(await c.Store.GetMessagesAsync(m.ConversationId));
-        Assert.Empty(await c.Store.GetConversationsAsync()); Assert.Empty(await Distributed(c).SearchMessagesAsync("lich su"));
+        Assert.Empty(await c.Store.GetMessagesAsync(m.ConversationId));
+        Assert.Empty(await c.Store.GetConversationsAsync()); Assert.Empty(await Distributed(c).SearchMessagesAsync("PRIVATE MESSAGE"));
+        var relayed = (await Events(c)).Where(x => x.OriginNodeId == m.OriginNodeId).ToArray();
+        var created = Assert.Single(relayed, x => x.EntityId == m.Id);
+        Assert.DoesNotContain(m.Text, created.PayloadJson);
+        await Assert.ThrowsAsync<InvalidDataException>(() => Distributed(b).ImportEventsAsync(new([created with { PayloadJson = "{}" }])));
+        await Distributed(b).ImportEventsAsync(new(relayed));
+        Assert.Equal(m.Text, Assert.Single(await b.Store.GetMessagesAsync(m.ConversationId)).Text);
         await Assert.ThrowsAsync<InvalidOperationException>(() => Distributed(c).SendToConversationAsync(m.ConversationId, "Không được gửi"));
     }
     [Fact]
@@ -142,20 +148,25 @@ public sealed class DistributedTests
         await Assert.ThrowsAsync<InvalidOperationException>(() => Distributed(b).RecallMessageAsync(original.Id));
     }
     [Fact]
-    public async Task NewNodeRecoversMoreThanOnePageIncludingThirdPartyHistoryOverTls()
+    public async Task RelaySynchronizesMoreThanOnePageOfOpaqueHistoryOverTls()
     {
         var cluster = Guid.NewGuid(); var secret = FrameworkIO.RandomBytes(32);
         await using var a = new TestNode(cluster, secret, "A"); await using var b = new TestNode(cluster, secret, "B"); await using var d = new TestNode(cluster, secret, "D");
         await a.InitializeAsync(); await b.InitializeAsync(); await d.InitializeAsync();
         var recipient = await b.Store.GetNodeInfoAsync(); await a.Store.RememberPeerAsync(recipient, "127.0.0.1");
         var conversation = await a.Store.OpenDirectAsync(recipient.User.Id);
-        for (var i = 0; i < 215; i++) await Distributed(a).SendToConversationAsync(conversation, $"Lịch sử khi D offline {i}");
+        for (var i = 0; i < 215; i++) await Distributed(a).SendToConversationAsync(conversation, $"Tin nhắn riêng số {i}");
         var page = await Distributed(a).GetEventRangeAsync(new((await a.Store.GetIdentityAsync()).NodeId, 0)); Assert.Equal(100, page.Events.Length);
         await a.Host.StartAsync(); await d.Store.RememberPeerAsync(await a.Store.GetNodeInfoAsync(), "127.0.0.1");
         await d.Host.Services.GetRequiredService<ReplicationBackgroundService>().SynchronizeAsync(CancellationToken.None);
-        var actual = await d.Store.GetMessagesAsync(conversation, limit: 500); Assert.Equal(215, actual.Count);
+        Assert.Empty(await d.Store.GetMessagesAsync(conversation, limit: 500));
+        var origin = (await a.Store.GetIdentityAsync()).NodeId;
+        var relayed = (await Events(d)).Where(e => e.OriginNodeId == origin).ToArray();
+        Assert.Equal(215, relayed.Count(e => e.Type == ReplicationEventType.MessageCreated));
+        for (var offset = 0; offset < relayed.Length; offset += 100)
+            await Distributed(b).ImportEventsAsync(new(relayed.Skip(offset).Take(100).ToArray()));
+        var actual = await b.Store.GetMessagesAsync(conversation, limit: 500);
         Assert.Equal((await a.Store.GetMessagesAsync(conversation, limit: 500)).Select(x => x.Id), actual.Select(x => x.Id));
-        Assert.Empty(await d.Store.GetConversationsAsync());
         var window = await Distributed(a).GetMessageWindowAsync(conversation, actual[100].Id);
         Assert.Equal(101, window.Length); Assert.Equal(actual[100].Id, window[50].Id);
     }
@@ -186,7 +197,7 @@ public sealed class DistributedTests
     {
         var cluster = Guid.NewGuid(); var secret = FrameworkIO.RandomBytes(32); var bootstrap = Guid.NewGuid();
         await using var a = new TestNode(cluster, secret, "A"); await using var b = new TestNode(cluster, secret, "B"); await using var c = new TestNode(cluster, secret, "C");
-        a.Options.BootstrapNodeId = bootstrap; a.Options.InitialNodeId = bootstrap; a.Options.HeartbeatInterval = TimeSpan.FromMilliseconds(150);
+        a.Options.BootstrapNodeId = bootstrap; a.Options.InitialNodeId = bootstrap;
         await a.InitializeAsync(); await b.InitializeAsync(); await c.InitializeAsync();
         await a.Store.RememberPeerAsync(await b.Store.GetNodeInfoAsync(), "127.0.0.1"); await a.Store.RememberPeerAsync(await c.Store.GetNodeInfoAsync(), "127.0.0.1"); await a.Host.StartAsync();
         var service = a.Host.Services.GetRequiredService<IConsensusService>(); await TestNode.WaitUntilAsync(async () => (await service.GetStatusAsync()).HasQuorum);

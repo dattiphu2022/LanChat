@@ -18,6 +18,8 @@ public sealed class ReplicationEvent
     public int LogicalCounter { get; set; }
     public long CreatedAtTicks { get; set; }
     public string Signature { get; set; } = "";
+    public string EncryptionKey { get; set; } = "";
+    public string SigningKey { get; set; } = "";
 }
 public sealed class ReplicationCursor
 {
@@ -42,6 +44,7 @@ public sealed class Group
     public Guid OwnerUserId { get; set; }
     public string? AvatarBase64 { get; set; }
     public bool IsDeleted { get; set; }
+    public Guid? LastCommandId { get; set; }
 }
 public sealed class GroupMember
 {
@@ -72,6 +75,7 @@ public sealed class Attachment
     public string MimeType { get; set; } = "application/octet-stream";
     public long FileSize { get; set; }
     public string Sha256 { get; set; } = "";
+    public string FileKey { get; set; } = "";
 }
 public sealed class ClusterState
 {

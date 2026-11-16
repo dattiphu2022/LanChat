@@ -29,8 +29,8 @@ sequenceDiagram
     UI->>DB: Gửi / sửa / cảm xúc
     Note over DB: Một transaction: projection + event + outbox + sequence/HLC
     DB-->>UI: Hiện ngay, Chưa đồng bộ
-    R->>B: EventPush qua TLS + HMAC
-    Note over B: Xác thực, dedup, lưu event, apply projection
+    R->>B: EventPush bản mã qua TLS + HMAC
+    Note over B: Xác thực chữ ký, lưu event, giải mã và chiếu nếu có khóa người nhận
     B-->>R: ACK sau commit
     R->>DB: Outbox Replicated, trạng thái Synced
     B->>R: Receipt đã nhận / đã đọc
@@ -43,14 +43,14 @@ Outbox retry theo backoff, tối đa 30 giây. Reconciliation tự chạy mỗi 
 
 ## Nhận và khôi phục lịch sử
 
-1. HMAC xác thực event; unique index theo Id và OriginNodeId/OriginSequence chống lặp.
+1. Chữ ký thiết bị liên kết event với mạng, người gửi và payload. Chỉ mục theo Id và OriginNodeId/OriginSequence chống lặp.
 2. Cùng identity nhưng payload khác bị từ chối. Trigger SQLite cấm UPDATE/DELETE event đã lưu.
 3. Projection của entity được tính theo PhysicalTicks, LogicalCounter, OriginNodeId, EventId.
 4. Cursor chỉ tiến qua sequence liên tục; nhận số 8 trước số 7 không được báo đã có đến 8.
 5. Trao đổi Digest, lấy các khoảng thiếu theo từng origin, tối đa 100 event và giới hạn byte mỗi lô.
 6. Receipt và event mới sinh trong lúc tiếp nhận được phát tiếp như event bình thường.
 
-Node mới nhận cả lịch sử A/B từ bất kỳ peer nào còn giữ chúng; không cần máy gửi gốc online. Control log được leader truyền riêng cho learner trước khi thêm nó thành voter. UI chỉ hiển thị hội thoại mà local user là thành viên; toàn bộ lịch sử vẫn có trong database theo yêu cầu mô hình.
+Peer có thể chuyển tiếp lịch sử dạng mã hóa khi người gửi gốc offline. Thiết bị chỉ chiếu nội dung vào bảng Messages và FTS khi event có khóa gửi riêng cho thiết bị đó. Máy mới hoặc thành viên mới chỉ đọc được các tin được mã hóa cho khóa của mình. Control log vẫn được truyền riêng cho learner trước khi thêm nó thành voter.
 
 Recall là trạng thái cuối, thắng các edit đến muộn. Edit chỉ của người gửi; cảm xúc là trạng thái cuối theo user/emoji. Read receipt tăng một chiều. Xóa phía tôi không phát event. HLC xác định thứ tự tin; local read state theo từng tin tránh bỏ sót tin đến muộn có thời gian cũ.
 
@@ -76,7 +76,7 @@ Tham khảo thuật toán: [Raft paper](https://raft.github.io/raft.pdf). Việc
 
 ## Tệp
 
-ImportLocalAsync copy streaming vào tệp tạm, tính SHA256 và lưu theo hash dưới Data/Attachments. MessageCreated chỉ chứa metadata. Khi bấm tải: kiểm tra/phục hồi local → yêu cầu FileDownload trực tiếp → nguồn xác minh và trả availability header → tải TLS → kiểm tra size/SHA256 → atomic rename.
+ImportLocalAsync lưu snapshot theo SHA256 dưới Data/Attachments và sinh khóa ngẫu nhiên riêng. Metadata và khóa nằm trong bản mã MessageCreated. FileDownload dùng định danh dẫn xuất từ khóa. Nguồn xác minh snapshot, sinh salt cho từng phiên, dẫn xuất khóa phiên bằng HKDF-SHA256 rồi gửi các khối AES-GCM có xác thực. Thiết bị tải xác minh từng khối, kích thước và SHA256 trước khi xuất bản snapshot local. Nguồn chỉ đăng ký khóa để phục vụ tệp sau khi import hoặc tải xác thực thành công. [RFC 5869](https://www.rfc-editor.org/rfc/rfc5869.html)
 
 Mỗi lần import ghi đường dẫn nguồn vào `<hash>.bin.source.json` tại máy gửi, qua tệp tạm và rename; không replicate thông tin này. Blob hỏng/mất được phục hồi từ nguồn còn đúng SHA hoặc bản mở có tên gốc tra theo metadata (hỗ trợ tệp cũ chưa có source reference). Candidate được mở với FileShare.Read, hash và copy trên cùng handle; bản sửa khác SHA không được dùng thay nội dung cũ. GetLocalPath/FileAvailability chỉ trả bản đã xác minh. Máy phục vụ giữ nguyên handle đã kiểm tra SHA tới hết truyền, ngăn chỉnh sửa trong khoảng giữa kiểm tra và gửi. Kết nối/TLS vẫn có timeout ngắn; sau đó cho phép tối đa 30 phút kiểm tra/phục hồi nguồn lớn, hỗ trợ hủy từ bên tải. Việc công bố blob trùng nội dung dùng lại bản đúng đang được đọc nếu Windows khóa thao tác thay thế.
 
@@ -92,11 +92,15 @@ Bấm ảnh truy vấn metadata ảnh thuộc cuộc trò chuyện (loại tin t
 
 ## Bảo mật và lưu trữ
 
-Protocol version 3 (mã mời v2), frame tối đa 4 MB, request correlation, HMAC-SHA256, replay/freshness check. TCP TLS 1.2/1.3 pin certificate theo mã mời. Cert dùng chung có khóa riêng được DPAPI bảo vệ local; Windows Schannel dùng UserKeySet cho private key. [Tài liệu SslStream troubleshooting](https://learn.microsoft.com/en-us/dotnet/core/extensions/sslstream-troubleshooting).
+Giao thức v4 dùng mã mời v2, frame tối đa 4 MB, request correlation, HMAC-SHA256 và kiểm tra replay/thời gian. TCP TLS 1.2/1.3 ghim chứng chỉ theo mã mời. [Tài liệu SslStream](https://learn.microsoft.com/en-us/dotnet/core/extensions/sslstream-troubleshooting)
 
-Đây là cluster tin cậy dùng chung credential, không phải mutual identity riêng từng node, Byzantine consensus hay E2EE cho từng hội thoại. UDP metadata không mã hóa; SQLite/tệp local cũng không mã hóa.
+Mỗi event nội dung dùng khóa AES-256-GCM ngẫu nhiên. Khóa này được bọc riêng cho mỗi người nhận bằng RSA-3072 OAEP-SHA256. Thiết bị ký event và thông tin discovery bằng ECDSA P-256. Khóa riêng được bảo vệ bởi DPAPI CurrentUser. Khóa công khai được ghim theo UserId/NodeId từ lần đầu. Dấu vân tay trong giao diện cho phép đối chiếu sự gắn kết với người dùng thật qua kênh tin cậy. [RFC 7518](https://www.rfc-editor.org/rfc/rfc7518.html)
 
-Một tiến trình giao diện duy nhất quản lý nhiều host mạng. Các host dùng chung bộ nhận UDP theo cổng và phân luồng theo ClusterId trước khi xác thực HMAC, dùng listener TCP và SQLite riêng. File instance.lock bảo vệ từng thư mục dữ liệu. BuildHost từ chối UNC, mapped network drive và thư mục liên kết. Migration SQL giữ lịch sử __EFMigrationsHistory, WAL, unique indexes và write semaphore giữ transaction tuần tự trong node. Migration từ Phase 1 giữ identity và bổ sung event cho tin cũ, bỏ qua system message từ control log.
+Thay đổi nhóm cần chữ ký của chủ nhóm và tham chiếu thao tác nhóm trước đó. Tin mới dùng danh sách thành viên đã áp dụng tại máy gửi. Các sự kiện sửa tin, thu hồi, cảm xúc và xác nhận đọc dùng tập giao giữa người nhận ban đầu và thành viên hiện tại. Việc xóa thành viên chỉ thay đổi quyền nhận sự kiện về sau. Thành viên có thể giữ nội dung họ đã nhận.
+
+Danh bạ, hiện diện, tên nhóm, thành viên và metadata định tuyến vẫn được chia sẻ trong mạng. Bản đã giải mã và tệp mở lưu cục bộ. Khóa thiết bị lâu dài có thể giải mã bản mã cũ được gửi tới khóa đó khi bị lộ. Đồng thuận điều phối dùng mô hình cụm tin cậy sẵn có.
+
+Mỗi host dùng SQLite và khóa riêng theo thư mục dữ liệu. Migration v4 xóa tin và event cũ, làm lại chỉ mục tìm kiếm và khởi tạo lại log điều phối. Chủ nhóm ký tái tạo nhóm từ snapshot cục bộ. Thư mục dữ liệu cần ở trên ổ cục bộ và được dùng bởi một tiến trình. Bản sao lưu cùng các tệp local cũ có thể còn dữ liệu dạng rõ.
 
 ## Đọc mã theo nghiệp vụ
 

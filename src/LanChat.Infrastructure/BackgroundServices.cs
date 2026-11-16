@@ -3,7 +3,6 @@ using System.Net;
 using System.Net.Sockets;
 using System.Text.Json;
 using LanChat.Application;
-using LanChat.Domain;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
@@ -98,57 +97,6 @@ public sealed class PeerDiscoveryBackgroundService(NodeOptions options, WireProt
                 SocketException or ObjectDisposedException or System.Security.Authentication.AuthenticationException)
             { logger.LogDebug("Discovery packet rejected: {ErrorType}", ex.GetType().Name); }
             catch (Exception ex) { logger.LogError(ex, "Discovery receive failed"); }
-        }
-    }
-}
-
-public sealed class PendingMessageDeliveryService(IChatStore store, IPeerTransport transport,
-    ILogger<PendingMessageDeliveryService> logger) : BackgroundService
-{
-    public async Task DeliverPendingAsync(CancellationToken ct)
-    {
-        var pending = await store.GetPendingAsync(ct);
-        if (pending.Count == 0) return;
-        var sender = await store.GetNodeInfoAsync(ct);
-        var users = await store.GetUsersAsync(ct: ct);
-        // Separate recipients do not block each other when one endpoint is unreachable.
-        await FrameworkIO.ForEachAsync(pending.GroupBy(x => x.RecipientUserId),
-            8, ct, async (messages, token) =>
-            {
-                var peer = users.FirstOrDefault(x => x.UserId == messages.Key);
-                foreach (var m in messages)
-                {
-                    var delivered = false;
-                    try
-                    {
-                        if (peer is not null && peer.ServicePort > 0)
-                        {
-                            var push = new ChatPushDto(sender, ToDto(m));
-                            if (transport is IClusterTransport clusterTransport && peer.NodeId != Guid.Empty)
-                            {
-                                var ack = await clusterTransport.CallAsync<ChatAckDto>(new(peer.NodeId, peer.IPAddress, peer.ServicePort), "ChatPush", push, token);
-                                if (ack.MessageId != m.Id) throw new InvalidDataException("ACK không khớp.");
-                            }
-                            else await transport.DeliverAsync(peer.IPAddress, peer.ServicePort, push, token);
-                            delivered = true;
-                        }
-                    }
-                    catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
-                    catch (Exception ex) when (ex is IOException or InvalidDataException or SocketException or OperationCanceledException or JsonException or FormatException)
-                    { logger.LogDebug("Delivery retry for message {Id}: {ErrorType}", m.Id, ex.GetType().Name); }
-                    await store.SetDeliveryAsync(m.Id, delivered, token);
-                }
-            });
-    }
-    public static ChatMessageDto ToDto(Message m) => new(m.Id, m.ClientMessageId, m.ConversationId, m.SenderUserId,
-        m.RecipientUserId, m.OriginNodeId, m.OriginSequence, m.Kind, m.Text, m.CreatedAtTicks, m.PhysicalTicks, m.LogicalCounter);
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
-    {
-        while (!stoppingToken.IsCancellationRequested)
-        {
-            try { await DeliverPendingAsync(stoppingToken); await Task.Delay(750, stoppingToken); }
-            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { break; }
-            catch (Exception ex) { logger.LogError(ex, "Pending delivery failed"); await Task.Delay(3000, stoppingToken); }
         }
     }
 }

@@ -31,15 +31,11 @@ Bản phát hành nội bộ tự tham gia mạng mặc định được nhúng 
 
 ## Nâng cấp
 
-Đóng LanChat và sao lưu toàn bộ thư mục dữ liệu trên từng máy. Thay bản chạy trên cả cụm trong cùng đợt vì kết nối phiên bản mới dùng giao thức 3. Mã mời v2, danh tính, chứng chỉ và lịch sử cũ vẫn dùng được. Mở lại bằng cùng tài khoản Windows để đọc cấu hình DPAPI.
+Đóng LanChat trên từng máy, nâng cấp toàn cụm trong cùng đợt rồi mở lại bằng cùng tài khoản Windows. **Giao thức v4 xóa lịch sử tin nhắn cũ, chỉ mục tìm kiếm và các tin đang chờ gửi khi khởi động lần đầu.** Nếu cần lưu trữ dữ liệu cũ để tra cứu riêng, sao lưu trước khi mở bản mới và bảo vệ bản sao vì dữ liệu đó ở dạng rõ.
 
-Với dữ liệu Phase 1:
+Ứng dụng giữ mã mời v2, danh tính cục bộ, danh bạ và cấu hình từng mạng. Nhóm đang hoạt động được tạo lại từ danh sách thành viên trên máy chủ nhóm khi máy đó có kết nối đến máy điều phối. Những người nhận cần chạy bản mới ít nhất một lần để LanChat ghi nhận khóa trước khi gửi tin cho họ.
 
-- Mỗi máy vẫn dùng thư mục dữ liệu cũ của chính nó; giữ nguyên UserId/NodeId và lịch sử.
-- Cửa sổ **Nâng cấp mạng chat** xuất hiện với cấu hình cũ. Chọn **một máy duy nhất** tạo mã nâng cấp, áp dụng trên máy đó rồi nhập **cùng mã** cho các máy khác.
-- Máy tạo mã cần trực tuyến trong giai đoạn thiết lập membership ban đầu. Sau khi có đủ voter, các máy có thể tự bầu điều phối mới.
-- Migration tự thêm bảng sự kiện/outbox/cursor/control log và chỉ mục tìm kiếm; tin cũ được bổ sung vào event store một lần.
-- Không ghép database của hai cluster và không chép database máy A thành dữ liệu cho máy B.
+Nếu cửa sổ **Nâng cấp mạng chat** xuất hiện với cấu hình Phase 1, chọn một máy tạo mã nâng cấp và nhập cùng mã đó trên các máy còn lại. Dùng thư mục dữ liệu riêng của từng máy. Máy tạo mã cần trực tuyến để thiết lập điều phối ban đầu.
 
 ## Build, test và publish
 
@@ -93,9 +89,9 @@ Khi bật nhiều mạng, xem cổng TCP thực tế trong **Mạng chat → Chi
 ## Dữ liệu và giới hạn cần biết
 
 - Dữ liệu mặc định: `%LOCALAPPDATA%\LanChat\Data`. SQLite WAL, event/projection/outbox cùng transaction; không dùng SQLite qua network share hoặc thư mục liên kết.
-- Tất cả node trong cluster giữ lịch sử, kể cả hội thoại không hiển thị trên giao diện của người đó. **Cluster là một miền tin cậy chung; đây không phải mã hóa đầu cuối giữa riêng hai người.**
-- TCP dùng TLS 1.2/1.3 với certificate pin từ mã mời; message/event có HMAC-SHA256. UDP discovery có HMAC nhưng metadata hiện diện không mã hóa.
-- Mã mời chứa secret và chứng thư/khóa dùng chung của cluster. DPAPI CurrentUser bảo vệ chúng khi lưu local. Thành viên có mã mời được coi là tin cậy; không có chứng thực khóa riêng từng node hay chống thành viên ác ý giả danh. SQLite và tệp đính kèm chưa mã hóa khi lưu.
+- Nội dung tin riêng, tin nhóm, sửa tin, cảm xúc, xác nhận đọc và khóa tệp được mã hóa đầu cuối. Máy ngoài cuộc có thể chuyển tiếp bản mã. Tệp, ảnh và thư mục được mã hóa trước khi truyền, rồi giải mã trên thiết bị người nhận.
+- Mỗi thiết bị giữ khóa riêng được bảo vệ bằng DPAPI CurrentUser. LanChat ghim khóa công khai lần đầu gặp và từ chối khóa thay thế cho cùng định danh. Đối chiếu dấu vân tay với người liên hệ qua kênh tin cậy ở **Mạng chat → Chi tiết → Khóa mã hóa** để xác minh lần kết nối đầu.
+- TLS và HMAC bảo vệ giao thức mạng chat. Máy trong mạng vẫn thấy thông tin danh bạ, hiện diện, tên nhóm, thành viên, thời gian và định danh dùng để đồng bộ. Tin đã giải mã, chỉ mục tìm kiếm và tệp đã mở lưu ở dạng rõ tại thiết bị được cấp quyền. Việc lộ khóa riêng có thể ảnh hưởng đến bản mã đã lưu trước đó.
 - Các máy nên đồng bộ giờ: envelope có cửa sổ thời gian 120 giây. HLC và sequence giải quyết thứ tự/đồng bộ; không thay thế kiểm tra giờ của xác thực.
 - Không tự loại voter offline vì việc đó làm sai quorum. Nếu mất vĩnh viễn đa số voter, cần phục hồi máy/dữ liệu đã có; chưa có công cụ quản trị loại voter hoặc khôi phục cưỡng bức.
 - Binary chỉ ở máy đã gửi/tải. Không còn nguồn trực tuyến thì vẫn giữ metadata, báo chưa tải được. Tối đa 20 ảnh/tệp mỗi tin, 20 GB/tệp; streaming, progress, hủy, SHA256, tệp tạm và đổi tên nguyên tử.

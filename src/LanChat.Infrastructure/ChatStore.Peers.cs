@@ -25,12 +25,13 @@ public sealed partial class ChatStore
             return Task.FromResult(true);
         }, ct);
 
-    private static void UpsertPeer(ChatDbContext db, NodeInfoDto peer, string address, PeerObservation observation)
+    private void UpsertPeer(ChatDbContext db, NodeInfoDto peer, string address, PeerObservation observation)
     {
         if (peer.ProtocolVersion != NodeInfoDto.CurrentProtocol || peer.User is null || peer.NodeId == Guid.Empty || peer.User.Id == Guid.Empty ||
             peer.ServicePort is < 1024 or > 65535 || string.IsNullOrWhiteSpace(peer.User.DisplayName) || peer.User.DisplayName.Length > 100)
             throw new InvalidDataException("Thông tin peer không hợp lệ.");
 
+        VerifyPeerIdentity(db, peer);
         var now = DateTime.UtcNow.Ticks;
         var known = db.One<PeerNode>("NodeId=$0", peer.NodeId);
         var isNew = known is null;

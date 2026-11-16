@@ -21,7 +21,9 @@ public sealed class MultiNetworkTests
         var store = a.Host.Services.GetRequiredService<ChatStore>();
         var peer = await b.Store.GetNodeInfoAsync();
         var oldPort = TestNode.FreeTcpPort();
-        var staleAddress = peer with { ServicePort = oldPort };
+        b.Options.ServicePort = oldPort;
+        var staleAddress = await b.Store.GetNodeInfoAsync();
+        b.Options.ServicePort = peer.ServicePort;
         await store.ObservePeerAsync(staleAddress, "127.0.0.2", ChatStore.PeerObservation.Discovery, default);
         await store.ObservePeerAsync(peer, "127.0.0.1", ChatStore.PeerObservation.Discovery, default);
 

@@ -28,16 +28,17 @@ public sealed record UserProfileDto(Guid Id, string DisplayName, string? FullNam
 public sealed record DiscoveredPeerDto(Guid NodeId, Guid UserId, string DisplayName, string DeviceName,
     string IPAddress, int ServicePort, NodeRole CurrentRole, long Term, int ProtocolVersion,
     string ApplicationVersion, Guid ClusterId);
+public sealed record DevicePublicKeys(string EncryptionKey, string SigningKey);
+public sealed record EncryptionIdentity(Guid UserId, string DisplayName, string Fingerprint, bool IsLocal);
 public sealed record NodeInfoDto(Guid NodeId, string DeviceName, int ServicePort, UserProfileDto User,
-    int ProtocolVersion = NodeInfoDto.CurrentProtocol, string ApplicationVersion = "1.1.0", NodeRole Role = NodeRole.Follower, long Term = 0, bool CanLead = true)
+    int ProtocolVersion = NodeInfoDto.CurrentProtocol, string ApplicationVersion = "1.2.0", NodeRole Role = NodeRole.Follower, long Term = 0, bool CanLead = true,
+    DevicePublicKeys? DeviceKeys = null, string? KeyProof = null)
 {
-    public const int CurrentProtocol = 3;
+    public const int CurrentProtocol = 4;
 }
 public sealed record ChatMessageDto(Guid Id, Guid ClientMessageId, Guid ConversationId, Guid SenderUserId,
     Guid RecipientUserId, Guid OriginNodeId, long OriginSequence, MessageKind Kind, string Text,
     long CreatedAtTicks, long PhysicalTicks, int LogicalCounter);
-public sealed record ChatPushDto(NodeInfoDto Sender, ChatMessageDto Message);
-public sealed record ChatAckDto(Guid MessageId);
 public sealed record UserSummary(Guid UserId, string DisplayName, string? Department, string DeviceName,
     string IPAddress, int ServicePort, Guid NodeId, long LastSeenTicks, PresenceStatus Presence);
 public sealed record ConversationSummary(Guid Id, Guid OtherUserId, string DisplayName, string Preview,
@@ -59,7 +60,6 @@ public interface ILocalNetworkInfoProvider { IReadOnlyList<NetworkInfo> GetNetwo
 public interface IPeerTransport
 {
     Task<NodeInfoDto> GetNodeInfoAsync(string address, int port, CancellationToken cancellationToken);
-    Task DeliverAsync(string address, int port, ChatPushDto message, CancellationToken cancellationToken);
 }
 public interface IChatStore
 {
@@ -68,6 +68,7 @@ public interface IChatStore
     Task<LocalUserProfile> GetProfileAsync(CancellationToken ct = default);
     Task SaveProfileAsync(LocalUserProfile profile, CancellationToken ct = default);
     Task<NodeInfoDto> GetNodeInfoAsync(CancellationToken ct = default);
+    Task<EncryptionIdentity[]> GetEncryptionIdentitiesAsync(CancellationToken ct = default);
     Task RememberPeerAsync(NodeInfoDto peer, string address, CancellationToken ct = default);
     Task<IReadOnlyList<UserSummary>> GetUsersAsync(string search = "", CancellationToken ct = default);
     Task<Guid> OpenDirectAsync(Guid userId, CancellationToken ct = default);
@@ -80,9 +81,6 @@ public interface IChatStore
     long PresenceRevision { get; }
     Task<Message[]> GetOlderMessagesAsync(Guid conversationId, Message before, int limit, CancellationToken ct = default);
     Task<Message> SaveOutgoingAsync(Guid recipientId, string text, CancellationToken ct = default);
-    Task ReceiveAsync(ChatPushDto push, string address, CancellationToken ct = default);
-    Task<IReadOnlyList<Message>> GetPendingAsync(CancellationToken ct = default);
-    Task SetDeliveryAsync(Guid id, bool delivered, CancellationToken ct = default);
     Task SetConversationAsync(Guid id, bool? pin = null, bool? mute = null, bool markRead = false, CancellationToken ct = default);
     Task<int> GetPendingCountAsync(CancellationToken ct = default);
 }

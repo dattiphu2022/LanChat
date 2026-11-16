@@ -3,14 +3,15 @@ using LanChat.Domain;
 namespace LanChat.Application;
 
 public sealed record EventDto(Guid Id, Guid OriginNodeId, long OriginSequence, Guid ActorUserId, Guid EntityId,
-    Guid? ConversationId, ReplicationEventType Type, string PayloadJson, long PhysicalTicks, int LogicalCounter, long CreatedAtTicks, string Signature);
+    Guid? ConversationId, ReplicationEventType Type, string PayloadJson, long PhysicalTicks, int LogicalCounter, long CreatedAtTicks, string Signature,
+    DevicePublicKeys? DeviceKeys = null);
 public sealed record MessageContent(ChatMessageDto Message, UserProfileDto Sender, UserProfileDto? Recipient,
     Guid? ReplyToMessageId = null, Guid? ForwardedFromMessageId = null, AttachmentDto[]? Attachments = null, Guid[]? Audience = null);
 public sealed record MessageEdit(string Text);
 public sealed record ReactionChange(string Emoji, bool Active);
 public sealed record ReceiptChange(bool IsRead, long ReceivedAtTicks);
-public sealed record AttachmentDto(Guid Id, Guid MessageId, string FileName, string MimeType, long FileSize, string Sha256);
-public sealed record FolderFile(string RelativePath, long FileSize, string Sha256);
+public sealed record AttachmentDto(Guid Id, Guid MessageId, string FileName, string MimeType, long FileSize, string Sha256, string? FileKey = null);
+public sealed record FolderFile(string RelativePath, long FileSize, string Sha256, string? FileKey = null);
 public sealed record FolderManifest(string Name, string[] Directories, FolderFile[] Files);
 public static class FolderAttachment
 {
@@ -30,7 +31,8 @@ public sealed record PeerDiagnostic(Guid NodeId, string DeviceName, string Addre
 
 public sealed record ControlCommand(Guid Id, ControlCommandType Type, Guid ActorUserId, Guid GroupId,
     string? Name = null, Guid? TargetUserId = null, Guid[]? Members = null, Guid[]? OldVoters = null,
-    Guid[]? NewVoters = null, string? AvatarBase64 = null, long CreatedAtTicks = 0);
+    Guid[]? NewVoters = null, string? AvatarBase64 = null, long CreatedAtTicks = 0,
+    Guid OriginNodeId = default, Guid? PreviousCommandId = null, DevicePublicKeys? DeviceKeys = null, string? Signature = null);
 public sealed record LogEntryDto(Guid Id, long Index, long Term, ControlCommand Command);
 public sealed record VoteRequest(long Term, Guid CandidateNodeId, long LastLogIndex, long LastLogTerm, Guid? TransferFrom = null);
 public sealed record VoteResponse(long Term, bool Granted);
@@ -78,7 +80,7 @@ public interface IConsensusService
     Task<ControlResult> ProposeAsync(ControlCommand command, CancellationToken ct = default);
 }
 public sealed record FileProgress(long Completed, long Total);
-public sealed record FileRequest(string Sha256);
+public sealed record FileRequest(string TransferId);
 public sealed record FileAvailability(bool Available, long Length);
 public interface IFileTransferService
 {

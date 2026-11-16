@@ -28,7 +28,15 @@ public sealed partial class ChatStore(ChatDatabase database, NodeOptions options
 
     public async Task InitializeAsync(CancellationToken ct = default)
     {
+        if (!System.Security.Cryptography.AesGcm.IsSupported) throw new PlatformNotSupportedException("Windows không hỗ trợ AES-GCM cho LanChat.");
         Directory.CreateDirectory(options.DataDirectory);
+        if (File.Exists(Path.Combine(options.DataDirectory, "lanchat.db")))
+        {
+            using var existing = database.Open(ct);
+            if (existing.Scalar("SELECT COUNT(*) FROM pragma_table_info('LocalSettings') WHERE name='ClusterId'") != 0 &&
+                existing.Scalar("SELECT COUNT(*) FROM LocalSettings WHERE ClusterId<>$0 AND ClusterId<>$1", Guid.Empty, options.ClusterId) != 0)
+                throw new InvalidOperationException("Database thuộc mạng chat khác. Hãy dùng thư mục dữ liệu riêng.");
+        }
         database.Migrate(ct: ct);
         await WriteAsync(db =>
         {
@@ -40,6 +48,7 @@ public sealed partial class ChatStore(ChatDatabase database, NodeOptions options
             }
             return Task.FromResult(true);
         }, ct);
+        await InitializeDeviceAsync(ct);
         await InitializeDistributedAsync(ct);
     }
 
@@ -76,9 +85,10 @@ public sealed partial class ChatStore(ChatDatabase database, NodeOptions options
         var p = await GetProfileAsync(ct);
         using var db = database.Open(ct);
         var state = db.One<ClusterState>();
-        return new(identity.NodeId, identity.DeviceName, options.ServicePort,
+        var info = new NodeInfoDto(identity.NodeId, identity.DeviceName, options.ServicePort,
             new(p.Id, p.DisplayName, p.FullName, p.Nickname, p.Department, p.Position, p.Phone, p.StatusMessage),
-            Role: runtime.Role, Term: state?.CurrentTerm ?? 0, CanLead: runtime.CanLead);
+            Role: runtime.Role, Term: state?.CurrentTerm ?? 0, CanLead: runtime.CanLead, DeviceKeys: Device.PublicKeys);
+        return info with { KeyProof = Device.Sign(options.ClusterId, "discovery", info) };
     }
 
     public async Task<IReadOnlyList<UserSummary>> GetUsersAsync(string search = "", CancellationToken ct = default)
@@ -218,61 +228,6 @@ public sealed partial class ChatStore(ChatDatabase database, NodeOptions options
         return message;
     }, ct);
 
-    public async Task ReceiveAsync(ChatPushDto push, string address, CancellationToken ct = default)
-    {
-        await WriteAsync(async db =>
-        {
-            var s = db.Required<LocalSettings>();
-            var m = push.Message;
-            if (m.Id == Guid.Empty || m.ClientMessageId == Guid.Empty || m.OriginNodeId != push.Sender.NodeId ||
-                m.SenderUserId != push.Sender.User.Id || m.RecipientUserId != s.UserId || m.SenderUserId == s.UserId ||
-                m.ConversationId != DirectConversation.GetId(options.ClusterId, m.SenderUserId, s.UserId) || m.OriginSequence < 1 ||
-                m.Kind != MessageKind.Text || string.IsNullOrWhiteSpace(m.Text) || m.Text.Length > 16000 ||
-                m.PhysicalTicks < DateTime.MinValue.Ticks || m.PhysicalTicks > DateTime.UtcNow.AddDays(1).Ticks ||
-                m.LogicalCounter < 0 || m.LogicalCounter > 1000000 || m.CreatedAtTicks < 1 || m.CreatedAtTicks > DateTime.MaxValue.Ticks)
-                throw new InvalidDataException("Tin nhắn không hợp lệ.");
-            var existing = db.One<Message>("Id=$0 OR ClientMessageId=$1 OR (OriginNodeId=$2 AND OriginSequence=$3)", m.Id, m.ClientMessageId, m.OriginNodeId, m.OriginSequence);
-            if (existing is not null)
-            {
-                if (existing.Id != m.Id || existing.ClientMessageId != m.ClientMessageId || existing.OriginNodeId != m.OriginNodeId ||
-                    existing.OriginSequence != m.OriginSequence || existing.ConversationId != m.ConversationId || existing.Text != m.Text)
-                    throw new InvalidDataException("Xung đột định danh tin nhắn.");
-                return true;
-            }
-            UpsertPeer(db, push.Sender, address, PeerObservation.Connection);
-            // Persist newly discovered user inside the same transaction before validating the conversation.
-            db.SaveChanges();
-            var conversation = await EnsureDirectAsync(db, s.UserId, m.SenderUserId, ct);
-            db.Required<Conversation>("Id=$0", conversation).IsHiddenLocal = false;
-            (s.PhysicalTicks, s.LogicalCounter) = HybridClock.Advance(s.PhysicalTicks, s.LogicalCounter, m.PhysicalTicks, m.LogicalCounter);
-            db.Insert(new Message { Id = m.Id, ClientMessageId = m.ClientMessageId, ConversationId = m.ConversationId,
-                SenderUserId = m.SenderUserId, RecipientUserId = m.RecipientUserId, OriginNodeId = m.OriginNodeId,
-                OriginSequence = m.OriginSequence, Kind = m.Kind, Text = m.Text, CreatedAtTicks = m.CreatedAtTicks,
-                PhysicalTicks = m.PhysicalTicks, LogicalCounter = m.LogicalCounter, Status = MessageStatus.Delivered });
-            return true;
-        }, ct);
-    }
-    public async Task<IReadOnlyList<Message>> GetPendingAsync(CancellationToken ct = default)
-    {
-        using var db = database.Open(ct);
-        var now = DateTime.UtcNow.Ticks;
-        return db.Rows<Message>("Status=$0 AND NextRetryTicks<=$1 ORDER BY OriginSequence LIMIT 50", MessageStatus.LocalPending, now);
-    }
-    public async Task SetDeliveryAsync(Guid id, bool delivered, CancellationToken ct = default)
-    {
-        await WriteAsync(async db =>
-        {
-            var m = db.Required<Message>("Id=$0", id);
-            if (delivered) { m.Status = MessageStatus.Delivered; m.LastError = null; }
-            else
-            {
-                m.RetryCount++;
-                m.NextRetryTicks = DateTime.UtcNow.AddSeconds(Math.Min(30, Math.Pow(2, Math.Min(m.RetryCount, 5)))).Ticks;
-                m.LastError = "Chưa kết nối được người nhận; sẽ tự thử lại.";
-            }
-            return true;
-        }, ct);
-    }
     public async Task SetConversationAsync(Guid id, bool? pin = null, bool? mute = null, bool markRead = false, CancellationToken ct = default)
     {
         await WriteAsync(async db =>
@@ -312,5 +267,5 @@ public sealed partial class ChatStore(ChatDatabase database, NodeOptions options
         Array.Reverse(page);
         return Task.FromResult(page);
     }
-    public void Dispose() => _write.Dispose();
+    public void Dispose() { _device?.Dispose(); _write.Dispose(); }
 }

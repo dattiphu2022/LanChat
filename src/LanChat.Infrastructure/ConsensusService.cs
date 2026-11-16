@@ -314,6 +314,8 @@ public sealed partial class ConsensusService(ChatStore store, ChatDatabase datab
     }
     private async Task AppendLocalAsync(ControlCommand command, Snapshot snapshot, CancellationToken ct) => await store.WriteAsync(db =>
     {
+        if (command.Type >= ControlCommandType.GroupCreated)
+            store.VerifyGroupCommand(db, command, db.One<Group>("Id=$0", command.GroupId));
         db.Insert(new ControlLogEntry { Id = command.Id, Index = snapshot.LastIndex + 1, Term = snapshot.State.CurrentTerm, CommandJson = JsonSerializer.Serialize(command) });
         return Task.FromResult(true);
     }, ct);
@@ -323,6 +325,7 @@ public sealed partial class ConsensusService(ChatStore store, ChatDatabase datab
         if (command.ActorUserId != local.UserId) return new(false, "Sai người thực hiện thao tác.");
         var status = await GetStatusAsync(ct);
         if (!status.LeaderReady) return new(false, "Máy trung tâm chưa sẵn sàng. Tin nhắn vẫn được đồng bộ.");
+        command = store.SignGroupCommand(command, local.NodeId, ct);
         if (status.Role != NodeRole.Leader)
         {
             var peer = (await store.GetPeerEndpointsAsync(ct)).FirstOrDefault(x => x.NodeId == status.LeaderNodeId);
@@ -335,7 +338,7 @@ public sealed partial class ConsensusService(ChatStore store, ChatDatabase datab
     internal async Task<ControlResult> ProposeRemoteAsync(ControlCommand command, Guid sourceNode, CancellationToken ct)
     {
         using var db = database.Open(ct);
-        if (!db.Exists<PeerNode>("NodeId=$0 AND UserId=$1", sourceNode, command.ActorUserId)) return new(false, "Không xác thực được người yêu cầu.");
+        if (command.OriginNodeId != sourceNode || !db.Exists<PeerNode>("NodeId=$0 AND UserId=$1", sourceNode, command.ActorUserId)) return new(false, "Không xác thực được người yêu cầu.");
         return await ProposeLocalAsync(command, ct);
     }
     private async Task<ControlResult> ProposeLocalAsync(ControlCommand command, CancellationToken ct)
@@ -356,7 +359,6 @@ public sealed partial class ConsensusService(ChatStore store, ChatDatabase datab
                 if (snapshot.LastIndex != snapshot.State.CommitIndex) return new(false, "Đang đồng bộ cấu trúc mạng chat. Vui lòng thử lại sau vài giây.");
                 var error = await ValidateGroupCommandAsync(command, ct);
                 if (error is not null) return new(false, error);
-                command = command with { CreatedAtTicks = DateTime.UtcNow.Ticks };
                 index = snapshot.LastIndex + 1; await AppendLocalAsync(command, snapshot, ct);
             }
             finally { _gate.Release(); }

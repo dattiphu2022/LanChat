@@ -18,5 +18,5 @@ Bộ cài chạy theo tài khoản hiện tại và dùng .NET Framework 4.8 có
 
 ## Khi Danh bạ chưa tìm thấy máy
 
-- Trên hai máy, mở tab **Mạng mặc định**, rồi vào **Mạng chat → Chi tiết → Điều phối và mã mời**. So sánh **ID mạng** và **Giao thức**. Các máy dùng cùng bộ cài nội bộ sẽ có cùng ID trên tab mặc định. Bản v1/v2 cần nâng cấp lên cùng bản v3 để tham gia mạng.
+- Trên hai máy, mở tab **Mạng mặc định**, rồi vào **Mạng chat → Chi tiết → Điều phối và mã mời**. So sánh **ID mạng** và **Giao thức**. Cài cùng bản giao thức v4 trên toàn bộ máy. Lần chạy đầu xóa lịch sử cũ trên từng máy theo [hướng dẫn nâng cấp](../README.md#nâng-cấp).
 - Nếu hai máy cùng ID và giao thức, kiểm tra Windows Firewall và việc Wi-Fi có cô lập các thiết bị hay không. Quản trị viên có thể chạy `scripts/Enable-LanChatFirewall.ps1 -AppPath "C:/duong-dan/LanChat.WinForms.exe"` trên từng máy. Quy tắc chỉ cho phép EXE này nhận kết nối từ subnet nội bộ trên profile Domain hoặc Private. Mạng mặc định ưu tiên UDP 54545 và TCP 54546. Mạng riêng dùng cổng TCP theo mã mạng.

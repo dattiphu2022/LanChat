@@ -7,10 +7,10 @@ namespace LanChat.Infrastructure;
 
 public sealed partial class ChatStore
 {
+    private const int MaxEventPayloadChars = 256 * 1024;
     internal static UserProfileDto ToProfile(LocalUserProfile p) => new(p.Id, p.DisplayName, p.FullName, p.Nickname, p.Department, p.Position, p.Phone, p.StatusMessage);
     internal static EventDto ToEvent(ReplicationEvent e) => new(e.Id, e.OriginNodeId, e.OriginSequence, e.ActorUserId, e.EntityId, e.ConversationId,
-        e.Type, e.PayloadJson, e.PhysicalTicks, e.LogicalCounter, e.CreatedAtTicks, e.Signature);
-    private string SignEvent(EventDto e) => Convert.ToBase64String(FrameworkIO.Hmac(options.ClusterSecret, JsonSerializer.SerializeToUtf8Bytes(e with { Signature = "" })));
+        e.Type, e.PayloadJson, e.PhysicalTicks, e.LogicalCounter, e.CreatedAtTicks, e.Signature, new(e.EncryptionKey, e.SigningKey));
     private async Task InitializeDistributedAsync(CancellationToken ct)
     {
         await WriteAsync(async db =>
@@ -21,19 +21,21 @@ public sealed partial class ChatStore
             if (!db.Exists<ClusterState>()) db.Insert(new ClusterState { Id = LanChat.Domain.AppIdentity.NewId(), ClusterId = options.ClusterId });
             if (!db.Exists<ReplicationEvent>("OriginNodeId=$0 AND Type=$1", s.NodeId, ReplicationEventType.UserProfileUpdated))
                 await EmitAsync(db, s, ReplicationEventType.UserProfileUpdated, s.UserId, null, ToProfile(db.Required<LocalUserProfile>("Id=$0", s.UserId)), ct);
-            var oldMessages = db.Rows<Message>("Kind<>$0 AND NOT EXISTS(SELECT 1 FROM ReplicationEvents e WHERE e.EntityId=Messages.Id AND e.Type=$1)", MessageKind.System, ReplicationEventType.MessageCreated);
-            foreach (var message in oldMessages) await EmitMessageAsync(db, s, message, null, ct);
             return true;
         }, ct);
     }
     private async Task<EventDto> EmitAsync<T>(ChatDbContext db, LocalSettings s, ReplicationEventType type, Guid entityId,
-        Guid? conversationId, T payload, CancellationToken ct, Guid? actor = null)
+        Guid? conversationId, T payload, CancellationToken ct, Guid[]? audience = null)
     {
         (s.PhysicalTicks, s.LogicalCounter) = HybridClock.Advance(s.PhysicalTicks, s.LogicalCounter);
         var e = new ReplicationEvent { Id = LanChat.Domain.AppIdentity.NewId(), OriginNodeId = s.NodeId, OriginSequence = ++s.EventSequence,
-            ActorUserId = actor ?? s.UserId, EntityId = entityId, ConversationId = conversationId, Type = type,
-            PayloadJson = JsonSerializer.Serialize(payload), PhysicalTicks = s.PhysicalTicks, LogicalCounter = s.LogicalCounter, CreatedAtTicks = DateTime.UtcNow.Ticks };
-        e.Signature = SignEvent(ToEvent(e));
+            ActorUserId = s.UserId, EntityId = entityId, ConversationId = conversationId, Type = type,
+            EncryptionKey = Device.PublicKeys.EncryptionKey, SigningKey = Device.PublicKeys.SigningKey,
+            PhysicalTicks = s.PhysicalTicks, LogicalCounter = s.LogicalCounter, CreatedAtTicks = DateTime.UtcNow.Ticks };
+        e.PayloadJson = type == ReplicationEventType.UserProfileUpdated ? JsonSerializer.Serialize(payload) :
+            EncryptEvent(db, e.Id, payload, audience ?? ActiveMessageAudience(db, entityId, conversationId!.Value));
+        if (e.PayloadJson.Length > MaxEventPayloadChars) throw new ArgumentException("Nội dung đồng bộ vượt giới hạn.");
+        e.Signature = Device.Sign(options.ClusterId, "event", ToEvent(e));
         db.Insert(e); db.Insert(new OutboxItem { Id = LanChat.Domain.AppIdentity.NewId(), ReplicationEventId = e.Id });
         var cursor = db.One<ReplicationCursor>("OriginNodeId=$0", s.NodeId);
         if (cursor is null) { cursor = new ReplicationCursor { Id = LanChat.Domain.AppIdentity.NewId(), OriginNodeId = s.NodeId }; db.Insert(cursor); }
@@ -47,9 +49,11 @@ public sealed partial class ChatStore
         var sender = db.Required<LocalUserProfile>("Id=$0", message.SenderUserId);
         var recipient = db.One<LocalUserProfile>("Id=$0", message.RecipientUserId);
         var audience = db.Rows<ConversationMember>("ConversationId=$0", message.ConversationId).Select(x => x.UserId).ToArray();
-        var content = new MessageContent(PendingMessageDeliveryService.ToDto(message), ToProfile(sender), recipient is null ? null : ToProfile(recipient),
+        var dto = new ChatMessageDto(message.Id, message.ClientMessageId, message.ConversationId, message.SenderUserId, message.RecipientUserId,
+            message.OriginNodeId, message.OriginSequence, message.Kind, message.Text, message.CreatedAtTicks, message.PhysicalTicks, message.LogicalCounter);
+        var content = new MessageContent(dto, ToProfile(sender), recipient is null ? null : ToProfile(recipient),
             message.ReplyToMessageId, message.ForwardedFromMessageId, attachments, audience);
-        await EmitAsync(db, s, ReplicationEventType.MessageCreated, message.Id, message.ConversationId, content, ct, message.SenderUserId);
+        await EmitAsync(db, s, ReplicationEventType.MessageCreated, message.Id, message.ConversationId, content, ct, audience);
     }
     public async Task<ReplicationDigest> GetDigestAsync(CancellationToken ct = default)
     {
@@ -77,7 +81,6 @@ public sealed partial class ChatStore
         var changed = new HashSet<Guid>(); var origins = new HashSet<Guid>();
         foreach (var e in batch.Events)
         {
-            ValidateEvent(e);
             var old = db.One<ReplicationEvent>("Id=$0 OR (OriginNodeId=$1 AND OriginSequence=$2)", e.Id, e.OriginNodeId, e.OriginSequence);
             if (old is not null)
             {
@@ -85,9 +88,11 @@ public sealed partial class ChatStore
                 continue;
             }
             if (e.OriginNodeId == s.NodeId) throw new InvalidDataException("Không nhận sự kiện mới giả danh node cục bộ.");
+            ValidateEvent(db, e);
             db.Insert(new ReplicationEvent { Id = e.Id, OriginNodeId = e.OriginNodeId, OriginSequence = e.OriginSequence,
                 ActorUserId = e.ActorUserId, EntityId = e.EntityId, ConversationId = e.ConversationId, Type = e.Type, PayloadJson = e.PayloadJson,
-                PhysicalTicks = e.PhysicalTicks, LogicalCounter = e.LogicalCounter, CreatedAtTicks = e.CreatedAtTicks, Signature = e.Signature });
+                PhysicalTicks = e.PhysicalTicks, LogicalCounter = e.LogicalCounter, CreatedAtTicks = e.CreatedAtTicks, Signature = e.Signature,
+                EncryptionKey = e.DeviceKeys!.EncryptionKey, SigningKey = e.DeviceKeys.SigningKey });
             (s.PhysicalTicks, s.LogicalCounter) = HybridClock.Advance(s.PhysicalTicks, s.LogicalCounter, e.PhysicalTicks, e.LogicalCounter);
             changed.Add(e.EntityId); origins.Add(e.OriginNodeId);
             db.SaveChanges();
@@ -116,12 +121,23 @@ public sealed partial class ChatStore
         }
         return new EventAck(batch.Events.Select(x => x.Id).ToArray());
     }, ct);
-    private void ValidateEvent(EventDto e)
+    private void ValidateEvent(ChatDbContext db, EventDto e)
     {
         if (e.Id == Guid.Empty || e.EntityId == Guid.Empty || e.ActorUserId == Guid.Empty || e.OriginNodeId == Guid.Empty || e.OriginSequence < 1 ||
-            e.PayloadJson.Length > 200000 || e.PhysicalTicks < 1 || e.PhysicalTicks > DateTime.UtcNow.AddDays(1).Ticks || e.LogicalCounter < 0 || e.LogicalCounter > 10000000 ||
-            !Enum.IsDefined(typeof(ReplicationEventType), e.Type) || !FrameworkIO.FixedEquals(Convert.FromBase64String(SignEvent(e)), Convert.FromBase64String(e.Signature)))
+            e.PayloadJson is null || e.PayloadJson.Length > MaxEventPayloadChars || e.PhysicalTicks < 1 || e.PhysicalTicks > DateTime.UtcNow.AddDays(1).Ticks || e.LogicalCounter < 0 || e.LogicalCounter > 10000000 ||
+            !Enum.IsDefined(typeof(ReplicationEventType), e.Type))
             throw new InvalidDataException("Sự kiện không hợp lệ.");
+        DeviceIdentity.Verify(options.ClusterId, "event", e with { Signature = "" }, e.DeviceKeys, e.Signature);
+        PinDevice(db, e.OriginNodeId, e.ActorUserId, e.DeviceKeys!);
+        if (e.Type == ReplicationEventType.UserProfileUpdated)
+        {
+            if (e.ActorUserId != e.EntityId || e.ConversationId is not null) throw new InvalidDataException("Định danh hồ sơ không hợp lệ.");
+        }
+        else
+        {
+            if (e.ConversationId is null || e.ConversationId == Guid.Empty) throw new InvalidDataException("Thiếu định danh cuộc trò chuyện.");
+            _ = DeviceIdentity.ParseEnvelope(e.PayloadJson);
+        }
     }
     public async Task<PeerEndpoint[]> GetPeerEndpointsAsync(CancellationToken ct = default)
     {

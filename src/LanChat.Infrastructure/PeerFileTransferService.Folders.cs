@@ -67,7 +67,7 @@ public sealed partial class PeerFileTransferService
             var file = await ImportLocalAsync(source.FullPath, ct).ConfigureAwait(false);
             total += file.FileSize;
             if (total > MaxFolderBytes) throw new ArgumentException("Thư mục vượt quá 20 GB.");
-            files[i] = new FolderFile(source.RelativePath, file.FileSize, file.Sha256);
+            files[i] = new FolderFile(source.RelativePath, file.FileSize, file.Sha256, file.FileKey);
         }
 
         var manifest = new FolderManifest(name, directories.ToArray(), files);
@@ -122,7 +122,7 @@ public sealed partial class PeerFileTransferService
                 var destination = Path.Combine(temporary, ToLocalPath(file.RelativePath));
                 Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
                 var item = new AttachmentDto(Guid.Empty, attachment.MessageId, Path.GetFileName(destination),
-                    "application/octet-stream", file.FileSize, file.Sha256);
+                    "application/octet-stream", file.FileSize, file.Sha256, file.FileKey);
                 var offset = completed;
                 var report = progress is null ? null : new FolderProgress(progress, offset, total);
                 var blob = await DownloadAsync(item, report, ct).ConfigureAwait(false);

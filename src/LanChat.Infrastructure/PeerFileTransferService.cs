@@ -7,12 +7,12 @@ using Microsoft.Extensions.Logging;
 
 namespace LanChat.Infrastructure;
 
-public sealed partial class PeerFileTransferService(NodeOptions options, IDistributedStore store, IChatStore chatStore,
+public sealed partial class PeerFileTransferService(NodeOptions options, IDistributedStore store, ChatStore chatStore,
     WireProtocol wire, ClusterTls tls, FaultInjection faults, ILogger<PeerFileTransferService> logger) : IFileTransferService
 {
     private string BlobPath(string hash)
     {
-        if (hash.Length != 64 || !hash.All(Uri.IsHexDigit)) throw new ArgumentException("SHA256 không hợp lệ.");
+        if (hash is null || hash.Length != 64 || !hash.All(Uri.IsHexDigit)) throw new ArgumentException("SHA256 không hợp lệ.");
         hash = hash.ToLowerInvariant();
         return Path.Combine(options.DataDirectory, "Attachments", hash.Substring(0, 2), hash + ".bin");
     }
@@ -53,8 +53,10 @@ public sealed partial class PeerFileTransferService(NodeOptions options, IDistri
                 finally { if (File.Exists(referenceTemp)) File.Delete(referenceTemp); }
             }
             var mime = Path.GetExtension(path).ToLowerInvariant() switch { ".png" => "image/png", ".jpg" or ".jpeg" => "image/jpeg", ".gif" => "image/gif", ".bmp" => "image/bmp", ".tif" or ".tiff" => "image/tiff", ".pdf" => "application/pdf", ".txt" => "text/plain", _ => "application/octet-stream" };
+            var fileKey = Convert.ToBase64String(FrameworkIO.RandomBytes(DeviceIdentity.KeyBytes));
+            await chatStore.RegisterFileKeyAsync(hash, fileKey, ct);
             logger.LogInformation("Imported local attachment {Bytes} bytes", info.Length);
-            return new(LanChat.Domain.AppIdentity.NewId(), Guid.Empty, fileName ?? info.Name, contentType ?? mime, new FileInfo(target).Length, hash);
+            return new(LanChat.Domain.AppIdentity.NewId(), Guid.Empty, fileName ?? info.Name, contentType ?? mime, new FileInfo(target).Length, hash, fileKey);
         }
         finally { if (File.Exists(temp)) File.Delete(temp); }
     }
@@ -178,7 +180,16 @@ public sealed partial class PeerFileTransferService(NodeOptions options, IDistri
     }
     public async Task<string> DownloadAsync(AttachmentDto file, IProgress<FileProgress>? progress = null, CancellationToken ct = default)
     {
+        if (file.FileSize is < 0 or > 20L * 1024 * 1024 * 1024) throw new InvalidDataException("Kích thước tệp không hợp lệ.");
+        var key = DeviceIdentity.Decode(file.FileKey, DeviceIdentity.KeyBytes);
+        try { return await DownloadWithKeyAsync(file, key, progress, ct); }
+        finally { Array.Clear(key, 0, key.Length); }
+    }
+
+    private async Task<string> DownloadWithKeyAsync(AttachmentDto file, byte[] fileKey, IProgress<FileProgress>? progress, CancellationToken ct)
+    {
         var target = BlobPath(file.Sha256);
+        var transferId = FileTransferCrypto.TransferId(fileKey);
         using (var local = await OpenVerifiedLocalAsync(file.Sha256, ct))
             if (local is not null && local.Length == file.FileSize) { progress?.Report(new(file.FileSize, file.FileSize)); return target; }
         Directory.CreateDirectory(Path.GetDirectoryName(target)!);
@@ -196,7 +207,7 @@ public sealed partial class PeerFileTransferService(NodeOptions options, IDistri
                 using var abortTransfer = ct.Register(() => client.Close());
                 using var stream = await tls.ConnectAsync(client.GetStream(), handshake.Token);
                 var identity = await chatStore.GetIdentityAsync(ct); var requestId = LanChat.Domain.AppIdentity.NewId();
-                await WireProtocol.WriteAsync(stream, wire.Encode(identity.NodeId, "FileDownload", new FileRequest(file.Sha256), requestId), handshake.Token);
+                await WireProtocol.WriteAsync(stream, wire.Encode(identity.NodeId, "FileDownload", new FileRequest(transferId), requestId), handshake.Token);
                 // Source verification/recovery may scan a large file after the connection is established.
                 handshake.CancelAfter(TimeSpan.FromMinutes(30));
                 var response = await wire.ReadTcpResponseAsync(stream, identity.NodeId, requestId, "FileDownloadResponse", handshake.Token, peer.NodeId);
@@ -205,19 +216,13 @@ public sealed partial class PeerFileTransferService(NodeOptions options, IDistri
                 abortHandshake.Dispose();
                 using (var output = new FileStream(temp, FileMode.CreateNew, FileAccess.Write, FileShare.None, 65536, FileOptions.Asynchronous))
                 {
-                    var buffer = new byte[65536]; long received = 0;
-                    while (received < file.FileSize)
-                    {
-                        using var idleTimeout = CancellationTokenSource.CreateLinkedTokenSource(ct); idleTimeout.CancelAfter(TimeSpan.FromSeconds(15));
-                        using var abortIdle = idleTimeout.Token.Register(() => client.Close());
-                        var count = await stream.ReadAsync(buffer, 0, (int)Math.Min(buffer.Length, file.FileSize - received), idleTimeout.Token);
-                        if (count == 0) throw new EndOfStreamException("File bị ngắt giữa chừng.");
-                        await output.WriteAsync(buffer, 0, count, ct); received += count; progress?.Report(new(received, file.FileSize));
-                    }
+                    await FileTransferCrypto.ReadAsync(stream, output, file.FileSize, file.Sha256, fileKey, progress, client.Close, ct);
                     await output.FlushAsync(ct);
                 }
                 if (!await VerifyAsync(temp, file, ct)) throw new InvalidDataException("File tải về không khớp SHA256.");
                 await PublishSnapshotAsync(temp, target, file.Sha256, ct);
+                // Metadata and a matching local hash alone do not authorize serving that blob under a new key.
+                await chatStore.RegisterFileKeyAsync(file.Sha256.ToLowerInvariant(), file.FileKey, ct);
                 logger.LogInformation("Attachment downloaded and verified: {Bytes} bytes", file.FileSize); return target;
             }
             catch (Exception) when (ct.IsCancellationRequested) { throw new OperationCanceledException(ct); }

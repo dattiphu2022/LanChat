@@ -264,7 +264,6 @@ public sealed class PeerTransport(WireProtocol wire, ChatStore store, FaultInjec
         var source = discovery?.NodeId ?? (await store.GetIdentityAsync(timeout.Token)).NodeId;
         var requestId = LanChat.Domain.AppIdentity.NewId();
         await WireProtocol.WriteAsync(stream, wire.Encode(source, type, body, requestId), timeout.Token);
-        if (type == "FileAvailability") timeout.CancelAfter(TimeSpan.FromMinutes(30));
         var response = await wire.ReadTcpResponseAsync(stream, source, requestId, type + "Response", timeout.Token, expectedNode).ConfigureAwait(false);
         timeout.Token.ThrowIfCancellationRequested();
         return response;
@@ -284,16 +283,12 @@ public sealed class PeerTransport(WireProtocol wire, ChatStore store, FaultInjec
         if (info.NodeId != response.SourceNodeId) throw new InvalidDataException("Sai định danh peer.");
         return info;
     }
-    public async Task DeliverAsync(string address, int port, ChatPushDto message, CancellationToken cancellationToken)
-    {
-        var response = await RequestAsync(address, port, "ChatPush", message, cancellationToken);
-        if (WireProtocol.Payload<ChatAckDto>(response).MessageId != message.Message.Id) throw new InvalidDataException("ACK không khớp.");
-    }
     public async Task<T> CallAsync<T>(PeerEndpoint peer, string type, object payload, CancellationToken ct)
     {
         faults.ThrowIfBlocked(peer.NodeId);
-        // The event and direct-message operations are idempotent if the old route dropped an ACK.
-        if (peer.NodeId == Guid.Empty || type is not ("Digest" or "EventRange" or "EventPush" or "ChatPush"))
+        if (type == "ChatPush") throw new IOException("Giao thức 4 chuyển tin nhắn qua sự kiện đã mã hóa.");
+        // Event synchronization can safely retry after a lost acknowledgment.
+        if (peer.NodeId == Guid.Empty || type is not ("Digest" or "EventRange" or "EventPush"))
             return await CallAtAddressAsync<T>(peer, type, payload, ct).ConfigureAwait(false);
 
         var preferred = store.GetPreferredPeerEndpoint(peer, ct);
@@ -430,26 +425,20 @@ public sealed class PeerConnectionManager(NodeOptions options, WireProtocol wire
                     case "Append": response = await services.GetRequiredService<ConsensusService>().AppendAsync(WireProtocol.Payload<AppendRequest>(request), request.SourceNodeId, timeout.Token); break;
                     case "ConsensusStatus": response = await services.GetRequiredService<IConsensusService>().GetStatusAsync(timeout.Token); break;
                     case "ControlProposal": response = await services.GetRequiredService<ConsensusService>().ProposeRemoteAsync(WireProtocol.Payload<ControlCommand>(request), request.SourceNodeId, timeout.Token); break;
-                    case "FileAvailability":
-                        timeout.CancelAfter(TimeSpan.FromMinutes(30));
-                        response = await services.GetRequiredService<PeerFileTransferService>().HasFileAsync(WireProtocol.Payload<FileRequest>(request).Sha256, timeout.Token); break;
                     case "FileDownload":
-                        var files = services.GetRequiredService<PeerFileTransferService>(); var hash = WireProtocol.Payload<FileRequest>(request).Sha256;
                         timeout.CancelAfter(TimeSpan.FromMinutes(30));
-                        using (var input = await files.OpenVerifiedLocalAsync(hash, timeout.Token))
+                        var transfer = store.FindFileKey(WireProtocol.Payload<FileRequest>(request).TransferId, timeout.Token);
+                        try
                         {
+                            var files = services.GetRequiredService<PeerFileTransferService>();
+                            using var input = transfer.HasValue ? await files.OpenVerifiedLocalAsync(transfer.Value.Hash, timeout.Token) : null;
                             var availability = new FileAvailability(input is not null, input?.Length ?? 0);
                             await WireProtocol.WriteAsync(stream, wire.Encode(localNodeId, "FileDownloadResponse", availability, request.RequestId), timeout.Token);
-                            if (input is not null) await input.CopyToAsync(stream, timeout.Token);
+                            if (input is not null && transfer is { } file)
+                                await FileTransferCrypto.WriteAsync(input, stream, input.Length, file.Hash, file.Key, timeout.Token);
                         }
+                        finally { if (transfer is { } file) Array.Clear(file.Key, 0, file.Key.Length); }
                         return;
-                    case "ChatPush":
-                        var push = WireProtocol.Payload<ChatPushDto>(request);
-                        if (push.Sender.NodeId != request.SourceNodeId) throw new InvalidDataException("Sai định danh người gửi.");
-                        await store.ReceiveAsync(push, remoteAddress, timeout.Token);
-                        response = new ChatAckDto(push.Message.Id);
-                        logger.LogDebug("Message received from node {NodeId}", request.SourceNodeId);
-                        break;
                     default: throw new InvalidDataException("Loại gói tin chưa hỗ trợ.");
                 }
                 await WireProtocol.WriteAsync(stream, wire.Encode(localNodeId, request.MessageType + "Response", response, request.RequestId), timeout.Token);

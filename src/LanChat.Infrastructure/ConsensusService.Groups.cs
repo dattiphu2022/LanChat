@@ -45,6 +45,7 @@ public sealed partial class ConsensusService
             if (c.Type >= ControlCommandType.GroupCreated)
             {
                 var group = db.One<Group>("Id=$0", c.GroupId);
+                store.VerifyGroupCommand(db, c, group);
                 if (c.Type == ControlCommandType.GroupCreated && group is null)
                 {
                     group = new Group { Id = c.GroupId, ConversationId = c.GroupId, Name = c.Name!, OwnerUserId = c.ActorUserId, AvatarBase64 = c.AvatarBase64 };
@@ -80,6 +81,7 @@ public sealed partial class ConsensusService
                             db.Delete<ConversationMember>("ConversationId=$0 AND UserId=$1", group.Id, c.TargetUserId); break;
                     }
                 }
+                if (group is not null) group.LastCommandId = c.Id;
                 if (!db.Exists<Message>("Id=$0", c.Id))
                 {
                     var text = c.Type switch

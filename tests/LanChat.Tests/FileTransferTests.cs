@@ -116,9 +116,16 @@ public sealed class FileTransferTests
         await FrameworkIO.WriteTextAsync((await Files(a).GetLocalPathAsync(file.Sha256))!, "damaged cache");
         Assert.False((await a.Host.Services.GetRequiredService<PeerFileTransferService>().HasFileAsync(file.Sha256, default)).Available);
         await FrameworkIO.WriteTextAsync(await Files(b).PrepareOpenAsync(received), "Receiver's local edits");
-        // C knows only B; file data can be fetched without the original sender or a leader.
+        // B can forward the file key to C in a new encrypted conversation.
         await c.Store.RememberPeerAsync(await b.Store.GetNodeInfoAsync(), "127.0.0.1");
-        var copy = await Files(c).DownloadAsync(received); Assert.Equal(bytes, await FrameworkIO.ReadBytesAsync(copy));
+        var recipient = await c.Store.GetNodeInfoAsync();
+        await b.Store.RememberPeerAsync(recipient, "127.0.0.1");
+        var forwarded = await b.Store.OpenDirectAsync(recipient.User.Id);
+        await storeB.SendToConversationAsync(forwarded, "Chuyển tiếp tệp", attachments: [received with { Id = Guid.NewGuid() }]);
+        var storeC = c.Host.Services.GetRequiredService<IDistributedStore>();
+        await storeC.ImportEventsAsync(await storeB.GetEventRangeAsync(new((await b.Store.GetIdentityAsync()).NodeId, 0)));
+        var copy = await Files(c).DownloadAsync(Assert.Single(await storeC.GetAttachmentsAsync(forwarded)));
+        Assert.Equal(bytes, await FrameworkIO.ReadBytesAsync(copy));
     }
     [Fact]
     public async Task CorruptSourceIsRejectedAndTemporaryFileIsRemoved()
@@ -226,7 +233,9 @@ public sealed class FileTransferTests
     {
         await using var node = new TestNode(Guid.NewGuid(), FrameworkIO.RandomBytes(32), "A"); await node.InitializeAsync();
         await Assert.ThrowsAsync<ArgumentException>(() => Files(node).GetLocalPathAsync("../../cluster.json"));
-        await Assert.ThrowsAsync<IOException>(() => Files(node).DownloadAsync(new(Guid.NewGuid(), Guid.NewGuid(), "missing.txt", "text/plain", 10, new string('a', 64))));
+        var metadata = new AttachmentDto(Guid.NewGuid(), Guid.NewGuid(), "missing.txt", "text/plain", 10, new string('a', 64));
+        await Assert.ThrowsAsync<InvalidDataException>(() => Files(node).DownloadAsync(metadata));
+        await Assert.ThrowsAsync<IOException>(() => Files(node).DownloadAsync(metadata with { FileKey = Convert.ToBase64String(FrameworkIO.RandomBytes(32)) }));
     }
     private sealed class CaptureProgress(Action<FileProgress>? action = null) : IProgress<FileProgress>
     {

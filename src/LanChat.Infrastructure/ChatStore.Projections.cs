@@ -18,12 +18,18 @@ public sealed partial class ChatStore
         }
         var created = events.FirstOrDefault(x => x.Type == ReplicationEventType.MessageCreated);
         if (created is null) return;
-        var content = JsonSerializer.Deserialize<MessageContent>(created.PayloadJson) ?? throw new InvalidDataException();
+        var local = db.Required<LocalSettings>();
+        var envelope = DeviceIdentity.ParseEnvelope(created.PayloadJson);
+        if (!envelope.Recipients.Any(x => x.UserId == local.UserId)) return;
+        var content = ReadEncryptedEvent<MessageContent>(created, local.UserId)!;
         var source = content.Message;
+        var audience = envelope.Recipients.Select(x => x.UserId).ToArray();
         if (source.Id != entityId || source.SenderUserId != created.ActorUserId || content.Sender.Id != source.SenderUserId ||
-            source.ConversationId != created.ConversationId || source.ClientMessageId == Guid.Empty || source.Text.Length > 16000 || source.OriginSequence < 1 ||
+            source.OriginNodeId != created.OriginNodeId || source.ConversationId != created.ConversationId ||
+            source.ClientMessageId == Guid.Empty || source.Text.Length > 16000 || source.OriginSequence < 1 || !audience.Contains(source.SenderUserId) ||
             source.CreatedAtTicks < 1 || source.CreatedAtTicks > DateTime.MaxValue.Ticks ||
-            (source.RecipientUserId != Guid.Empty && source.ConversationId != DirectConversation.GetId(options.ClusterId, source.SenderUserId, source.RecipientUserId)))
+            (source.RecipientUserId != Guid.Empty && (audience.Length != 2 || !audience.Contains(source.RecipientUserId) ||
+                source.ConversationId != DirectConversation.GetId(options.ClusterId, source.SenderUserId, source.RecipientUserId))))
             throw new InvalidDataException("Nội dung MessageCreated không hợp lệ.");
         await ProjectProfileAsync(db, content.Sender, ct, false);
         if (content.Recipient is not null) await ProjectProfileAsync(db, content.Recipient, ct, false);
@@ -37,7 +43,6 @@ public sealed partial class ChatStore
             foreach (var user in new[] { source.SenderUserId, source.RecipientUserId })
                 if (!db.Exists<ConversationMember>("ConversationId=$0 AND UserId=$1", source.ConversationId, user))
                     db.Insert(new ConversationMember { Id = LanChat.Domain.AppIdentity.NewId(), ConversationId = source.ConversationId, UserId = user });
-        var local = db.Required<LocalSettings>();
         var m = db.One<Message>("Id=$0", entityId);
         if (m is null)
         {
@@ -53,19 +58,21 @@ public sealed partial class ChatStore
         else if (m.ClientMessageId != source.ClientMessageId || m.SenderUserId != source.SenderUserId || m.ConversationId != source.ConversationId)
             throw new InvalidDataException("Xung đột MessageCreated.");
         m.Text = source.Text; m.Kind = source.Kind; m.ReplyToMessageId = content.ReplyToMessageId; m.ForwardedFromMessageId = content.ForwardedFromMessageId;
-        var edit = events.LastOrDefault(x => x.Type == ReplicationEventType.MessageEdited && x.ActorUserId == m.SenderUserId);
+        var edits = events.Where(x => x.Type == ReplicationEventType.MessageEdited && x.ActorUserId == m.SenderUserId && x.ConversationId == m.ConversationId);
+        var edit = edits.Reverse().Select(x => ReadEncryptedEvent<MessageEdit>(x, local.UserId)).FirstOrDefault(x => x is not null);
         if (edit is not null)
         {
-            var text = JsonSerializer.Deserialize<MessageEdit>(edit.PayloadJson)?.Text ?? "";
+            var text = edit.Text;
             if (string.IsNullOrWhiteSpace(text) || text.Length > 16000) throw new InvalidDataException("Nội dung sửa không hợp lệ.");
             m.Text = text; m.IsEdited = true;
         }
-        m.IsRecalled = events.Any(x => x.Type == ReplicationEventType.MessageRecalled && x.ActorUserId == m.SenderUserId);
+        m.IsRecalled = events.Any(x => x.Type == ReplicationEventType.MessageRecalled && x.ActorUserId == m.SenderUserId &&
+            x.ConversationId == m.ConversationId && ReadEncryptedEvent<object>(x, local.UserId) is not null);
         if (m.IsRecalled) m.Text = "Tin nhắn đã được thu hồi";
-        var audience = content.Audience ?? new[] { source.SenderUserId, source.RecipientUserId };
-        var reactions = events.Where(x => x.Type == ReplicationEventType.ReactionChanged && audience.Contains(x.ActorUserId))
-            .Select(x => (Event: x, Change: JsonSerializer.Deserialize<ReactionChange>(x.PayloadJson)!))
-            .GroupBy(x => (x.Event.ActorUserId, x.Change.Emoji)).Select(x => x.Last()).Where(x => x.Change.Active && !m.IsRecalled).ToArray();
+        var reactions = events.Where(x => x.Type == ReplicationEventType.ReactionChanged && x.ConversationId == m.ConversationId && audience.Contains(x.ActorUserId))
+            .Select(x => (Event: x, Change: ReadEncryptedEvent<ReactionChange>(x, local.UserId))).Where(x => x.Change is not null)
+            .Select(x => (x.Event, Change: x.Change!)).GroupBy(x => (x.Event.ActorUserId, x.Change.Emoji)).Select(x => x.Last())
+            .Where(x => x.Change.Active && !m.IsRecalled).ToArray();
         var existingReactions = db.Rows<MessageReaction>("MessageId=$0", m.Id);
         foreach (var row in existingReactions)
             if (!reactions.Any(x => x.Event.ActorUserId == row.UserId && x.Change.Emoji == row.Emoji)) db.Delete<MessageReaction>("Id=$0", row.Id);
@@ -75,9 +82,10 @@ public sealed partial class ChatStore
             if (!existingReactions.Any(x => x.UserId == reaction.Event.ActorUserId && x.Emoji == reaction.Change.Emoji))
                 db.Insert(new MessageReaction { Id = LanChat.Domain.AppIdentity.NewId(), MessageId = m.Id, UserId = reaction.Event.ActorUserId, Emoji = reaction.Change.Emoji });
         }
-        foreach (var receipt in events.Where(x => x.Type == ReplicationEventType.ReceiptUpdated && audience.Contains(x.ActorUserId)).GroupBy(x => x.ActorUserId))
+        foreach (var receipt in events.Where(x => x.Type == ReplicationEventType.ReceiptUpdated && x.ConversationId == m.ConversationId && audience.Contains(x.ActorUserId)).GroupBy(x => x.ActorUserId))
         {
-            var values = receipt.Select(x => JsonSerializer.Deserialize<ReceiptChange>(x.PayloadJson)!).ToArray();
+            var values = receipt.Select(x => ReadEncryptedEvent<ReceiptChange>(x, local.UserId)).OfType<ReceiptChange>().ToArray();
+            if (values.Length == 0) continue;
             var row = db.One<MessageReceipt>("MessageId=$0 AND UserId=$1", m.Id, receipt.Key);
             if (row is null) { row = new MessageReceipt { Id = LanChat.Domain.AppIdentity.NewId(), MessageId = m.Id, UserId = receipt.Key }; db.Insert(row); }
             row.IsRead |= values.Any(x => x.IsRead); row.ReceivedAtTicks = values.Min(x => x.ReceivedAtTicks);
@@ -90,9 +98,15 @@ public sealed partial class ChatStore
                 !file.Sha256.All(Uri.IsHexDigit) || file.FileName.Length > 255 || Path.GetFileName(file.FileName) != file.FileName)
                 throw new InvalidDataException("Metadata file không hợp lệ.");
             var existing = db.One<Attachment>("Id=$0", file.Id);
-            if (existing is null) db.Insert(new Attachment { Id = file.Id, MessageId = m.Id, FileName = file.FileName, MimeType = file.MimeType,
-                FileSize = file.FileSize, Sha256 = file.Sha256.ToLowerInvariant() });
-            else if (existing.MessageId != m.Id || existing.Sha256 != file.Sha256.ToLowerInvariant()) throw new InvalidDataException("Xung đột attachment.");
+            var hash = file.Sha256.ToLowerInvariant();
+            if (existing is null)
+            {
+                var fileKey = DeviceIdentity.Decode(file.FileKey, DeviceIdentity.KeyBytes);
+                Array.Clear(fileKey, 0, fileKey.Length);
+                db.Insert(new Attachment { Id = file.Id, MessageId = m.Id, FileName = file.FileName, MimeType = file.MimeType,
+                    FileSize = file.FileSize, Sha256 = hash, FileKey = file.FileKey! });
+            }
+            else if (existing.MessageId != m.Id || existing.Sha256 != hash || existing.FileKey != file.FileKey) throw new InvalidDataException("Xung đột attachment.");
         }
         db.SaveChanges();
     }
@@ -175,7 +189,7 @@ public sealed partial class ChatStore
     }
     private static string In(string column, Guid[] ids) => column + " IN (" + ChatDbContext.Parameters(ids.Length) + ")";
     private static object[] Args(Guid[] ids) => ids.Cast<object>().ToArray();
-    private static AttachmentDto ToAttachment(Attachment x) => new(x.Id, x.MessageId, x.FileName, x.MimeType, x.FileSize, x.Sha256);
+    private static AttachmentDto ToAttachment(Attachment x) => new(x.Id, x.MessageId, x.FileName, x.MimeType, x.FileSize, x.Sha256, x.FileKey);
     public async Task<Message[]> GetMessageWindowAsync(Guid conversationId, Guid anchorId, CancellationToken ct = default)
     {
         using var db = database.Open(ct);
