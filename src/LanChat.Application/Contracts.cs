@@ -42,6 +42,8 @@ public sealed record UserSummary(Guid UserId, string DisplayName, string? Depart
     string IPAddress, int ServicePort, Guid NodeId, long LastSeenTicks, PresenceStatus Presence);
 public sealed record ConversationSummary(Guid Id, Guid OtherUserId, string DisplayName, string Preview,
     long LastMessageTicks, int UnreadCount, bool IsPinned, bool IsMuted, PresenceStatus Presence, ConversationKind Kind = ConversationKind.Direct, string? AvatarBase64 = null);
+public sealed record IncomingMessageNotice(Guid ConversationId, string Preview);
+public sealed record IncomingMessageBatch(long Position, IncomingMessageNotice[] Messages);
 public sealed record NetworkInfo(string Adapter, string Address, string Mask, int PrefixLength,
     string Network, string Broadcast, string FirstHost, string LastHost, long HostCount, string? Gateway);
 public sealed record DiagnosticsSnapshot(NodeIdentity Identity, int OnlinePeers, int PendingMessages,
@@ -69,6 +71,9 @@ public interface IChatStore
     Task RememberPeerAsync(NodeInfoDto peer, string address, CancellationToken ct = default);
     Task<IReadOnlyList<UserSummary>> GetUsersAsync(string search = "", CancellationToken ct = default);
     Task<Guid> OpenDirectAsync(Guid userId, CancellationToken ct = default);
+    Task ShowConversationAsync(Guid id, CancellationToken ct = default);
+    Task DeleteConversationLocalAsync(Guid id, CancellationToken ct = default);
+    Task<IncomingMessageBatch> GetIncomingMessagesAsync(long? after, CancellationToken ct = default);
     Task<IReadOnlyList<ConversationSummary>> GetConversationsAsync(string search = "", CancellationToken ct = default);
     Task<IReadOnlyList<Message>> GetMessagesAsync(Guid conversationId, long? beforeTicks = null, CancellationToken ct = default, int limit = 200);
     long Revision { get; }

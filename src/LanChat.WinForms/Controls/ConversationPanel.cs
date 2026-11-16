@@ -105,6 +105,7 @@ internal sealed class ConversationPanel : UserControl
     }
     private sealed record FileRow(AttachmentDto Item)
     {
-        public override string ToString() => $"{Item.FileName}  ·  {Item.FileSize / 1024d:N1} KB";
+        public override string ToString() => Item.MimeType == FolderAttachment.MimeType
+            ? $"{Item.FileName}  ·  Thư mục" : $"{Item.FileName}  ·  {Item.FileSize / 1024d:N1} KB";
     }
 }

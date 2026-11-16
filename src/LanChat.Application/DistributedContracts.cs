@@ -10,6 +10,12 @@ public sealed record MessageEdit(string Text);
 public sealed record ReactionChange(string Emoji, bool Active);
 public sealed record ReceiptChange(bool IsRead, long ReceivedAtTicks);
 public sealed record AttachmentDto(Guid Id, Guid MessageId, string FileName, string MimeType, long FileSize, string Sha256);
+public sealed record FolderFile(string RelativePath, long FileSize, string Sha256);
+public sealed record FolderManifest(string Name, string[] Directories, FolderFile[] Files);
+public static class FolderAttachment
+{
+    public const string MimeType = "application/vnd.lanchat.folder+json";
+}
 public sealed record PeerEndpoint(Guid NodeId, string Address, int Port);
 public sealed record CursorDto(Guid OriginNodeId, long LastOriginSequence);
 public sealed record ReplicationDigest(CursorDto[] Cursors);
@@ -77,6 +83,7 @@ public sealed record FileAvailability(bool Available, long Length);
 public interface IFileTransferService
 {
     Task<AttachmentDto> ImportLocalAsync(string path, CancellationToken ct = default);
+    Task<AttachmentDto> ImportFolderAsync(string path, IProgress<string>? progress = null, CancellationToken ct = default);
     Task<string?> GetLocalPathAsync(string sha256, CancellationToken ct = default);
     Task<string> DownloadAsync(AttachmentDto file, IProgress<FileProgress>? progress = null, CancellationToken ct = default);
     Task<string> PrepareOpenAsync(AttachmentDto file, IProgress<FileProgress>? progress = null, CancellationToken ct = default);

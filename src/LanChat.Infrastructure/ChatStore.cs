@@ -142,14 +142,69 @@ public sealed partial class ChatStore(ChatDatabase database, NodeOptions options
         return id;
     }
     public Task<Guid> OpenDirectAsync(Guid userId, CancellationToken ct = default) => WriteAsync(async db =>
-        await EnsureDirectAsync(db, (db.Required<LocalSettings>()).UserId, userId, ct), ct);
+    {
+        var id = await EnsureDirectAsync(db, db.Required<LocalSettings>().UserId, userId, ct);
+        db.Required<Conversation>("Id=$0", id).IsHiddenLocal = false;
+        return id;
+    }, ct);
+
+    public Task ShowConversationAsync(Guid id, CancellationToken ct = default) => WriteAsync(db =>
+    {
+        LocalConversation(db, id).IsHiddenLocal = false;
+        return Task.FromResult(true);
+    }, ct);
+
+    public Task DeleteConversationLocalAsync(Guid id, CancellationToken ct = default) => WriteAsync(db =>
+    {
+        var conversation = LocalConversation(db, id);
+        conversation.IsHiddenLocal = true;
+        conversation.IsPinned = false;
+        db.Execute("UPDATE Messages SET IsDeletedLocal=1 WHERE ConversationId=$0 AND IsDeletedLocal=0", id);
+        return Task.FromResult(true);
+    }, ct);
+
+    private static Conversation LocalConversation(ChatDbContext db, Guid id)
+    {
+        var local = db.Required<LocalSettings>().UserId;
+        if (!db.Exists<ConversationMember>("ConversationId=$0 AND UserId=$1", id, local))
+            throw new InvalidOperationException("Bạn không còn là thành viên cuộc trò chuyện.");
+        return db.Required<Conversation>("Id=$0", id);
+    }
+
+    public Task<IncomingMessageBatch> GetIncomingMessagesAsync(long? after, CancellationToken ct = default)
+    {
+        using var db = database.Open(ct);
+        // Local insertion order also catches delayed messages with an older sender timestamp.
+        var position = db.Scalar("SELECT COALESCE(MAX(rowid),0) FROM Messages");
+        if (!after.HasValue || after.Value >= position)
+            return Task.FromResult(new IncomingMessageBatch(position, []));
+
+        var local = db.Required<LocalSettings>().UserId;
+        using var command = db.Command(
+            "SELECT m.ConversationId,m.Text,m.Kind FROM Messages m JOIN Conversations c ON c.Id=m.ConversationId " +
+            "WHERE m.rowid>$0 AND m.rowid<=$1 AND m.SenderUserId<>$2 AND m.IsRead=0 AND m.IsDeletedLocal=0 AND m.IsRecalled=0 " +
+            "AND m.Kind<>$3 AND c.IsMuted=0 AND c.IsHiddenLocal=0 " +
+            "AND EXISTS(SELECT 1 FROM ConversationMembers cm WHERE cm.ConversationId=c.Id AND cm.UserId=$2) " +
+            "ORDER BY m.rowid", after.Value, position, local, MessageKind.System);
+        using var reader = command.ExecuteReader();
+        var messages = new List<IncomingMessageNotice>();
+        while (reader.Read())
+        {
+            ct.ThrowIfCancellationRequested();
+            var preview = reader.GetString(1);
+            if (string.IsNullOrWhiteSpace(preview))
+                preview = (MessageKind)reader.GetInt32(2) == MessageKind.Image ? "Đã gửi ảnh" : "Đã gửi tệp";
+            messages.Add(new IncomingMessageNotice(Guid.Parse(reader.GetString(0)), preview));
+        }
+        return Task.FromResult(new IncomingMessageBatch(position, messages.ToArray()));
+    }
 
     public async Task<IReadOnlyList<ConversationSummary>> GetConversationsAsync(string search = "", CancellationToken ct = default)
     {
         var users = (await GetUsersAsync(search, ct)).ToDictionary(x => x.UserId);
         using var db = database.Open(ct);
         var local = (db.Required<LocalSettings>()).UserId;
-        var conversations = db.Rows<Conversation>("Id IN (SELECT ConversationId FROM ConversationMembers WHERE UserId=$0)", local);
+        var conversations = db.Rows<Conversation>("IsHiddenLocal=0 AND Id IN (SELECT ConversationId FROM ConversationMembers WHERE UserId=$0)", local);
         var members = db.Rows<ConversationMember>().ToLookup(m => m.ConversationId);
         var result = new List<ConversationSummary>();
         foreach (var c in conversations)
@@ -183,6 +238,7 @@ public sealed partial class ChatStore(ChatDatabase database, NodeOptions options
         if (string.IsNullOrWhiteSpace(text) || text.Length > 16000) throw new ArgumentException("Nội dung tin nhắn không hợp lệ.");
         var s = db.Required<LocalSettings>();
         var conversation = await EnsureDirectAsync(db, s.UserId, recipientId, ct);
+        db.Required<Conversation>("Id=$0", conversation).IsHiddenLocal = false;
         (s.PhysicalTicks, s.LogicalCounter) = HybridClock.Advance(s.PhysicalTicks, s.LogicalCounter);
         var message = new Message { Id = LanChat.Domain.AppIdentity.NewId(), ClientMessageId = LanChat.Domain.AppIdentity.NewId(), ConversationId = conversation,
             SenderUserId = s.UserId, RecipientUserId = recipientId, OriginNodeId = s.NodeId, OriginSequence = ++s.LastSequence,
@@ -218,7 +274,8 @@ public sealed partial class ChatStore(ChatDatabase database, NodeOptions options
             await UpsertPeerAsync(db, push.Sender, address, ct);
             // Persist newly discovered user inside the same transaction before validating the conversation.
             db.SaveChanges();
-            await EnsureDirectAsync(db, s.UserId, m.SenderUserId, ct);
+            var conversation = await EnsureDirectAsync(db, s.UserId, m.SenderUserId, ct);
+            db.Required<Conversation>("Id=$0", conversation).IsHiddenLocal = false;
             (s.PhysicalTicks, s.LogicalCounter) = HybridClock.Advance(s.PhysicalTicks, s.LogicalCounter, m.PhysicalTicks, m.LogicalCounter);
             db.Insert(new Message { Id = m.Id, ClientMessageId = m.ClientMessageId, ConversationId = m.ConversationId,
                 SenderUserId = m.SenderUserId, RecipientUserId = m.RecipientUserId, OriginNodeId = m.OriginNodeId,

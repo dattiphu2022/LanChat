@@ -41,6 +41,8 @@ public sealed partial class ChatStore
         var m = db.One<Message>("Id=$0", entityId);
         if (m is null)
         {
+            if (db.Exists<ConversationMember>("ConversationId=$0 AND UserId=$1", source.ConversationId, local.UserId))
+                conversation.IsHiddenLocal = false;
             m = new Message { Id = source.Id, ClientMessageId = source.ClientMessageId, ConversationId = source.ConversationId,
                 SenderUserId = source.SenderUserId, RecipientUserId = source.RecipientUserId, OriginNodeId = source.OriginNodeId,
                 OriginSequence = source.OriginSequence, CreatedAtTicks = source.CreatedAtTicks, PhysicalTicks = source.PhysicalTicks,
@@ -115,6 +117,7 @@ public sealed partial class ChatStore
         if (!db.Exists<ConversationMember>("ConversationId=$0 AND UserId=$1", conversationId, s.UserId)) throw new InvalidOperationException("Bạn không còn là thành viên cuộc trò chuyện.");
         if (conversation.Kind == ConversationKind.Group && db.Exists<Group>("Id=$0 AND IsDeleted=1", conversationId)) throw new InvalidOperationException("Nhóm đã bị xóa.");
         if (replyTo.HasValue && !db.Exists<Message>("Id=$0 AND ConversationId=$1", replyTo, conversationId)) throw new ArgumentException("Tin được trả lời không thuộc cuộc trò chuyện.");
+        conversation.IsHiddenLocal = false;
         var other = conversation.Kind == ConversationKind.Direct ? db.Required<ConversationMember>("ConversationId=$0 AND UserId<>$1", conversationId, s.UserId).UserId : Guid.Empty;
         (s.PhysicalTicks, s.LogicalCounter) = HybridClock.Advance(s.PhysicalTicks, s.LogicalCounter);
         var message = new Message { Id = LanChat.Domain.AppIdentity.NewId(), ClientMessageId = LanChat.Domain.AppIdentity.NewId(), ConversationId = conversationId,

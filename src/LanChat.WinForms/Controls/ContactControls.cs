@@ -65,6 +65,8 @@ public sealed class ConversationItemControl : UserControl
         KeyDown += (_, e) => { if (e.KeyCode == Keys.Enter && _model is not null) { Selected?.Invoke(_model); e.SuppressKeyPress = true; } };
         foreach (var pair in new[] { ("Ghim / Bỏ ghim", "pin"), ("Tắt / Bật thông báo", "mute"), ("Đánh dấu đã đọc", "read") })
             menu.Items.Add(pair.Item1, null, (_, _) => { if (_model is not null) ActionRequested?.Invoke(_model, pair.Item2); });
+        menu.Items.Add(new ToolStripSeparator());
+        menu.Items.Add("Xóa hội thoại phía tôi…", null, (_, _) => { if (_model is not null) ActionRequested?.Invoke(_model, "delete"); });
         menu.Opening += (_, e) => e.Cancel = _model?.Id == Guid.Empty;
         ContextMenuStrip = menu;
         foreach (Control control in new Control[] { layout, _avatar, _title, _preview, _meta })

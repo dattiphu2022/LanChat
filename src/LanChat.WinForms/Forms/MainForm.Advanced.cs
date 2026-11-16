@@ -25,7 +25,25 @@ public sealed partial class MainForm
         else
         {
             var attachments = new List<AttachmentDto>();
-            foreach (var path in submission.Files) attachments.Add(await Files.ImportLocalAsync(path, _lifetime.Token));
+            var preparingFolder = false;
+            try
+            {
+                foreach (var path in submission.Files)
+                {
+                    if (Directory.Exists(path))
+                    {
+                        preparingFolder = true;
+                        var progress = new Progress<string>(text => { if (preparingFolder && !IsDisposed) _scanState.Text = text; });
+                        attachments.Add(await Files.ImportFolderAsync(path, progress, _lifetime.Token));
+                    }
+                    else attachments.Add(await Files.ImportLocalAsync(path, _lifetime.Token));
+                }
+            }
+            finally
+            {
+                if (preparingFolder && !IsDisposed) _scanState.Text = "";
+                preparingFolder = false;
+            }
             await Distributed.SendToConversationAsync(conversation, submission.Text, submission.ReplyTo, attachments: attachments.ToArray(), ct: _lifetime.Token);
         }
         if (_activeConversation != conversation)
@@ -71,7 +89,7 @@ public sealed partial class MainForm
         if (ChatImageService.IsImage(file)) { await OpenImageGalleryAsync(file); return; }
         if (!_openingAttachments.Add(file.Id)) return;
         using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
-        using var progressForm = new AttachmentOpenProgressForm(file.FileName, cancellation);
+        using var progressForm = new AttachmentOpenProgressForm(file.FileName, cancellation, file.MimeType == FolderAttachment.MimeType);
         try
         {
             var prepare = Files.PrepareOpenAsync(file, new Progress<FileProgress>(progressForm.Report), cancellation.Token);
@@ -120,8 +138,13 @@ public sealed partial class MainForm
     private async Task OpenFilesAsync()
     {
         var attachments = await Distributed.GetAttachmentsAsync(ct: _lifetime.Token);
-        using var select = new SelectionForm("Tệp trong các cuộc trò chuyện", attachments.Select(x => new SelectionItem(x.Id, $"{x.FileName} · {x.FileSize / 1024d:N1} KB")));
+        using var select = new SelectionForm("Tệp và thư mục trong các cuộc trò chuyện", attachments.Select(x => new SelectionItem(x.Id,
+            x.MimeType == FolderAttachment.MimeType ? $"{x.FileName} · Thư mục" : $"{x.FileName} · {x.FileSize / 1024d:N1} KB")));
         if (select.ShowDialog(this) == DialogResult.OK && select.SelectedId is { } id)
-        { using var viewer = new AttachmentForm(attachments.Single(x => x.Id == id), Files); viewer.ShowDialog(this); }
+        {
+            var attachment = attachments.Single(x => x.Id == id);
+            if (attachment.MimeType == FolderAttachment.MimeType) await OpenAttachmentAsync(attachment);
+            else { using var viewer = new AttachmentForm(attachment, Files); viewer.ShowDialog(this); }
+        }
     }
 }

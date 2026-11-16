@@ -50,6 +50,7 @@ public sealed class Conversation
     public ConversationKind Kind { get; set; }
     public bool IsPinned { get; set; }
     public bool IsMuted { get; set; }
+    public bool IsHiddenLocal { get; set; }
     public long LastReadTicks { get; set; }
     public string Title { get; set; } = "";
 }

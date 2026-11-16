@@ -9,6 +9,54 @@ namespace LanChat.Tests;
 public sealed class FileTransferTests
 {
     private static IFileTransferService Files(TestNode n) => n.Host.Services.GetRequiredService<IFileTransferService>();
+
+    [Fact]
+    public async Task FolderTransfersOverTlsAndRestoresNestedFilesAndEmptyDirectories()
+    {
+        var cluster = Guid.NewGuid(); var secret = FrameworkIO.RandomBytes(32);
+        await using var a = new TestNode(cluster, secret, "A");
+        await using var b = new TestNode(cluster, secret, "B");
+        await a.InitializeAsync(true); await b.InitializeAsync();
+        await b.Store.RememberPeerAsync(await a.Store.GetNodeInfoAsync(), "127.0.0.1");
+        var source = Path.Combine(Path.GetDirectoryName(a.Options.DataDirectory)!, Guid.NewGuid().ToString("N"), "Hồ sơ");
+        Directory.CreateDirectory(Path.Combine(source, "Phụ lục", "Rỗng"));
+        var bytes = FrameworkIO.RandomBytes(32_000);
+        var file = Path.Combine(source, "Phụ lục", "Kết quả.bin");
+        await FrameworkIO.WriteBytesAsync(file, bytes);
+        await FrameworkIO.WriteTextAsync(Path.Combine(source, "Báo cáo.txt"), "Bản gốc");
+        var folder = await Files(a).ImportFolderAsync(source);
+        Assert.Equal(FolderAttachment.MimeType, folder.MimeType);
+        await FrameworkIO.WriteBytesAsync(file, [1, 2, 3]);
+        Assert.Null(await Files(b).GetLocalPathAsync(folder.Sha256));
+
+        await a.Store.RememberPeerAsync(await b.Store.GetNodeInfoAsync(), "127.0.0.1");
+        var conversation = await a.Store.OpenDirectAsync((await b.Store.GetIdentityAsync()).UserId);
+        var storeA = a.Host.Services.GetRequiredService<IDistributedStore>();
+        var storeB = b.Host.Services.GetRequiredService<IDistributedStore>();
+        await storeA.SendToConversationAsync(conversation, "", attachments: [folder]);
+        await storeB.ImportEventsAsync(await storeA.GetEventRangeAsync(new((await a.Store.GetIdentityAsync()).NodeId, 0)));
+        var received = Assert.Single(await storeB.GetAttachmentsAsync(conversation));
+        Assert.Equal("Hồ sơ", received.FileName);
+        var opened = await Files(b).PrepareOpenAsync(received);
+        Assert.Equal("Hồ sơ", Path.GetFileName(opened));
+        Assert.Equal(bytes, await FrameworkIO.ReadBytesAsync(Path.Combine(opened, "Phụ lục", "Kết quả.bin")));
+        Assert.Equal("Bản gốc", await FrameworkIO.ReadTextAsync(Path.Combine(opened, "Báo cáo.txt")));
+        Assert.Empty(Directory.EnumerateFileSystemEntries(Path.Combine(opened, "Phụ lục", "Rỗng")));
+        await a.Host.StopAsync();
+        Assert.Equal(opened, await Files(b).PrepareOpenAsync(received));
+    }
+
+    [Theory]
+    [InlineData("../escape.txt")]
+    [InlineData("C:/escape.txt")]
+    [InlineData("x:stream")]
+    [InlineData("AUX.txt")]
+    [InlineData("missing/child.txt")]
+    public void FolderManifestRejectsInvalidWindowsPaths(string path)
+    {
+        var manifest = new FolderManifest("Folder", [], [new(path, 0, new string('a', 64))]);
+        Assert.Throws<InvalidDataException>(() => PeerFileTransferService.ValidateManifest(manifest, "Folder"));
+    }
     [Fact]
     public async Task OpenLocalFilePreservesNameAndUserEditsWithoutChangingSharedBlob()
     {

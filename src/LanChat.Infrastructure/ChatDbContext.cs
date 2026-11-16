@@ -8,7 +8,8 @@ public sealed class ChatDatabase
 {
     public static readonly IReadOnlyList<string> MigrationIds = Array.AsReadOnly(new[]
     {
-        "20260921071741_InitialPhase1", "20260921072743_LocalReadState", "20260921081251_DistributedPhases"
+        "20260921071741_InitialPhase1", "20260921072743_LocalReadState", "20260921081251_DistributedPhases",
+        "20261113093000_LocalConversationVisibility"
     });
     private readonly string _connectionString;
     public ChatDatabase(string dataDirectory)

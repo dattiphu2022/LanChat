@@ -51,8 +51,10 @@ public sealed partial class MainForm : Form
     private IReadOnlyList<UserSummary> _contacts = [];
     private IReadOnlyList<ConversationSummary> _summaries = [];
     private readonly NotifyIcon _notification = new() { Icon = AppIcon.Value, Text = "LanChat", Visible = true };
-    private Action<string, string>? _showNotification;
-    private Dictionary<Guid, int>? _lastUnread;
+    private Action<Guid, string, string>? _showNotification;
+    private Func<bool>? _isSelectedNetwork;
+    private Guid? _notificationConversation;
+    private long? _incomingPosition;
     private readonly NavigationItemControl _messageNav = new() { Caption = "Tin nhắn", Active = true };
     private readonly NavigationItemControl _usersNav = new() { Caption = "Danh bạ" };
     private readonly TableLayoutPanel _workspace = new() { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1, Margin = Padding.Empty };
@@ -113,7 +115,10 @@ public sealed partial class MainForm : Form
         {
             using var form = ActivatorUtilities.CreateInstance<GroupsForm>(services);
             if (form.ShowDialog(this) == DialogResult.OK && form.SelectedGroup is Guid id)
+            {
+                await _store.ShowConversationAsync(id, _lifetime.Token);
                 await SelectConversationAsync(id);
+            }
         });
         files.Selected += async (_, _) => await RunUiAsync(OpenFilesAsync);
         scan.Selected += async (_, _) => await ScanAsync(scan);
@@ -128,8 +133,17 @@ public sealed partial class MainForm : Form
         _conversations.ActionRequested += async (c, action) => await RunUiAsync(async () =>
         {
             if (c.Id == Guid.Empty) return;
-            await store.SetConversationAsync(c.Id, action == "pin" ? !c.IsPinned : (bool?)null,
-                action == "mute" ? !c.IsMuted : (bool?)null, action == "read", _lifetime.Token);
+            if (action == "delete")
+            {
+                if (MessageBox.Show(this, $"Xóa hội thoại “{c.DisplayName}” trên máy này?\n\nLịch sử trên máy khác vẫn được giữ. Hội thoại sẽ hiện lại khi có tin mới.",
+                    "Xóa hội thoại phía tôi", MessageBoxButtons.YesNo, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2) != DialogResult.Yes) return;
+                await _store.DeleteConversationLocalAsync(c.Id, _lifetime.Token);
+                _drafts.Remove(c.Id);
+                if (_activeConversation == c.Id) ClearActiveConversation();
+            }
+            else
+                await store.SetConversationAsync(c.Id, action == "pin" ? !c.IsPinned : (bool?)null,
+                    action == "mute" ? !c.IsMuted : (bool?)null, action == "read", _lifetime.Token);
             await RefreshAsync();
         });
         _chat.SendRequested += SendSubmissionAsync;
@@ -145,9 +159,14 @@ public sealed partial class MainForm : Form
         _chatArea.Resize += (_, _) => LayoutPanel();
         _workspace.Resize += (_, _) => LayoutWorkspace();
         _timer.Tick += async (_, _) => await TickAsync();
-        Shown += async (_, _) => await RunUiAsync(async () => { await UpdateProfileAsync(); await RefreshAsync(); if (!IsDisposed) _timer.Start(); });
+        Shown += async (_, _) => { if (_showNotification is null) await StartViewAsync(); };
         Activated += async (_, _) => await RunUiAsync(MarkActiveReadAsync);
         _notification.DoubleClick += (_, _) => { Show(); WindowState = FormWindowState.Normal; Activate(); };
+        _notification.BalloonTipClicked += async (_, _) =>
+        {
+            Show(); WindowState = FormWindowState.Normal; Activate();
+            if (_notificationConversation is Guid id) await OpenNotificationAsync(id);
+        };
         FormClosed += (_, _) =>
         {
             _timer.Stop(); _timer.Dispose(); _lifetime.Cancel(); _scanCancellation?.Cancel();
@@ -174,13 +193,31 @@ public sealed partial class MainForm : Form
         if (value) { _people.BringToFront(); BindPeople(); }
         else _conversations.BringToFront();
     }
-    internal void EmbedInWorkspace(Action<string, string> notify)
+    internal void EmbedInWorkspace(Action<Guid, string, string> notify, Func<bool> isSelectedNetwork)
     {
         TopLevel = false; FormBorderStyle = FormBorderStyle.None; ShowInTaskbar = false; MinimumSize = Size.Empty;
         _notification.Visible = false;
         _showNotification = notify;
+        _isSelectedNetwork = isSelectedNetwork;
         _networkNav.Visible = false;
     }
+
+    internal Task StartViewAsync() => RunUiAsync(async () =>
+    {
+        var ct = _lifetime.Token;
+        _incomingPosition = (await Task.Run(() => _store.GetIncomingMessagesAsync(null, ct), ct)).Position;
+        await UpdateProfileAsync();
+        await RefreshAsync();
+        if (!IsDisposed) _timer.Start();
+    });
+
+    internal Task OpenNotificationAsync(Guid id) => RunUiAsync(async () =>
+    {
+        await RefreshAsync();
+        if (_summaries.Any(c => c.Id == id)) await SelectConversationAsync(id);
+    });
+
+    internal Task MarkReadOnActivationAsync() => RunUiAsync(MarkActiveReadAsync);
 
     internal async Task UpdateProfileAsync()
     {
@@ -201,6 +238,16 @@ public sealed partial class MainForm : Form
         }
         _activeConversation = id; ShowPeople(false);
         await RefreshAsync();
+    }
+
+    private void ClearActiveConversation()
+    {
+        _activeConversation = _boundConversation = _searchAnchor = null;
+        _olderMessages = _visibleMessages = [];
+        _hasOlder = true;
+        _info.ResetSearch();
+        _chat.ClearConversation();
+        SetPanel(false);
     }
 
     private async Task RunUiAsync(Func<Task> action)
@@ -236,6 +283,9 @@ public sealed partial class MainForm : Form
             var previous = _olderMessages;
             var changed = _revision != revision;
             var presenceDue = DateTime.UtcNow - _lastPresence > TimeSpan.FromSeconds(4);
+            IncomingMessageBatch? incoming = null;
+            if (changed)
+                incoming = await Task.Run(() => _store.GetIncomingMessagesAsync(_incomingPosition, ct), ct);
             if (changed || _presenceRevision != presenceRevision || presenceDue)
             {
                 var contacts = await Task.Run(() => _store.GetUsersAsync(ct: ct), ct);
@@ -247,14 +297,19 @@ public sealed partial class MainForm : Form
                 _summaries = summaries.Select(c => c.Kind == ConversationKind.Direct && presence.TryGetValue(c.OtherUserId, out var online)
                     ? c with { Presence = online } : c).ToArray();
                 BindConversations(); if (_showPeople) BindPeople();
-                UpdateUnread();
+                _messageNav.SetBadge("Tin nhắn", _summaries.Sum(x => x.UnreadCount));
+                if (incoming is not null)
+                {
+                    _incomingPosition = incoming.Position;
+                    NotifyIncoming(incoming.Messages);
+                }
                 _lastPresence = DateTime.UtcNow;
             }
 
             if (id.HasValue && id == _activeConversation && anchor == _searchAnchor)
             {
                 var current = _summaries.FirstOrDefault(x => x.Id == id);
-                if (current is null) { _activeConversation = null; _boundConversation = null; _chat.ClearConversation(); SetPanel(false); }
+                if (current is null) ClearActiveConversation();
                 else
                 {
                     _chat.SelectConversation(current.DisplayName, current.Presence == PresenceStatus.Online, current.Kind == ConversationKind.Group);
@@ -291,27 +346,34 @@ public sealed partial class MainForm : Form
         finally { _refresh.Release(); }
     }
 
-    private void UpdateUnread()
+    private void NotifyIncoming(IncomingMessageNotice[] messages)
     {
-        if (_lastUnread is not null)
+        if (messages.Length == 0) return;
+        var reading = IsReadingActiveConversation;
+        var available = _summaries.Where(c => !c.IsMuted).ToDictionary(c => c.Id);
+        var pending = messages.Where(m => available.ContainsKey(m.ConversationId) && (m.ConversationId != _activeConversation || !reading)).ToArray();
+        if (pending.Length == 0) return;
+        var latest = pending[pending.Length - 1];
+        var conversation = available[latest.ConversationId];
+        var preview = latest.Preview.NormalizeLines(" ").Trim();
+        if (preview.Length > 160) preview = preview.Substring(0, 160) + "…";
+        var body = pending.Length > 1 ? $"{pending.Length} tin nhắn mới · {preview}" : preview;
+        if (_showNotification is not null) _showNotification(conversation.Id, conversation.DisplayName, body);
+        else
         {
-            var notify = _summaries.FirstOrDefault(c => !c.IsMuted && c.UnreadCount > _lastUnread.GetValueOrDefault(c.Id) &&
-                !(c.Id == _activeConversation && ContainsFocus && WindowState != FormWindowState.Minimized && _chat.AtBottom));
-            if (notify is not null)
-            {
-                var body = $"Bạn có {notify.UnreadCount} tin nhắn chưa đọc.";
-                if (_showNotification is null) _notification.ShowBalloonTip(3000, notify.DisplayName, body, ToolTipIcon.Info);
-                else _showNotification(notify.DisplayName, body);
-            }
+            _notificationConversation = conversation.Id;
+            _notification.ShowBalloonTip(3000, conversation.DisplayName, body, ToolTipIcon.Info);
         }
-        _lastUnread = _summaries.ToDictionary(x => x.Id, x => x.UnreadCount);
-        _messageNav.SetBadge("Tin nhắn", _summaries.Sum(x => x.UnreadCount));
     }
+
+    private bool IsReadingActiveConversation => Visible && (TopLevel ? Form.ActiveForm == this : Form.ActiveForm == TopLevelControl) &&
+        WindowState != FormWindowState.Minimized &&
+        (_isSelectedNetwork?.Invoke() ?? true) && !_showPeople && !_searchAnchor.HasValue && _chat.AtBottom;
 
     private Task MarkActiveReadAsync()
     {
         var active = _summaries.FirstOrDefault(c => c.Id == _activeConversation);
-        return ContainsFocus && WindowState != FormWindowState.Minimized && _chat.AtBottom && !_searchAnchor.HasValue &&
+        return IsReadingActiveConversation &&
             active is { UnreadCount: > 0 } ? _store.SetConversationAsync(active.Id, markRead: true, ct: _lifetime.Token) : Task.CompletedTask;
     }
 

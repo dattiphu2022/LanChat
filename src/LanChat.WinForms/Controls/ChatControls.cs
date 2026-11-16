@@ -13,6 +13,7 @@ public sealed class MessageBubbleControl : UserControl
     private ChatImageService? _images;
     private bool _updatingHeight;
     private readonly ContextMenuStrip _menu = new();
+    private readonly ContextMenuStrip _reactionMenu = new() { ShowImageMargin = false };
     private ChatMessage? _message;
     private readonly Button _more = Theme.Secondary("…");
     private readonly FlowLayoutPanel _actions = new() { Dock = DockStyle.Fill, WrapContents = false, Margin = Padding.Empty };
@@ -34,15 +35,34 @@ public sealed class MessageBubbleControl : UserControl
             item.Click += (_, _) => { if (_message is not null) { if (action == "copy") { if (_message.Text.Length > 0) Clipboard.SetText(_message.Text); } else ActionRequested?.Invoke(_message, action); } };
         }
         var reactions = new ToolStripMenuItem("Cảm xúc"); reactions.Tag = "react";
-        foreach (var emoji in new[] { "👍", "❤️", "😂", "😮", "😢" }) reactions.DropDownItems.Add(emoji, null, (_, _) => { if (_message is not null) ActionRequested?.Invoke(_message, "react:" + emoji); });
-        reactions.DropDownItems.Add("Gỡ cảm xúc của tôi", null, (_, _) => { if (_message is not null) ActionRequested?.Invoke(_message, "unreact"); });
+        void AddReaction(string caption, string action)
+        {
+            void SelectReaction(object? sender, EventArgs e)
+            {
+                if (_message is { IsRecalled: false, Kind: not MessageKind.System } message)
+                    ActionRequested?.Invoke(message, action);
+            }
+            reactions.DropDownItems.Add(caption, null, SelectReaction);
+            _reactionMenu.Items.Add(caption, null, SelectReaction);
+        }
+        foreach (var emoji in new[] { "👍", "❤️", "😂", "😮", "😢" }) AddReaction(emoji, "react:" + emoji);
+        AddReaction("Gỡ cảm xúc của tôi", "unreact");
         _menu.Items.Add(reactions);
         var reply = Theme.Secondary("Trả lời"); var react = Theme.Secondary("Cảm xúc"); var more = _more; more.AccessibleName = "Thao tác khác";
         foreach (var button in new[] { reply, react, more }) { button.MinimumSize = new Size(0, 27); button.AutoSize = false; button.Size = new Size(button == more ? 36 : 88, 27); button.Padding = Padding.Empty; button.Font = Theme.SmallFont; button.Margin = new Padding(0, 0, 4, 0); _actions.Controls.Add(button); }
         reply.Click += (_, _) => { if (_message is { IsRecalled: false } m) ActionRequested?.Invoke(m, "reply"); };
-        react.Click += (_, _) => reactions.DropDown.Show(react, new Point(0, react.Height));
+        react.Click += (_, _) =>
+        {
+            var below = react.PointToScreen(new Point(0, react.Height));
+            var workingArea = Screen.FromControl(react).WorkingArea;
+            var size = _reactionMenu.GetPreferredSize(Size.Empty);
+            var x = Math.Max(workingArea.Left, Math.Min(below.X, workingArea.Right - size.Width));
+            var y = below.Y + size.Height <= workingArea.Bottom ? below.Y : below.Y - react.Height - size.Height;
+            var anchor = react.PointToClient(new Point(x, Math.Max(workingArea.Top, y)));
+            _reactionMenu.Show(react, anchor);
+        };
         more.Click += (_, _) => _menu.Show(more, new Point(0, more.Height));
-        Disposed += (_, _) => _menu.Dispose();
+        Disposed += (_, _) => { _menu.Dispose(); _reactionMenu.Dispose(); };
         _menu.Opening += (_, _) => { foreach (ToolStripItem item in _menu.Items) item.Enabled = _message is not null && _message.Kind != MessageKind.System && ((string?)item.Tag == "delete" || (!_message.IsRecalled && ((string?)item.Tag is not ("edit" or "recall") || _own))); };
         ContextMenuStrip = _body.ContextMenuStrip = _state.ContextMenuStrip = _menu;
         Resize += (_, _) => UpdateHeight();
@@ -107,7 +127,10 @@ public sealed class MessageBubbleControl : UserControl
                 {
                     var picture = new ImageThumbnailControl(file, _images); picture.Selected += f => FileRequested?.Invoke(f); _pictures.Controls.Add(picture); continue;
                 }
-                var link = new LinkLabel { Text = $"{(file.MimeType.StartsWith("image/") ? "▧" : "▤")} {file.FileName} ({file.FileSize / 1024d:N1} KB)", AutoSize = true, Margin = new Padding(4, 10, 12, 4) };
+                var label = file.MimeType == FolderAttachment.MimeType
+                    ? $"Thư mục · {file.FileName}"
+                    : $"▤ {file.FileName} ({file.FileSize / 1024d:N1} KB)";
+                var link = new LinkLabel { Text = label, AutoSize = true, Margin = new Padding(4, 10, 12, 4) };
                 link.LinkClicked += (_, _) => FileRequested?.Invoke(file); _files.Controls.Add(link);
             }
         }
@@ -245,13 +268,25 @@ public sealed class ChatInputControl : UserControl
         var layout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1, Margin = Padding.Empty };
         layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 119)); layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100)); layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 99));
-        var attach = Theme.Secondary("Đính kèm"); attach.AutoSize = false; attach.Size = new Size(106, 38); attach.Padding = Padding.Empty;
-        attach.Anchor = AnchorStyles.Top | AnchorStyles.Left; attach.AccessibleName = "Chọn ảnh hoặc tệp"; attach.MinimumSize = Size.Empty; layout.Controls.Add(attach, 0, 0);
+        var attach = Theme.Secondary("+ Đính kèm"); attach.AutoSize = false; attach.Size = new Size(106, 38); attach.Padding = Padding.Empty;
+        attach.Anchor = AnchorStyles.Top | AnchorStyles.Left; attach.AccessibleName = "Chọn tệp hoặc thư mục"; attach.MinimumSize = Size.Empty; layout.Controls.Add(attach, 0, 0);
         layout.Controls.Add(_text, 1, 0); layout.Controls.Add(_send, 2, 0);
         _send.AutoSize = false; _send.Size = new Size(88, 38); _send.MinimumSize = Size.Empty;
         _send.Padding = Padding.Empty; _send.Anchor = AnchorStyles.Top | AnchorStyles.Left;
         root.Controls.Add(_context, 0, 0); root.Controls.Add(_previews, 0, 1); root.Controls.Add(layout, 0, 2); Controls.Add(root);
-        attach.Click += (_, _) => { using var dialog = new OpenFileDialog { Multiselect = true, Title = "Chọn ảnh hoặc tệp đính kèm", Filter = "Tất cả tệp|*.*|Ảnh|*.jpg;*.jpeg;*.png;*.gif;*.bmp;*.tif;*.tiff" }; if (dialog.ShowDialog(this) == DialogResult.OK) AddFiles(dialog.FileNames); };
+        var attachments = new ContextMenuStrip { ShowImageMargin = false };
+        attachments.Items.Add("Thêm tệp…", null, (_, _) =>
+        {
+            using var dialog = new OpenFileDialog { Multiselect = true, Title = "Chọn tệp đính kèm", Filter = "Tất cả tệp|*.*" };
+            if (dialog.ShowDialog(this) == DialogResult.OK) AddFiles(dialog.FileNames);
+        });
+        attachments.Items.Add("Thêm thư mục…", null, (_, _) =>
+        {
+            using var dialog = new FolderBrowserDialog { Description = "Chọn thư mục đính kèm", ShowNewFolderButton = false };
+            if (dialog.ShowDialog(this) == DialogResult.OK) AddFiles([dialog.SelectedPath]);
+        });
+        attach.Click += (_, _) => { if (!_sending && !_editId.HasValue) attachments.Show(attach, new Point(0, attach.Height)); };
+        Disposed += (_, _) => attachments.Dispose();
         _context.LinkClicked += (_, _) => { if (!_sending) ResetContext(); };
         InstallDrop(this); InstallDrop(_text); InstallDrop(_previews);
         _send.Click += async (_, _) => await SendAsync();
@@ -281,7 +316,8 @@ public sealed class ChatInputControl : UserControl
     public void AddFiles(IEnumerable<string> paths)
     {
         if (_sending || _editId.HasValue) return;
-        foreach (var path in paths.Where(File.Exists)) if (!_paths.Contains(path, StringComparer.OrdinalIgnoreCase) && _paths.Count < 20) _paths.Add(path);
+        foreach (var path in paths.Where(path => File.Exists(path) || Directory.Exists(path)))
+            if (!_paths.Contains(path, StringComparer.OrdinalIgnoreCase) && _paths.Count < 20) _paths.Add(path);
         RefreshPreviews();
     }
     private void RefreshPreviews()
@@ -387,7 +423,8 @@ public sealed class ChatViewControl : UserControl
     public void ResetDraft() => _input.ResetDraft();
     public void ClearConversation()
     {
-        _input.ResetDraft(); _input.Enabled = false; _find.Enabled = _info.Enabled = false; _messages.Bind(Guid.Empty, [], Guid.Empty); _older.Visible = false;
+        _input.ResetDraft(); _input.Enabled = false; _find.Enabled = _info.Enabled = false; _messages.Bind(Guid.Empty, [], Guid.Empty);
+        _searchWindow = false; _older.Visible = _new.Visible = false;
         _title.Text = "Chào mừng đến LanChat"; _subtitle.Text = "Chọn cuộc trò chuyện để tiếp tục.";
     }
     private bool _searchWindow;

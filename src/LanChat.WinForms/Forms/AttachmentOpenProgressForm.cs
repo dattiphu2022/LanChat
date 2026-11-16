@@ -7,10 +7,12 @@ internal sealed class AttachmentOpenProgressForm : Form
 {
     private readonly Label _state = Theme.Label("Đang chuẩn bị tệp…");
     private readonly ProgressBar _progress = new() { Dock = DockStyle.Fill, Style = ProgressBarStyle.Marquee, Maximum = 1000 };
-    public AttachmentOpenProgressForm(string fileName, CancellationTokenSource cancellation)
+    public AttachmentOpenProgressForm(string fileName, CancellationTokenSource cancellation, bool folder = false)
     {
         Icon = AppIcon.Value;
-        Text = "Mở tệp đính kèm"; ClientSize = new Size(500, 175); FormBorderStyle = FormBorderStyle.FixedDialog;
+        Text = folder ? "Tải và mở thư mục" : "Mở tệp đính kèm";
+        if (folder) _state.Text = "Đang đọc danh sách tệp trong thư mục…";
+        ClientSize = new Size(500, 175); FormBorderStyle = FormBorderStyle.FixedDialog;
         StartPosition = FormStartPosition.CenterParent; ShowInTaskbar = false; MaximizeBox = MinimizeBox = false;
         var layout = Theme.Stack(4); layout.Padding = new Padding(12);
         foreach (var height in new[] { 36, 36, 24, 52 }) layout.RowStyles.Add(new RowStyle(SizeType.Absolute, height));

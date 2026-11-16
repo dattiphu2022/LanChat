@@ -21,7 +21,7 @@ public sealed class ChatIntegrationTests
             await node.InitializeAsync(); directory = node.Options.DataDirectory; initial = await node.Store.GetIdentityAsync();
             var profile = await node.Store.GetProfileAsync(); profile.DisplayName = "Tên mới"; await node.Store.SaveProfileAsync(profile);
             using var db = node.Host.Services.GetRequiredService<ChatDatabase>().Open();
-            Assert.Equal(3L, db.Scalar("SELECT COUNT(*) FROM __EFMigrationsHistory"));
+            Assert.Equal((long)ChatDatabase.MigrationIds.Count, db.Scalar("SELECT COUNT(*) FROM __EFMigrationsHistory"));
             Assert.Equal("wal", db.TextScalar("PRAGMA journal_mode"));
             Assert.Equal(1L, db.Scalar("SELECT count(*) FROM sqlite_master WHERE type='index' AND name='IX_Messages_OriginNodeId_OriginSequence'"));
         }
@@ -43,6 +43,72 @@ public sealed class ChatIntegrationTests
         Assert.Single(await b.Store.GetMessagesAsync(message.ConversationId));
         await Assert.ThrowsAsync<InvalidDataException>(() => b.Store.ReceiveAsync(push with { Message = push.Message with { Text = "Modified" } }, "127.0.0.1"));
         Assert.Equal("Xin chào 👋\nDòng hai", (await b.Store.GetMessagesAsync(message.ConversationId))[0].Text);
+    }
+
+    [Fact]
+    public async Task DeletingConversationIsLocalAndNewMessageReopensItWithoutOldHistory()
+    {
+        var cluster = Guid.NewGuid(); var secret = FrameworkIO.RandomBytes(32);
+        await using var a = new TestNode(cluster, secret, "A");
+        await using var b = new TestNode(cluster, secret, "B");
+        await a.InitializeAsync(); await b.InitializeAsync();
+        var sender = await a.Store.GetNodeInfoAsync();
+        var recipient = await b.Store.GetNodeInfoAsync();
+        await a.Store.RememberPeerAsync(recipient, "127.0.0.1");
+        var first = await a.Store.SaveOutgoingAsync(recipient.User.Id, "Dữ liệu cũ");
+        var push = new ChatPushDto(sender, PendingMessageDeliveryService.ToDto(first));
+        await b.Store.ReceiveAsync(push, "127.0.0.1");
+        await b.Store.DeleteConversationLocalAsync(first.ConversationId);
+        Assert.Empty(await b.Store.GetConversationsAsync());
+        Assert.Empty(await b.Store.GetMessagesAsync(first.ConversationId));
+        Assert.Empty(await b.Host.Services.GetRequiredService<IDistributedStore>().SearchMessagesAsync("Dữ liệu cũ"));
+        Assert.Equal(first.Id, Assert.Single(await a.Store.GetMessagesAsync(first.ConversationId)).Id);
+
+        await using var restarted = new TestNode(cluster, secret, "B", b.Options.DataDirectory);
+        await restarted.InitializeAsync();
+        await restarted.Store.ReceiveAsync(push, "127.0.0.1");
+        var replicationA = a.Host.Services.GetRequiredService<IDistributedStore>();
+        var replicationB = restarted.Host.Services.GetRequiredService<IDistributedStore>();
+        await replicationB.ImportEventsAsync(await replicationA.GetEventRangeAsync(new(sender.NodeId, 0)));
+        Assert.Empty(await restarted.Store.GetConversationsAsync());
+
+        var second = await a.Store.SaveOutgoingAsync(recipient.User.Id, "Tin mới");
+        await replicationB.ImportEventsAsync(await replicationA.GetEventRangeAsync(new(sender.NodeId, 0)));
+        Assert.Equal(second.Id, Assert.Single(await restarted.Store.GetMessagesAsync(first.ConversationId)).Id);
+        Assert.Equal(1, Assert.Single(await restarted.Store.GetConversationsAsync()).UnreadCount);
+    }
+
+    [Fact]
+    public async Task IncomingNoticesUseLocalArrivalOrderAndRespectMute()
+    {
+        var cluster = Guid.NewGuid(); var secret = FrameworkIO.RandomBytes(32);
+        await using var a = new TestNode(cluster, secret, "A");
+        await using var b = new TestNode(cluster, secret, "B");
+        await a.InitializeAsync(); await b.InitializeAsync();
+        var sender = await a.Store.GetNodeInfoAsync();
+        var recipient = await b.Store.GetNodeInfoAsync();
+        await a.Store.RememberPeerAsync(recipient, "127.0.0.1");
+        async Task<ChatPushDto> SendAsync(string text)
+        {
+            var sent = await a.Store.SaveOutgoingAsync(recipient.User.Id, text);
+            var push = new ChatPushDto(sender, PendingMessageDeliveryService.ToDto(sent) with { CreatedAtTicks = DateTime.UtcNow.AddDays(-2).Ticks });
+            await b.Store.ReceiveAsync(push, "127.0.0.1");
+            return push;
+        }
+        await SendAsync("Tin từ trước khi mở ứng dụng");
+        var initial = await b.Store.GetIncomingMessagesAsync(null);
+        Assert.Empty(initial.Messages);
+        var fresh = await SendAsync("Tin vừa đến");
+        await b.Store.ReceiveAsync(fresh, "127.0.0.1");
+        var next = await b.Store.GetIncomingMessagesAsync(initial.Position);
+        Assert.Equal("Tin vừa đến", Assert.Single(next.Messages).Preview);
+
+        await b.Store.SetConversationAsync(fresh.Message.ConversationId, mute: true);
+        await SendAsync("Tin đã tắt thông báo");
+        var muted = await b.Store.GetIncomingMessagesAsync(next.Position);
+        Assert.Empty(muted.Messages);
+        await b.Store.SetConversationAsync(fresh.Message.ConversationId, mute: false);
+        Assert.Empty((await b.Store.GetIncomingMessagesAsync(muted.Position)).Messages);
     }
 
     [Fact]
@@ -174,7 +240,7 @@ public sealed class ChatIntegrationTests
         await node.InitializeAsync();
         Assert.Equal(user, (await node.Store.GetIdentityAsync()).UserId); Assert.Equal(nodeId, (await node.Store.GetIdentityAsync()).NodeId);
         Assert.Equal("Trước nâng cấp", (await node.Store.GetProfileAsync()).DisplayName);
-        Assert.Equal(3L, db.Scalar("SELECT COUNT(*) FROM __EFMigrationsHistory"));
+        Assert.Equal((long)ChatDatabase.MigrationIds.Count, db.Scalar("SELECT COUNT(*) FROM __EFMigrationsHistory"));
     }
     [Fact]
     public async Task UpgradeBackfillsExistingMessagesIntoImmutableEventsAndSearch()

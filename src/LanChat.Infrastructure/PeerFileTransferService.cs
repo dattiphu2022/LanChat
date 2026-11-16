@@ -7,7 +7,7 @@ using Microsoft.Extensions.Logging;
 
 namespace LanChat.Infrastructure;
 
-public sealed class PeerFileTransferService(NodeOptions options, IDistributedStore store, IChatStore chatStore,
+public sealed partial class PeerFileTransferService(NodeOptions options, IDistributedStore store, IChatStore chatStore,
     WireProtocol wire, ClusterTls tls, FaultInjection faults, ILogger<PeerFileTransferService> logger) : IFileTransferService
 {
     private string BlobPath(string hash)
@@ -22,6 +22,9 @@ public sealed class PeerFileTransferService(NodeOptions options, IDistributedSto
         return stream is null ? null : BlobPath(sha256);
     }
     public async Task<AttachmentDto> ImportLocalAsync(string path, CancellationToken ct = default)
+        => await ImportSnapshotAsync(path, null, null, ct);
+
+    private async Task<AttachmentDto> ImportSnapshotAsync(string path, string? fileName, string? contentType, CancellationToken ct)
     {
         var info = new FileInfo(path);
         if (!info.Exists || info.Length > 20L * 1024 * 1024 * 1024) throw new ArgumentException("File không tồn tại hoặc vượt quá 20 GB.");
@@ -38,17 +41,20 @@ public sealed class PeerFileTransferService(NodeOptions options, IDistributedSto
             // Replace atomically with the verified copy, including recovery from a damaged local blob.
             await PublishSnapshotAsync(temp, target, hash, ct);
             // Remember only a recovery candidate. It must still match the original hash before reuse.
-            var reference = target + ".source.json";
-            var referenceTemp = reference + "." + LanChat.Domain.AppIdentity.NewId() + ".part";
-            try
+            if (contentType != FolderAttachment.MimeType)
             {
-                await FrameworkIO.WriteTextAsync(referenceTemp, JsonSerializer.Serialize(Path.GetFullPath(path)), ct);
-                FrameworkIO.PublishFile(referenceTemp, reference);
+                var reference = target + ".source.json";
+                var referenceTemp = reference + "." + LanChat.Domain.AppIdentity.NewId() + ".part";
+                try
+                {
+                    await FrameworkIO.WriteTextAsync(referenceTemp, JsonSerializer.Serialize(Path.GetFullPath(path)), ct);
+                    FrameworkIO.PublishFile(referenceTemp, reference);
+                }
+                finally { if (File.Exists(referenceTemp)) File.Delete(referenceTemp); }
             }
-            finally { if (File.Exists(referenceTemp)) File.Delete(referenceTemp); }
             var mime = Path.GetExtension(path).ToLowerInvariant() switch { ".png" => "image/png", ".jpg" or ".jpeg" => "image/jpeg", ".gif" => "image/gif", ".bmp" => "image/bmp", ".tif" or ".tiff" => "image/tiff", ".pdf" => "application/pdf", ".txt" => "text/plain", _ => "application/octet-stream" };
             logger.LogInformation("Imported local attachment {Bytes} bytes", info.Length);
-            return new(LanChat.Domain.AppIdentity.NewId(), Guid.Empty, info.Name, mime, new FileInfo(target).Length, hash);
+            return new(LanChat.Domain.AppIdentity.NewId(), Guid.Empty, fileName ?? info.Name, contentType ?? mime, new FileInfo(target).Length, hash);
         }
         finally { if (File.Exists(temp)) File.Delete(temp); }
     }
@@ -75,7 +81,8 @@ public sealed class PeerFileTransferService(NodeOptions options, IDistributedSto
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException) { }
         // Also recover older attachments without a source reference from an unchanged named copy.
-        foreach (var file in (await store.GetAttachmentsAsync(ct: ct)).Where(x => string.Equals(x.Sha256, hash, StringComparison.OrdinalIgnoreCase)))
+        foreach (var file in (await store.GetAttachmentsAsync(ct: ct)).Where(x => x.MimeType != FolderAttachment.MimeType &&
+            string.Equals(x.Sha256, hash, StringComparison.OrdinalIgnoreCase)))
             candidates.Add(OpenPath(file));
         foreach (var candidate in candidates.Distinct(StringComparer.OrdinalIgnoreCase))
         {
@@ -135,6 +142,7 @@ public sealed class PeerFileTransferService(NodeOptions options, IDistributedSto
     {
         ct.ThrowIfCancellationRequested();
         if (file.Id == Guid.Empty) throw new ArgumentException("Định danh tệp không hợp lệ.");
+        if (file.MimeType == FolderAttachment.MimeType) return await PrepareFolderAsync(file, progress, ct);
         _ = BlobPath(file.Sha256);
         var target = OpenPath(file);
         var directory = Path.GetDirectoryName(target)!;

@@ -16,6 +16,7 @@ internal sealed class NetworkWorkspace : Form
     private readonly NotifyIcon _tray = new() { Icon = AppIcon.Value, Text = "LanChat", Visible = true };
     private bool _busy, _exiting, _closed, _exitRequested;
     private FormWindowState _restoreState;
+    private (Guid NetworkId, Guid ConversationId)? _notificationTarget;
 
     public NetworkWorkspace(NetworkCatalog catalog, WindowsStartup startup)
     {
@@ -50,6 +51,15 @@ internal sealed class NetworkWorkspace : Form
         trayMenu.Items.Add("Thoát LanChat", null, (_, _) => { _exitRequested = true; Close(); });
         _tray.ContextMenuStrip = trayMenu;
         _tray.DoubleClick += (_, _) => RestoreWindow();
+        _tray.BalloonTipClicked += async (_, _) =>
+        {
+            RestoreWindow();
+            if (_exiting || _notificationTarget is not { } target || !_running.TryGetValue(target.NetworkId, out var item)) return;
+            _tabs.SelectedTab = item.Tab;
+            await item.View.OpenNotificationAsync(target.ConversationId);
+        };
+        Activated += async (_, _) => await MarkSelectedReadAsync();
+        _tabs.SelectedIndexChanged += async (_, _) => await MarkSelectedReadAsync();
         Resize += (_, _) =>
         {
             if (WindowState == FormWindowState.Minimized) Hide();
@@ -99,12 +109,14 @@ internal sealed class NetworkWorkspace : Form
         try
         {
             view = ActivatorUtilities.CreateInstance<MainForm>(network.Services);
-            view.EmbedInWorkspace((title, body) => _tray.ShowBalloonTip(3000, title, body, ToolTipIcon.Info));
             tab = new TabPage(entry.Name) { Tag = entry.Id };
+            view.EmbedInWorkspace((conversationId, title, body) => ShowNotification(entry.Id, conversationId, title, body),
+                () => Visible && WindowState != FormWindowState.Minimized && _tabs.SelectedTab == tab);
             view.Dock = DockStyle.Fill;
             tab.Controls.Add(view); _tabs.TabPages.Add(tab);
             _running.Add(entry.Id, (network, view, tab));
             view.Show();
+            await view.StartViewAsync();
         }
         catch
         {
@@ -115,6 +127,16 @@ internal sealed class NetworkWorkspace : Form
             throw;
         }
     }
+
+    private void ShowNotification(Guid networkId, Guid conversationId, string title, string body)
+    {
+        if (_exiting) return;
+        _notificationTarget = (networkId, conversationId);
+        _tray.ShowBalloonTip(3000, title, body, ToolTipIcon.Info);
+    }
+
+    private Task MarkSelectedReadAsync() => _tabs.SelectedTab?.Tag is Guid id && _running.TryGetValue(id, out var item)
+        ? item.View.MarkReadOnActivationAsync() : Task.CompletedTask;
 
     private async Task RunAsync(Func<Task> action)
     {

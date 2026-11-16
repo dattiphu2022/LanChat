@@ -1,0 +1,1 @@
+ALTER TABLE "Conversations" ADD COLUMN "IsHiddenLocal" INTEGER NOT NULL DEFAULT 0;
