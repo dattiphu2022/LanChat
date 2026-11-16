@@ -126,7 +126,7 @@ public sealed partial class ChatStore
     public async Task<PeerEndpoint[]> GetPeerEndpointsAsync(CancellationToken ct = default)
     {
         using var db = database.Open(ct);
-        return db.Rows<PeerNode>("1 ORDER BY LastSeenTicks DESC").Select(x => new PeerEndpoint(x.NodeId, x.IPAddress, x.ServicePort)).ToArray();
+        return ReadPeerEndpoints(db, "1");
     }
     public async Task<EventDto[]> GetOutboxAsync(CancellationToken ct = default)
     {

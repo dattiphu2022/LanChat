@@ -81,38 +81,6 @@ public sealed partial class ChatStore(ChatDatabase database, NodeOptions options
             Role: runtime.Role, Term: state?.CurrentTerm ?? 0, CanLead: runtime.CanLead);
     }
 
-    private static async Task UpsertPeerAsync(ChatDbContext db, NodeInfoDto peer, string address, CancellationToken ct)
-    {
-        if (peer.ProtocolVersion != NodeInfoDto.CurrentProtocol || peer.User is null || peer.NodeId == Guid.Empty || peer.User.Id == Guid.Empty ||
-            peer.ServicePort is < 1024 or > 65535 || string.IsNullOrWhiteSpace(peer.User.DisplayName) || peer.User.DisplayName.Length > 100)
-            throw new InvalidDataException("Thông tin peer không hợp lệ.");
-        var known = db.One<PeerNode>("NodeId=$0", peer.NodeId);
-        if (known is null)
-        {
-            known = new PeerNode { Id = LanChat.Domain.AppIdentity.NewId(), NodeId = peer.NodeId };
-            db.Insert(known);
-        }
-        known.UserId = peer.User.Id; known.DeviceName = peer.DeviceName;
-        known.IPAddress = address; known.ServicePort = peer.ServicePort; known.LastSeenTicks = DateTime.UtcNow.Ticks;
-        known.Role = peer.Role; known.Term = peer.Term; known.ApplicationVersion = peer.ApplicationVersion;
-        var user = db.One<LocalUserProfile>("Id=$0", peer.User.Id);
-        if (user is null) { user = new LocalUserProfile { Id = peer.User.Id }; db.Insert(user); }
-        user.DisplayName = peer.User.DisplayName; user.FullName = peer.User.FullName; user.Nickname = peer.User.Nickname;
-        user.Department = peer.User.Department; user.Position = peer.User.Position; user.Phone = peer.User.Phone; user.StatusMessage = peer.User.StatusMessage;
-    }
-    public async Task RememberPeerAsync(NodeInfoDto peer, string address, CancellationToken ct = default)
-    {
-        await WriteAsync(async db =>
-        {
-            var local = db.Required<LocalSettings>();
-            if (peer.NodeId == local.NodeId || peer.User.Id == local.UserId) return false;
-            var prior = db.One<PeerNode>("NodeId=$0", peer.NodeId);
-            var appeared = prior is null || prior.LastSeenTicks < DateTime.UtcNow.AddSeconds(-15).Ticks || prior.IPAddress != address || prior.ServicePort != peer.ServicePort;
-            await UpsertPeerAsync(db, peer, address, ct);
-            if (appeared) db.NotePresenceChange();
-            return true;
-        }, ct).ConfigureAwait(false);
-    }
     public async Task<IReadOnlyList<UserSummary>> GetUsersAsync(string search = "", CancellationToken ct = default)
     {
         using var db = database.Open(ct);
@@ -120,7 +88,7 @@ public sealed partial class ChatStore(ChatDatabase database, NodeOptions options
         // Only the small contact directory is searched here; messages use the indexed conversation query.
         var users = db.Rows<LocalUserProfile>("Id<>$0", local).Where(u => NameMatches(u.DisplayName, search));
         var peers = db.Rows<PeerNode>("1 ORDER BY LastSeenTicks DESC").ToLookup(x => x.UserId);
-        var cutoff = DateTime.UtcNow.AddSeconds(-15).Ticks;
+        var cutoff = DateTime.UtcNow.Ticks - PeerPresenceWindow.Ticks;
         return users.Select(u =>
         {
             var p = peers[u.Id].FirstOrDefault();
@@ -271,7 +239,7 @@ public sealed partial class ChatStore(ChatDatabase database, NodeOptions options
                     throw new InvalidDataException("Xung đột định danh tin nhắn.");
                 return true;
             }
-            await UpsertPeerAsync(db, push.Sender, address, ct);
+            UpsertPeer(db, push.Sender, address, PeerObservation.Connection);
             // Persist newly discovered user inside the same transaction before validating the conversation.
             db.SaveChanges();
             var conversation = await EnsureDirectAsync(db, s.UserId, m.SenderUserId, ct);

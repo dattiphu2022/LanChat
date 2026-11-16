@@ -248,12 +248,13 @@ public sealed class WireProtocol
     }
 }
 
-public sealed class PeerTransport(WireProtocol wire, IChatStore store, FaultInjection faults, ClusterTls tls) : IPeerTransport, IClusterTransport
+public sealed class PeerTransport(WireProtocol wire, ChatStore store, FaultInjection faults, ClusterTls tls) : IPeerTransport, IClusterTransport
 {
     private async Task<NetworkEnvelope> RequestAsync<T>(string address, int port, string type, T body, CancellationToken ct,
-        NodeInfoDto? discovery = null, Guid? expectedNode = null)
+        NodeInfoDto? discovery = null, Guid? expectedNode = null, TimeSpan? attemptTimeout = null)
     {
-        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct); timeout.CancelAfter(TimeSpan.FromSeconds(type == "ControlProposal" ? 8 : 4));
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timeout.CancelAfter(attemptTimeout ?? TimeSpan.FromSeconds(type == "ControlProposal" ? 8 : 4));
         using var client = new TcpClient(AddressFamily.InterNetwork) { NoDelay = true };
         if (discovery is not null) timeout.CancelAfter(250);
         await client.ConnectAsync(IPAddress.Parse(address), port, timeout.Token).ConfigureAwait(false);
@@ -291,10 +292,43 @@ public sealed class PeerTransport(WireProtocol wire, IChatStore store, FaultInje
     public async Task<T> CallAsync<T>(PeerEndpoint peer, string type, object payload, CancellationToken ct)
     {
         faults.ThrowIfBlocked(peer.NodeId);
+        // The event and direct-message operations are idempotent if the old route dropped an ACK.
+        if (peer.NodeId == Guid.Empty || type is not ("Digest" or "EventRange" or "EventPush" or "ChatPush"))
+            return await CallAtAddressAsync<T>(peer, type, payload, ct).ConfigureAwait(false);
+
+        var preferred = store.GetPreferredPeerEndpoint(peer, ct);
+        var (result, connected) = await CallWithFallbackAsync<T>(preferred, type, payload, ct).ConfigureAwait(false);
+        await store.NotePeerConnectionAsync(peer.NodeId, ct, preferred, connected).ConfigureAwait(false);
+        return result;
+    }
+
+    private async Task<(T Result, PeerEndpoint Connected)> CallWithFallbackAsync<T>(PeerEndpoint preferred, string type, object payload, CancellationToken ct)
+    {
+        try { return (await CallAtAddressAsync<T>(preferred, type, payload, ct).ConfigureAwait(false), preferred); }
+        catch (Exception ex) when (IsRouteFailure(ex, ct))
+        {
+            foreach (var alternative in store.GetAlternatePeerEndpoints(preferred, ct))
+            {
+                try
+                {
+                    return (await CallAtAddressAsync<T>(alternative, type, payload, ct, TimeSpan.FromSeconds(2)).ConfigureAwait(false), alternative);
+                }
+                catch (Exception failure) when (IsRouteFailure(failure, ct)) { }
+            }
+            throw;
+        }
+    }
+
+    private async Task<T> CallAtAddressAsync<T>(PeerEndpoint peer, string type, object payload, CancellationToken ct, TimeSpan? attemptTimeout = null)
+    {
         var response = await RequestAsync(peer.Address, peer.Port, type, payload, ct,
-            expectedNode: peer.NodeId != Guid.Empty ? peer.NodeId : null);
+            expectedNode: peer.NodeId != Guid.Empty ? peer.NodeId : null, attemptTimeout: attemptTimeout).ConfigureAwait(false);
         return WireProtocol.Payload<T>(response);
     }
+
+    private static bool IsRouteFailure(Exception ex, CancellationToken ct) => !ct.IsCancellationRequested &&
+        ex is IOException or InvalidDataException or SocketException or OperationCanceledException or ObjectDisposedException or
+            FormatException or JsonException or System.Security.Authentication.AuthenticationException;
 }
 
 public sealed class NetworkHealth
@@ -325,7 +359,7 @@ public sealed class NetworkHealth
     }
 }
 
-public sealed class PeerConnectionManager(NodeOptions options, WireProtocol wire, IChatStore store,
+public sealed class PeerConnectionManager(NodeOptions options, WireProtocol wire, ChatStore store,
     ILogger<PeerConnectionManager> logger, NetworkHealth health, IServiceProvider services, FaultInjection faults, ClusterTls tls) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -374,15 +408,17 @@ public sealed class PeerConnectionManager(NodeOptions options, WireProtocol wire
                 switch (request.MessageType)
                 {
                     case "NodeInfo":
+                    case "Digest":
                         using (var body = JsonDocument.Parse(request.PayloadJson))
-                            if (body.RootElement.TryGetProperty(nameof(NodeInfoDto.NodeId), out _))
+                            if (body.RootElement.ValueKind == JsonValueKind.Object && body.RootElement.TryGetProperty(nameof(NodeInfoDto.NodeId), out _))
                             {
                                 var caller = WireProtocol.Payload<NodeInfoDto>(request);
                                 if (caller.NodeId != request.SourceNodeId) throw new InvalidDataException("Sai định danh peer.");
-                                await store.RememberPeerAsync(caller, remoteAddress, timeout.Token);
+                                await store.ObservePeerAsync(caller, remoteAddress, ChatStore.PeerObservation.Connection, timeout.Token);
                             }
-                        response = await store.GetNodeInfoAsync(timeout.Token); break;
-                    case "Digest": response = await services.GetRequiredService<IDistributedStore>().GetDigestAsync(timeout.Token); break;
+                        response = request.MessageType == "NodeInfo" ? await store.GetNodeInfoAsync(timeout.Token) :
+                            await services.GetRequiredService<IDistributedStore>().GetDigestAsync(timeout.Token);
+                        break;
                     case "EventRange": response = await services.GetRequiredService<IDistributedStore>().GetEventRangeAsync(WireProtocol.Payload<EventRangeRequest>(request), timeout.Token); break;
                     case "EventPush":
                         if (faults.PauseReplication) throw new IOException("Replication paused.");
@@ -417,6 +453,8 @@ public sealed class PeerConnectionManager(NodeOptions options, WireProtocol wire
                     default: throw new InvalidDataException("Loại gói tin chưa hỗ trợ.");
                 }
                 await WireProtocol.WriteAsync(stream, wire.Encode(localNodeId, request.MessageType + "Response", response, request.RequestId), timeout.Token);
+                if (request.MessageType is "Digest" or "EventPush" or "EventRange")
+                    await store.NotePeerConnectionAsync(request.SourceNodeId, timeout.Token);
             }
             catch (NetworkRejection ex) { health.NoteRejection(ex, logger); }
             catch (InvalidDataException ex) { logger.LogDebug("Peer request rejected: {Reason}", ex.Message); }

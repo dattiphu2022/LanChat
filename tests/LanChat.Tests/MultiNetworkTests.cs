@@ -1,4 +1,5 @@
 using LanChat.Application;
+using LanChat.Domain;
 using LanChat.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
@@ -7,6 +8,81 @@ namespace LanChat.Tests;
 
 public sealed class MultiNetworkTests
 {
+    [Fact]
+    public async Task ReplicationTriesOtherAddressesAndKeepsTheWorkingRoute()
+    {
+        var cluster = Guid.NewGuid();
+        var secret = FrameworkIO.RandomBytes(32);
+        await using var a = new TestNode(cluster, secret, "A");
+        await using var b = new TestNode(cluster, secret, "B");
+        await a.InitializeAsync();
+        await b.InitializeAsync(true);
+
+        var store = a.Host.Services.GetRequiredService<ChatStore>();
+        var peer = await b.Store.GetNodeInfoAsync();
+        var oldPort = TestNode.FreeTcpPort();
+        var staleAddress = peer with { ServicePort = oldPort };
+        await store.ObservePeerAsync(staleAddress, "127.0.0.2", ChatStore.PeerObservation.Discovery, default);
+        await store.ObservePeerAsync(peer, "127.0.0.1", ChatStore.PeerObservation.Discovery, default);
+
+        var before = Assert.Single(await store.GetUsersAsync());
+        Assert.Equal("127.0.0.2", before.IPAddress);
+        Assert.Equal(oldPort, before.ServicePort);
+        Assert.Equal(PresenceStatus.Offline, before.Presence);
+        var message = await a.Store.SaveOutgoingAsync(peer.User.Id, "Gửi qua địa chỉ dự phòng");
+        await a.Host.Services.GetRequiredService<ReplicationBackgroundService>().SynchronizeAsync(default);
+
+        Assert.Equal(message.Id, Assert.Single(await b.Store.GetMessagesAsync(message.ConversationId)).Id);
+        var connected = Assert.Single(await store.GetUsersAsync());
+        Assert.Equal(PresenceStatus.Online, connected.Presence);
+        Assert.Equal("127.0.0.1", connected.IPAddress);
+        Assert.Equal(peer.ServicePort, connected.ServicePort);
+        var revision = store.PresenceRevision;
+        await store.ObservePeerAsync(staleAddress, "127.0.0.2", ChatStore.PeerObservation.Discovery, default);
+        await store.ObservePeerAsync(peer, "127.0.0.1", ChatStore.PeerObservation.Discovery, default);
+        Assert.Equal(revision, store.PresenceRevision);
+        Assert.Equal(connected, Assert.Single(await store.GetUsersAsync()));
+        Assert.Single(await store.GetPeerEndpointsAsync());
+    }
+
+    [Fact]
+    public async Task AWorkingTcpDirectionCanCarryRepliesWithoutUdp()
+    {
+        var cluster = Guid.NewGuid();
+        var secret = FrameworkIO.RandomBytes(32);
+        await using var a = new TestNode(cluster, secret, "A");
+        await using var b = new TestNode(cluster, secret, "B");
+        a.Options.ReconciliationInterval = TimeSpan.FromHours(1);
+        await a.InitializeAsync();
+        await b.InitializeAsync(true);
+        var nodeA = await a.Store.GetNodeInfoAsync();
+        var nodeB = await b.Store.GetNodeInfoAsync();
+        await a.Store.RememberPeerAsync(nodeB, "127.0.0.1");
+
+        // Run only A's replication service. A has no TCP listener or UDP discovery socket.
+        var replication = a.Host.Services.GetRequiredService<ReplicationBackgroundService>();
+        var sent = await a.Store.SaveOutgoingAsync(nodeB.User.Id, "Tin từ A");
+        await replication.SynchronizeAsync(default);
+        Assert.Equal(sent.Id, Assert.Single(await b.Store.GetMessagesAsync(sent.ConversationId)).Id);
+        Assert.Equal(nodeA.NodeId, Assert.Single(await b.Store.GetUsersAsync()).NodeId);
+
+        var faults = a.Host.Services.GetRequiredService<FaultInjection>();
+        var initialSync = faults.LastSync;
+        await replication.StartAsync(default);
+        try
+        {
+            await TestNode.WaitUntilAsync(async () => faults.LastSync > initialSync && await a.Store.GetPendingCountAsync() == 0);
+            var lastSeen = Assert.Single(await a.Store.GetUsersAsync()).LastSeenTicks;
+            var reply = await b.Store.SaveOutgoingAsync(nodeA.User.Id, "Tin trả lời từ B");
+            await TestNode.WaitUntilAsync(async () => (await a.Store.GetMessagesAsync(sent.ConversationId)).Any(m => m.Id == reply.Id), seconds: 12);
+            var peer = Assert.Single(await a.Store.GetUsersAsync());
+            Assert.True(peer.LastSeenTicks > lastSeen);
+            Assert.Equal(PresenceStatus.Online, peer.Presence);
+            Assert.Equal(PresenceStatus.Online, Assert.Single(await b.Store.GetUsersAsync()).Presence);
+        }
+        finally { await replication.StopAsync(default); }
+    }
+
     [Fact]
     public async Task ClockSkewStillDiscoversBothPeersAndDeliversMessages()
     {
@@ -53,15 +129,23 @@ public sealed class MultiNetworkTests
 
         await TestNode.WaitUntilAsync(async () => (await localA.Store.GetUsersAsync()).Count == 1 &&
             (await localB.Store.GetUsersAsync()).Count == 1 && (await peerB.Store.GetUsersAsync()).Count == 1);
-        Assert.Equal("Peer A", Assert.Single(await localA.Store.GetUsersAsync()).DisplayName);
+        var firstPeer = Assert.Single(await localA.Store.GetUsersAsync());
+        Assert.Equal("Peer A", firstPeer.DisplayName);
         var peer = Assert.Single(await localB.Store.GetUsersAsync());
         Assert.Equal("Peer B", peer.DisplayName);
         var thread = await localB.Store.OpenDirectAsync(peer.UserId);
+        var firstMessage = await localA.Store.SaveOutgoingAsync(firstPeer.UserId, "Tin từ mạng A");
+        var secondMessage = await localB.Store.SaveOutgoingAsync(peer.UserId, "Tin từ mạng B khi cả hai mạng đang mở");
+        await TestNode.WaitUntilAsync(async () => (await peerA.Store.GetMessagesAsync(firstMessage.ConversationId)).Any(m => m.Id == firstMessage.Id) &&
+            (await peerB.Store.GetMessagesAsync(thread)).Any(m => m.Id == secondMessage.Id));
 
         await localA.Host.StopAsync();
         var sent = await localB.Store.SaveOutgoingAsync(peer.UserId, "Mạng B hoạt động sau khi gỡ mạng A");
         await TestNode.WaitUntilAsync(async () => (await peerB.Store.GetMessagesAsync(thread)).Any(m => m.Id == sent.Id));
-        Assert.Empty(await peerA.Store.GetConversationsAsync());
+        var localUser = (await localB.Store.GetIdentityAsync()).UserId;
+        var reply = await peerB.Store.SaveOutgoingAsync(localUser, "Trả lời từ mạng B");
+        await TestNode.WaitUntilAsync(async () => (await localB.Store.GetMessagesAsync(thread)).Any(m => m.Id == reply.Id));
+        Assert.Empty(await peerA.Store.GetMessagesAsync(thread));
         var identity = await localB.Store.GetIdentityAsync();
         var previousSeen = Assert.Single(await peerB.Store.GetUsersAsync()).LastSeenTicks;
         localB.Options.DiscoveryTargets.Add("127.0.0.1:" + peerB.Options.DiscoveryPort);

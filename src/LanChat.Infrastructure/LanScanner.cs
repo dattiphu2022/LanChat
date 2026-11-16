@@ -6,6 +6,7 @@ using System.Net.Sockets;
 using System.Security.Authentication;
 using System.Text.Json;
 using LanChat.Application;
+using LanChat.Domain;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
@@ -90,14 +91,17 @@ public sealed class LanScanner(ILocalNetworkInfoProvider networks, IPeerTranspor
         var ranges = networks.GetNetworks();
         var local = new HashSet<string>(ranges.Select(r => r.Address));
         var known = await distributed.GetPeerEndpointsAsync(ct);
-        if (scan.Found.Count > 0 && known.All(p => scan.Found.ContainsKey(p.NodeId)) && Volatile.Read(ref scan.ManualUsers) == 0)
+        var online = new HashSet<Guid>((await store.GetUsersAsync(ct: ct)).Where(p => p.Presence == PresenceStatus.Online)
+            .Select(p => p.NodeId));
+        if (scan.Found.Count > 0 && known.All(p => scan.Found.ContainsKey(p.NodeId) && online.Contains(p.NodeId)) &&
+            Volatile.Read(ref scan.ManualUsers) == 0)
             return scan.Found.Values.ToArray();
 
-        var endpoints = known.Where(p => !scan.Found.ContainsKey(p.NodeId) && IPAddress.TryParse(p.Address, out var ip) &&
+        var endpoints = known.Where(p => (!scan.Found.ContainsKey(p.NodeId) || !online.Contains(p.NodeId)) && IPAddress.TryParse(p.Address, out var ip) &&
             ip.AddressFamily == AddressFamily.InterNetwork && (IPAddress.IsLoopback(ip) ||
             ranges.Any(r => NetworkRangeCalculator.Contains(r, p.Address)))).Select(p => (p.Address, p.Port)).Distinct().ToArray();
         var checkedEndpoints = new HashSet<(string Address, int Port)>(endpoints);
-        checkedEndpoints.UnionWith(scan.Found.Values.Select(p => (p.IPAddress, p.ServicePort)));
+        checkedEndpoints.UnionWith(scan.Found.Values.Where(p => online.Contains(p.NodeId)).Select(p => (p.IPAddress, p.ServicePort)));
         var subnets = ranges.OrderByDescending(r => !string.IsNullOrEmpty(r.Gateway))
             .ThenByDescending(r => r.PrefixLength).GroupBy(r => (r.Network, r.PrefixLength)).Select(g => g.First());
         var ports = new[] { options.ServicePort, NodeOptions.DefaultServicePort, ClusterPorts.Alternate(options.ClusterId) }.Distinct().ToArray();
@@ -135,7 +139,10 @@ public sealed class LanScanner(ILocalNetworkInfoProvider networks, IPeerTranspor
                     ? await peerTransport.DiscoverAsync(endpoint.Address, endpoint.Port, own, token).ConfigureAwait(false)
                     : await transport.GetNodeInfoAsync(endpoint.Address, endpoint.Port, token).ConfigureAwait(false);
                 if (info.NodeId == own.NodeId || info.User is null || info.User.Id == own.User.Id) return;
-                await store.RememberPeerAsync(info, endpoint.Address, token).ConfigureAwait(false);
+                if (store is ChatStore chat)
+                    await chat.ObservePeerAsync(info, endpoint.Address, ChatStore.PeerObservation.Connection, token).ConfigureAwait(false);
+                else
+                    await store.RememberPeerAsync(info, endpoint.Address, token).ConfigureAwait(false);
                 scan.Found[info.NodeId] = ToDiscovered(info, endpoint.Address, options.ClusterId);
             }
             catch (Exception ex) when (!token.IsCancellationRequested && ex is IOException or InvalidDataException or SocketException or

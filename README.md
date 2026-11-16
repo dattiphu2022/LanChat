@@ -78,14 +78,14 @@ Mặc định **UDP 54545** discovery; **TCP/TLS 54546** cho sự kiện, điề
 
 LanChat phát discovery UDP có xác thực khi khởi động, đổi IP hoặc bấm **Quét lại**. TCP dự phòng bắt đầu sau 750 ms, ưu tiên địa chỉ đã biết và dò cổng LanChat trong subnet IPv4 cục bộ. Quét có thể hủy, chạy tối đa 64 kết nối đồng thời cho mỗi mạng. Các mạng dùng chung cổng UDP khám phá, có cổng TCP riêng được công bố qua UDP. Dò TCP dự phòng thử cổng mặc định, cổng tính từ mã mạng và các địa chỉ đã biết.
 
+LanChat xác nhận trạng thái trực tuyến qua TCP/TLS và lưu các địa chỉ đã thấy của mỗi máy. Khi đường gửi tin đang dùng gặp lỗi, ứng dụng thử địa chỉ khác. Một chiều kết nối TCP còn hoạt động có thể đồng bộ tin nhắn theo cả hai chiều.
+
 **Mạng chat → Chi tiết** cho phép ứng cử, đề cử và lưu lựa chọn **Cho phép máy này làm trung tâm**. Sau 5 giây vắng heartbeat, các máy đủ điều kiện bắt đầu kiểm tra phiếu. Khi trung tâm có đa số và đã commit trong nhiệm kỳ mới, ứng dụng đánh thức đồng bộ. Khi thiếu đa số hoặc mọi máy rút lui, các máy còn kết nối vẫn có thể trao đổi tin nhắn.
 
-Nếu Windows Firewall hỏi, cho phép trên mạng nội bộ tin cậy. Quản trị viên có thể chạy các lệnh sau từ thư mục đã giải nén để tạo rule trên từng máy.
+Nếu Windows Firewall hỏi, cho phép trên mạng nội bộ tin cậy. Từ thư mục mã nguồn, quản trị viên có thể chạy script sau trên từng máy. Quy tắc áp dụng cho EXE đã cài và các cổng TCP của LanChat, giới hạn ở subnet nội bộ trên profile Domain hoặc Private.
 
 ```powershell
-$lanChatExe = (Resolve-Path '.\artifacts\LanChat-1.0\LanChat.WinForms.exe').Path
-New-NetFirewallRule -DisplayName 'LanChat TCP Private' -Direction Inbound -Program $lanChatExe -Protocol TCP -LocalPort 54546 -RemoteAddress LocalSubnet -Profile Private -Action Allow
-New-NetFirewallRule -DisplayName 'LanChat UDP Private' -Direction Inbound -Program $lanChatExe -Protocol UDP -LocalPort 54545 -RemoteAddress LocalSubnet -Profile Private -Action Allow
+.\scripts\Enable-LanChatFirewall.ps1 -AppPath 'C:\duong-dan\LanChat.WinForms.exe'
 ```
 
 Khi bật nhiều mạng, xem cổng TCP thực tế trong **Mạng chat → Chi tiết → Kết nối** và thêm các cổng đó vào rule nếu môi trường yêu cầu lọc theo cổng. VLAN, Wi-Fi client isolation và policy broadcast cần kiểm tra tại nơi triển khai.

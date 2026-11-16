@@ -9,7 +9,7 @@ using Microsoft.Extensions.Logging;
 
 namespace LanChat.Infrastructure;
 
-public sealed class PeerDiscoveryBackgroundService(NodeOptions options, WireProtocol wire, IChatStore store,
+public sealed class PeerDiscoveryBackgroundService(NodeOptions options, WireProtocol wire, ChatStore store,
     ILocalNetworkInfoProvider networks, ILogger<PeerDiscoveryBackgroundService> logger, NetworkHealth health,
     DiscoverySockets sockets, PeerTransport transport) : BackgroundService
 {
@@ -82,7 +82,8 @@ public sealed class PeerDiscoveryBackgroundService(NodeOptions options, WireProt
                     if (!known)
                         logger.LogInformation("Confirmed peer {Node} via TCP after a clock difference greater than 120 seconds", peer.NodeId);
                 }
-                await store.RememberPeerAsync(peer, address, ct);
+                await store.ObservePeerAsync(peer, address, clockSkewed
+                    ? ChatStore.PeerObservation.Connection : ChatStore.PeerObservation.Discovery, ct);
                 _latest[peer.NodeId] = (LanScanner.ToDiscovered(peer, address, options.ClusterId), Stopwatch.GetTimestamp());
                 if (!clockSkewed && envelope.MessageType == "DiscoveryRequest")
                 {
@@ -122,12 +123,18 @@ public sealed class PendingMessageDeliveryService(IChatStore store, IPeerTranspo
                     {
                         if (peer is not null && peer.ServicePort > 0)
                         {
-                            await transport.DeliverAsync(peer.IPAddress, peer.ServicePort, new(sender, ToDto(m)), token);
+                            var push = new ChatPushDto(sender, ToDto(m));
+                            if (transport is IClusterTransport clusterTransport && peer.NodeId != Guid.Empty)
+                            {
+                                var ack = await clusterTransport.CallAsync<ChatAckDto>(new(peer.NodeId, peer.IPAddress, peer.ServicePort), "ChatPush", push, token);
+                                if (ack.MessageId != m.Id) throw new InvalidDataException("ACK không khớp.");
+                            }
+                            else await transport.DeliverAsync(peer.IPAddress, peer.ServicePort, push, token);
                             delivered = true;
                         }
                     }
                     catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
-                    catch (Exception ex) when (ex is IOException or SocketException or OperationCanceledException or JsonException or FormatException)
+                    catch (Exception ex) when (ex is IOException or InvalidDataException or SocketException or OperationCanceledException or JsonException or FormatException)
                     { logger.LogDebug("Delivery retry for message {Id}: {ErrorType}", m.Id, ex.GetType().Name); }
                     await store.SetDeliveryAsync(m.Id, delivered, token);
                 }
