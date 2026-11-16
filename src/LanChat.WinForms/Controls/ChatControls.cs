@@ -518,11 +518,7 @@ public sealed class ChatInputControl : UserControl
             using var dialog = new OpenFileDialog { Multiselect = true, Title = "Chọn tệp đính kèm", Filter = "Tất cả tệp|*.*" };
             if (dialog.ShowDialog(this) == DialogResult.OK) AddFiles(dialog.FileNames);
         });
-        attachments.Items.Add("Thêm thư mục…", null, (_, _) =>
-        {
-            using var dialog = new FolderBrowserDialog { Description = "Chọn thư mục đính kèm", ShowNewFolderButton = false };
-            if (dialog.ShowDialog(this) == DialogResult.OK) AddFiles([dialog.SelectedPath]);
-        });
+        attachments.Items.Add("Thêm thư mục…", null, (_, _) => SelectFolder());
         attach.Click += (_, _) => { if (!_sending && !_editId.HasValue) attachments.Show(attach, new Point(0, attach.Height)); };
         Disposed += (_, _) => attachments.Dispose();
         _context.LinkClicked += (_, _) => { if (!_sending) ResetContext(); };
@@ -532,6 +528,21 @@ public sealed class ChatInputControl : UserControl
         _text.AccessibleName = "Nhập tin nhắn";
         _text.KeyDown += async (_, e) => { if (e.KeyCode == Keys.Enter && !e.Shift && !_text.IsComposing) { e.SuppressKeyPress = true; await SendAsync(); } };
     }
+
+    private void SelectFolder()
+    {
+        var owner = TopLevelControl ?? this;
+        try
+        {
+            using var dialog = new FolderPickerDialog();
+            if (dialog.ShowDialog(owner) == DialogResult.OK && dialog.SelectedPath is string path) AddFiles([path]);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(owner, UiText.HideIpAddresses(ex.Message), "Không thêm được thư mục", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
+    }
+
     private async Task SendAsync()
     {
         if (_sending || !_send.Enabled || (string.IsNullOrWhiteSpace(_text.Text) && _paths.Count == 0) || SendRequested is null) return;
