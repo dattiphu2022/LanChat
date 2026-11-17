@@ -571,7 +571,8 @@ public sealed class ChatInputControl : UserControl
         _attach.Click += (_, _) => { if (CanAttach) attachments.Show(_attach, new Point(0, _attach.Height)); };
         _pasteImage.Click += async (_, _) => await PrepareImageAsync(() =>
             Clipboard.GetDataObject() is { } data ? ClipboardDraftImage.Read(data) : null, "Anh-dan", "Không có ảnh PNG hoặc bitmap trong bảng nhớ tạm.");
-        _captureRegion.Click += async (_, _) => await PrepareImageAsync(() => RegionCaptureForm.CaptureRegion(TopLevelControl ?? this), "Anh-chup");
+        _captureRegion.Click += async (_, _) => await PrepareImageAsync(() =>
+            (TopLevelControl as Form ?? FindForm()) is { } owner ? RegionCaptureForm.CaptureRegion(owner) : null, "Anh-chup");
         Disposed += (_, _) => { attachments.Dispose(); toolTips.Dispose(); };
         _context.LinkClicked += (_, _) => { if (!_sending) ResetContext(); };
         InstallDrop(this); InstallDrop(_text); InstallDrop(_previews);

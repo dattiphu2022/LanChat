@@ -16,6 +16,7 @@
     <ProjectReference Include="../LanChat.Infrastructure/LanChat.Infrastructure.csproj" />
     <Reference Include="System.Net.Http" />
     <InternalsVisibleTo Include="LanChat.Tests" />
+    <EmbeddedResource Include="Assets/DonationQr.png" LogicalName="LanChat.DonationQr" />
   </ItemGroup>
   <ItemGroup Condition="'$(LanChatPublicRelease)' != 'true' and Exists('Assets/DefaultNetwork.local.json')">
     <EmbeddedResource Include="Assets/DefaultNetwork.local.json" LogicalName="LanChat.DefaultNetwork" />

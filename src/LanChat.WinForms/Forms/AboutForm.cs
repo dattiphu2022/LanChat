@@ -1,3 +1,5 @@
+using System.ComponentModel;
+using System.Diagnostics;
 using LanChat.Application;
 using LanChat.WinForms.Controls;
 
@@ -5,6 +7,9 @@ namespace LanChat.WinForms.Forms;
 
 internal sealed class AboutForm : DpiForm
 {
+    internal const string AuthorName = "Trung tá Nguyễn Quốc Đạt - K02 - BCA";
+    private const string ProjectUrl = "https://github.com/dattiphu2022/LanChat.git";
+
     public AboutForm(string updateMessage, Func<Task<string>> checkForUpdate)
     {
         Text = "Giới thiệu LanChat";
@@ -14,11 +19,12 @@ internal sealed class AboutForm : DpiForm
         ShowInTaskbar = MinimizeBox = MaximizeBox = false;
         ClientSize = new Size(524, 420);
 
-        var layout = Theme.Stack(5);
+        var layout = Theme.Stack(6);
         layout.Padding = new Padding(24, 20, 24, 16);
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 91));
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 76));
         layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
@@ -50,13 +56,19 @@ internal sealed class AboutForm : DpiForm
         var credit = Theme.Label("Tác giả", 9);
         credit.ForeColor = Theme.Muted;
         author.Controls.Add(credit, 0, 0);
-        author.Controls.Add(Theme.Label("Trung tá Nguyễn Quốc Đạt", 15, true), 0, 1);
+        author.Controls.Add(Theme.Label(AuthorName, 15, true), 0, 1);
 
         var introduction = Theme.Label("LanChat phục vụ trao đổi công việc và chia sẻ tài liệu giữa các máy trong mạng nội bộ (LAN).\n\n" +
             "Ứng dụng hỗ trợ chat riêng, chat nhóm và gửi ảnh, tệp, thư mục. Tin nhắn và tệp được mã hóa đầu cuối. " +
             "Tin đang chờ sẽ tự đồng bộ khi kết nối trở lại.");
         introduction.AutoSize = false;
         introduction.Margin = new Padding(0, 12, 0, 0);
+
+        var project = new LinkLabel { Text = "Dự án trên GitHub", AutoSize = true, Dock = DockStyle.Fill,
+            Margin = new Padding(5, 4, 5, 4), LinkColor = Theme.Blue, AccessibleDescription = ProjectUrl };
+        var links = new ToolTip();
+        links.SetToolTip(project, ProjectUrl);
+        Disposed += (_, _) => links.Dispose();
 
         var footer = Theme.Toolbar();
         footer.FlowDirection = FlowDirection.RightToLeft;
@@ -66,9 +78,27 @@ internal sealed class AboutForm : DpiForm
         footer.Controls.Add(close);
         var check = Theme.Secondary("Kiểm tra cập nhật");
         footer.Controls.Add(check);
+        var donation = Theme.Secondary("Ủng hộ phát triển");
+        donation.Click += (_, _) =>
+        {
+            using var dialog = new DonationForm();
+            dialog.ShowDialog(this);
+        };
+        footer.Controls.Add(donation);
         var status = Theme.Label(updateMessage, 9);
         status.ForeColor = Theme.Muted;
         status.UseMnemonic = false;
+        project.LinkClicked += (_, _) =>
+        {
+            try
+            {
+                using var browser = Process.Start(new ProcessStartInfo(ProjectUrl) { UseShellExecute = true });
+            }
+            catch (Win32Exception)
+            {
+                status.Text = "Chưa mở được trình duyệt. " + ProjectUrl;
+            }
+        };
         check.Click += async (_, _) =>
         {
             check.Enabled = false;
@@ -83,8 +113,9 @@ internal sealed class AboutForm : DpiForm
         layout.Controls.Add(header, 0, 0);
         layout.Controls.Add(author, 0, 1);
         layout.Controls.Add(introduction, 0, 2);
-        layout.Controls.Add(status, 0, 3);
-        layout.Controls.Add(footer, 0, 4);
+        layout.Controls.Add(project, 0, 3);
+        layout.Controls.Add(status, 0, 4);
+        layout.Controls.Add(footer, 0, 5);
         Controls.Add(layout);
     }
 }

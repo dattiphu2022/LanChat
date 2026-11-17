@@ -25,16 +25,39 @@ internal sealed class RegionCaptureForm : Form
         DoubleBuffered = true;
     }
 
-    public static Bitmap? CaptureRegion(IWin32Window owner)
+    public static Bitmap? CaptureRegion(Form owner)
     {
-        Rectangle selection;
-        // GetMonitorInfo backs Screen.Bounds in the app's PerMonitorV2 context.
-        var desktop = Screen.AllScreens.Select(screen => screen.Bounds).Aggregate(Rectangle.Union);
-        using (var form = new RegionCaptureForm(desktop))
+        var wasVisible = owner.Visible;
+        try
         {
-            if (form.ShowDialog(owner) != DialogResult.OK) return null;
-            selection = form._selection;
+            if (wasVisible)
+            {
+                owner.Hide();
+                DwmFlush();
+            }
+
+            // GetMonitorInfo backs Screen.Bounds in the app's PerMonitorV2 context.
+            var desktop = Screen.AllScreens.Select(screen => screen.Bounds).Aggregate(Rectangle.Union);
+            Rectangle selection;
+            using (var form = new RegionCaptureForm(desktop))
+            {
+                if (form.ShowDialog(owner) != DialogResult.OK) return null;
+                selection = form._selection;
+            }
+            return CapturePixels(selection);
         }
+        finally
+        {
+            if (wasVisible && !owner.IsDisposed && !owner.Disposing)
+            {
+                owner.Show();
+                owner.Activate();
+            }
+        }
+    }
+
+    private static Bitmap CapturePixels(Rectangle selection)
+    {
         // Wait for the compositor to present the desktop without the selection overlay.
         DwmFlush();
         var image = new Bitmap(selection.Width, selection.Height, PixelFormat.Format32bppRgb);

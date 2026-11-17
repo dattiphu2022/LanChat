@@ -77,7 +77,7 @@ public sealed partial class MainForm : DpiForm
         _chat.ConfigureDraftImages(_draftImages, _lifetime.Token);
         _chat.DraftFilesChanged += CleanupDraftImages;
         Icon = AppIcon.Value;
-        Text = "LanChat — Chat nội bộ - phát triển bởi Trung tá Nguyễn Quốc Đạt";
+        Text = $"LanChat — Chat nội bộ - phát triển bởi {AboutForm.AuthorName}";
         ClientSize = new Size(1240, 800); MinimumSize = new Size(660, 420);
         StartPosition = FormStartPosition.CenterScreen; BackColor = Theme.Canvas;
         var root = Theme.Stack(2);
