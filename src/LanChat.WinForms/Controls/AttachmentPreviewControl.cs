@@ -16,21 +16,25 @@ public sealed class AttachmentPreviewControl : UserControl
         var isFolder = Directory.Exists(path);
         var description = isFolder ? "Thư mục" : file.Exists ? $"{file.Length / 1024d:N1} KB" : "Không tìm thấy";
         var label = Theme.Label($"{name}\n{description}", 9); label.AutoSize = false; label.AutoEllipsis = true; label.UseMnemonic = false;
-        var remove = new Button { Text = "×", AccessibleName = "Bỏ " + name, Dock = DockStyle.Fill, FlatStyle = FlatStyle.Flat }; remove.Click += (_, _) => RemoveRequested?.Invoke();
+        var remove = Theme.Icon(UiIcon.Close, "Bỏ " + name);
+        remove.Dock = DockStyle.Fill;
+        remove.MinimumSize = Size.Empty;
+        remove.Margin = new Padding(2, 4, 2, 4);
+        remove.Padding = Padding.Empty;
+        remove.Click += (_, _) => RemoveRequested?.Invoke();
         layout.Controls.Add(_image, 0, 0); layout.Controls.Add(label, 1, 0); layout.Controls.Add(remove, 2, 0); Controls.Add(layout);
-        if (isFolder)
+        _image.Paint += (_, e) =>
         {
-            var icon = Theme.Label("📁", 20);
-            icon.AutoSize = false; icon.TextAlign = ContentAlignment.MiddleCenter;
-            layout.Controls.Remove(_image);
-            _image.Dispose();
-            layout.Controls.Add(icon, 0, 0);
-        }
-        else _image.Image = thumbnail is null ? SystemIcons.Application.ToBitmap() : new Bitmap(thumbnail);
+            if (_image.Image is not null) return;
+            var size = this.ScalePixels(24);
+            var icon = UiIcons.Get(isFolder ? UiIcon.Folder : UiIcon.File, size, Theme.Muted);
+            e.Graphics.DrawImageUnscaled(icon, (_image.Width - size) / 2, (_image.Height - size) / 2);
+        };
+        if (thumbnail is not null) _image.Image = new Bitmap(thumbnail);
         if (thumbnail is null && !isFolder && file.Exists && file.Length < 20 * 1024 * 1024 &&
             new[] { ".jpg", ".jpeg", ".png", ".gif", ".bmp" }.Contains(file.Extension.ToLowerInvariant()))
         {
-            try { using var original = Image.FromFile(path); var preview = new Bitmap(original, new Size(48, 48)); _image.Image.Dispose(); _image.Image = preview; }
+            try { using var original = Image.FromFile(path); _image.Image = new Bitmap(original, new Size(48, 48)); }
             catch (Exception ex) when (ex is ArgumentException or IOException or OutOfMemoryException) { }
         }
     }

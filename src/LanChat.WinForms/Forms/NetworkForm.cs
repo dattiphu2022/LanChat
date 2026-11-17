@@ -15,17 +15,21 @@ public sealed class NetworkForm : DpiForm
     {
         Icon = AppIcon.Value;
         Text = "Quản lý kết nối mạng chat"; StartPosition = FormStartPosition.CenterParent; ClientSize = new Size(740, 640); MinimumSize = new Size(650, 450);
-        var tabs = new TabControl { Dock = DockStyle.Fill };
-        var network = new TabPage("Kết nối"); var cluster = new TabPage("Điều phối và mã mời"); var storage = new TabPage("Lưu trữ");
-        var diagnostics = new TabPage("Chẩn đoán"); var encryption = new TabPage("Khóa mã hóa");
+        var tabs = new IconTabControl(UiIcon.Network, UiIcon.People, UiIcon.Storage, UiIcon.Diagnostics, UiIcon.Key)
+            { Dock = DockStyle.Fill, Multiline = true };
+        var network = tabs.CreatePage("Kết nối", UiIcon.Network);
+        var cluster = tabs.CreatePage("Điều phối và mã mời", UiIcon.People);
+        var storage = tabs.CreatePage("Lưu trữ", UiIcon.Storage);
+        var diagnostics = tabs.CreatePage("Chẩn đoán", UiIcon.Diagnostics);
+        var encryption = tabs.CreatePage("Khóa mã hóa", UiIcon.Key);
         tabs.TabPages.AddRange([cluster, network, encryption, storage, diagnostics]); Controls.Add(tabs);
-        var showDiagnostics = Theme.Button("Mở chẩn đoán mạng chat"); diagnostics.Controls.Add(showDiagnostics);
+        var showDiagnostics = Theme.Button("Mở chẩn đoán mạng chat", UiIcon.Diagnostics); diagnostics.Controls.Add(showDiagnostics);
         showDiagnostics.Click += (_, _) => { using var form = ActivatorUtilities.CreateInstance<ClusterDiagnosticsForm>(services); form.ShowDialog(this); };
         var networkLayout = Theme.Stack(3); networkLayout.Padding = new Padding(8);
         networkLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         networkLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         networkLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        var scan = Theme.Button("Quét mạng"); scan.Dock = DockStyle.Left;
+        var scan = Theme.Button("Quét mạng", UiIcon.Scan); scan.Dock = DockStyle.Left;
         var scanStatus = Theme.Label(""); scanStatus.AutoSize = false; scanStatus.AutoEllipsis = true;
         networkLayout.Controls.Add(_network, 0, 0);
         networkLayout.Controls.Add(scanStatus, 0, 1);
@@ -38,7 +42,7 @@ public sealed class NetworkForm : DpiForm
         keysLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 48));
         keysLayout.Controls.Add(Theme.Label("Đối chiếu dấu vân tay với mã trên máy của người liên hệ qua một kênh tin cậy, nhất là trước khi gửi nội dung nhạy cảm lần đầu."), 0, 0);
         var fingerprints = new TextBox { Multiline = true, ReadOnly = true, Dock = DockStyle.Fill, ScrollBars = ScrollBars.Vertical };
-        var refreshKeys = Theme.Secondary("Làm mới"); refreshKeys.Dock = DockStyle.Left;
+        var refreshKeys = Theme.Secondary("Làm mới", UiIcon.Refresh); refreshKeys.Dock = DockStyle.Left;
         keysLayout.Controls.Add(fingerprints, 0, 1); keysLayout.Controls.Add(refreshKeys, 0, 2); encryption.Controls.Add(keysLayout);
         async Task ReadFingerprintsAsync()
         {
@@ -58,7 +62,7 @@ public sealed class NetworkForm : DpiForm
         {
             if (currentScan is not null) { currentScan.Cancel(); return; }
             var stop = CancellationTokenSource.CreateLinkedTokenSource(scanLifetime.Token);
-            currentScan = stop; scan.Text = "Dừng quét"; scanStatus.Text = "Đang quét mạng…";
+            currentScan = stop; scan.Text = "Dừng quét"; scan.Icon = UiIcon.Stop; scanStatus.Text = "Đang quét mạng…";
             try
             {
                 var progress = new Progress<LanScanProgress>(p =>
@@ -71,7 +75,12 @@ public sealed class NetworkForm : DpiForm
             }
             catch (OperationCanceledException) { if (!IsDisposed) scanStatus.Text = "Đã dừng quét."; }
             catch (Exception ex) { if (!IsDisposed) scanStatus.Text = UiText.HideIpAddresses(ex.Message); }
-            finally { currentScan = null; stop.Dispose(); if (!IsDisposed) scan.Text = "Quét mạng"; }
+            finally
+            {
+                currentScan = null;
+                stop.Dispose();
+                if (!IsDisposed) { scan.Text = "Quét mạng"; scan.Icon = UiIcon.Scan; }
+            }
         };
         var clusterLayout = Theme.Stack(4); clusterLayout.Padding = new Padding(8);
         clusterLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 120));
@@ -85,12 +94,12 @@ public sealed class NetworkForm : DpiForm
         leadership.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         var allow = new CheckBox { Text = "Cho phép máy này làm trung tâm", Dock = DockStyle.Fill, Enabled = false };
         var actions = Theme.Toolbar();
-        var campaign = Theme.Secondary("Ứng cử"); var nominate = Theme.Secondary("Đề cử máy khác");
+        var campaign = Theme.Secondary("Ứng cử", UiIcon.Check); var nominate = Theme.Secondary("Đề cử máy khác", UiIcon.SwitchUser);
         actions.Controls.Add(campaign); actions.Controls.Add(nominate);
         var feedback = Theme.Label(""); feedback.ForeColor = Theme.Muted;
         leadership.Controls.Add(allow, 0, 0); leadership.Controls.Add(actions, 0, 1); leadership.Controls.Add(feedback, 0, 2);
         clusterLayout.Controls.Add(leadership, 0, 1);
-        var showCode = Theme.Secondary("Hiện mã mời tham gia"); showCode.Dock = DockStyle.Left;
+        var showCode = Theme.Secondary("Hiện mã mời tham gia", UiIcon.Key); showCode.Dock = DockStyle.Left;
         clusterLayout.Controls.Add(showCode, 0, 2);
         var code = new TextBox { Dock = DockStyle.Fill, Multiline = true, ReadOnly = true, ScrollBars = ScrollBars.Vertical };
         clusterLayout.Controls.Add(code, 0, 3); cluster.Controls.Add(clusterLayout);
@@ -160,7 +169,7 @@ public sealed class NetworkForm : DpiForm
         };
         FormClosed += (_, _) => leadershipTimer.Dispose();
         var storageLayout = Theme.Stack(3); storageLayout.Controls.Add(Theme.Label("Dữ liệu riêng trên máy này:\n" + options.DataDirectory + "\n\nNhật ký: Logs\\lanchat-*.log\nSao lưu cả thư mục khi ứng dụng đã đóng.\nMã mời cho phép tham gia mạng chat; chỉ chia sẻ với người được phép."));
-        var openFolder = Theme.Button("Mở thư mục dữ liệu"); storageLayout.Controls.Add(openFolder); storage.Controls.Add(storageLayout);
+        var openFolder = Theme.Button("Mở thư mục dữ liệu", UiIcon.Folder); storageLayout.Controls.Add(openFolder); storage.Controls.Add(storageLayout);
         openFolder.Click += (_, _) => Process.Start(new ProcessStartInfo(options.DataDirectory) { UseShellExecute = true });
         Shown += async (_, _) =>
         {

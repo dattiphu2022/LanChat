@@ -66,15 +66,15 @@ internal sealed class AboutForm : DpiForm
 
         var resources = Theme.Toolbar();
         resources.Margin = Padding.Empty;
-        LinkLabel ResourceLink(string text) => new() { Text = text, AutoSize = true,
+        LinkLabel ResourceLink(string text, UiIcon icon) => new IconLinkLabel(icon) { Text = text,
             Margin = new Padding(5, 4, 12, 4), LinkColor = Theme.Blue };
-        var guide = ResourceLink("Hướng dẫn sử dụng");
+        var guide = ResourceLink("Hướng dẫn sử dụng", UiIcon.Book);
         guide.LinkClicked += (_, _) =>
         {
             using var dialog = new UserGuideForm();
             dialog.ShowDialog(this);
         };
-        var project = ResourceLink("Dự án trên GitHub");
+        var project = ResourceLink("Dự án trên GitHub", UiIcon.Open);
         project.AccessibleDescription = ProjectUrl;
         resources.Controls.AddRange([guide, project]);
         var links = new ToolTip();
@@ -84,12 +84,12 @@ internal sealed class AboutForm : DpiForm
         var footer = Theme.Toolbar();
         footer.FlowDirection = FlowDirection.RightToLeft;
         footer.Margin = Padding.Empty;
-        var close = Theme.Button("Đóng");
+        var close = Theme.Button("Đóng", UiIcon.Close);
         close.DialogResult = DialogResult.OK;
         footer.Controls.Add(close);
-        var check = Theme.Secondary("Kiểm tra cập nhật");
+        var check = Theme.Secondary("Kiểm tra cập nhật", UiIcon.Refresh);
         footer.Controls.Add(check);
-        var donation = Theme.Secondary("Ủng hộ phát triển");
+        var donation = Theme.Secondary("Ủng hộ phát triển", UiIcon.Heart);
         donation.Click += (_, _) =>
         {
             using var dialog = new DonationForm();

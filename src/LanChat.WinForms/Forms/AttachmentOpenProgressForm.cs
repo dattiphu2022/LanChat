@@ -17,7 +17,7 @@ internal sealed class AttachmentOpenProgressForm : DpiForm
         var layout = Theme.Stack(4); layout.Padding = new Padding(12);
         foreach (var height in new[] { 36, 36, 24, 52 }) layout.RowStyles.Add(new RowStyle(SizeType.Absolute, height));
         var name = Theme.Label(fileName, 11, true); name.AutoSize = false; name.AutoEllipsis = true;
-        var cancel = Theme.Button("Hủy"); cancel.Click += (_, _) => Close();
+        var cancel = Theme.Button("Hủy", UiIcon.Close); cancel.Click += (_, _) => Close();
         layout.Controls.Add(name, 0, 0); layout.Controls.Add(_state, 0, 1); layout.Controls.Add(_progress, 0, 2); layout.Controls.Add(cancel, 0, 3); Controls.Add(layout);
         FormClosing += (_, _) => cancellation.Cancel();
     }

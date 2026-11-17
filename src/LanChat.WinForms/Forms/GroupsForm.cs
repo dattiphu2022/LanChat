@@ -18,11 +18,11 @@ public sealed class GroupsForm : DpiForm
     private readonly GroupMembersControl _members = new(showAllContacts: true);
     private readonly Label _status = Theme.Label("");
     private readonly Label _membersTitle = Theme.Label("Thành viên nhóm", 11, true);
-    private readonly Button _newGroup = Theme.Secondary("Nhóm mới");
-    private readonly Button _open = Theme.Button("Mở chat");
-    private readonly Button _rename = Theme.Secondary("Đổi tên");
-    private readonly Button _transfer = Theme.Secondary("Chuyển chủ nhóm");
-    private readonly Button _delete = Theme.Secondary("Xóa nhóm");
+    private readonly Button _newGroup = Theme.Secondary("Nhóm mới", UiIcon.AddPerson);
+    private readonly Button _open = Theme.Button("Mở chat", UiIcon.Chat);
+    private readonly Button _rename = Theme.Secondary("Đổi tên", UiIcon.Edit);
+    private readonly Button _transfer = Theme.Secondary("Chuyển chủ nhóm", UiIcon.SwitchUser);
+    private readonly Button _delete = Theme.Secondary("Xóa nhóm", UiIcon.Delete);
     private Dictionary<Guid, GroupSummary> _summaries = [];
     private Dictionary<Guid, UserSummary> _contacts = [];
     private LocalUserProfile? _profile;

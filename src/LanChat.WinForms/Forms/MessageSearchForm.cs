@@ -14,7 +14,7 @@ public sealed class MessageSearchForm : DpiForm
         Text = "Tìm trong lịch sử tin nhắn"; ClientSize = new Size(760, 500); StartPosition = FormStartPosition.CenterParent;
         var layout = Theme.Stack(3); layout.Padding = new Padding(12); layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 40)); layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100)); layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         var search = new PromptTextBox { Dock = DockStyle.Fill, PlaceholderText = "Nhập từ cần tìm (có thể gõ không dấu)…" };
-        var results = new ListBox { Dock = DockStyle.Fill, HorizontalScrollbar = true }; var button = Theme.Button("Tìm kiếm");
+        var results = new ListBox { Dock = DockStyle.Fill, HorizontalScrollbar = true }; var button = Theme.Button("Tìm kiếm", UiIcon.Search);
         button.Click += async (_, _) =>
         {
             button.Enabled = false;

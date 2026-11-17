@@ -204,6 +204,9 @@ public sealed partial class MainForm
         const string removed = "Đã thấy nhóm bị gỡ khỏi danh sách";
         var tabs = Descendants(_info).OfType<TabControl>().Single();
         await OpenMembersAsync();
+        if (tabs.ImageList is not { } tabImages || tabImages.ImageSize.Width != this.ScalePixels(16) ||
+            tabs.TabPages.Cast<TabPage>().Any(page => page.ImageIndex < 0 || page.ImageIndex >= tabImages.Images.Count))
+            throw new InvalidOperationException("Thiếu biểu tượng hoặc sai kích thước biểu tượng trên tab thông tin hội thoại.");
         var members = Descendants(tabs.SelectedTab!).OfType<CheckedListBox>().Single();
         var save = Descendants(tabs.SelectedTab!).OfType<Button>().Single(action => action.Text == "Lưu thành viên");
         int Row(Guid id) => members.Items.Cast<SelectionItem>().ToList().FindIndex(person => person.Id == id);
@@ -393,6 +396,10 @@ public sealed partial class MainForm
     private void VerifyVisibleControls()
     {
         var controls = Descendants(this).ToArray();
+        var navigationButtons = controls.OfType<NavigationItemControl>().Select(nav => Descendants(nav).OfType<IconButton>().Single()).ToArray();
+        if (navigationButtons.Length != 6 || navigationButtons.Select(button => button.Icon).Distinct().Count() != navigationButtons.Length ||
+            navigationButtons.Any(button => button.Image?.Width != this.ScalePixels(18)))
+            throw new InvalidOperationException("Thanh điều hướng thiếu biểu tượng chức năng hoặc sai tỷ lệ DPI.");
         if (controls.OfType<MessageBubbleControl>().Count() < 2) throw new InvalidOperationException("UI chưa render đủ tin nhắn.");
         foreach (var control in controls.Where(c => c is NavigationItemControl or MessageBubbleControl or ChatInputControl))
         {
@@ -414,7 +421,8 @@ public sealed partial class MainForm
             button.AccessibleName is "Chọn tệp hoặc thư mục" or "Dán ảnh" or "Chụp vùng").ToArray();
         if (layout.GetRowHeights().Any(h => h < 0) || messages.Height < this.ScalePixels(24) ||
             editor.Height < this.ScalePixels(32) || editor.Width < this.ScalePixels(80) || composerActions.Length != 3 ||
-            composerActions.Any(button => !button.Visible || button.Right > button.Parent.ClientSize.Width))
+            composerActions.Any(button => !button.Visible || button.Right > button.Parent.ClientSize.Width ||
+                button.Image?.Width != this.ScalePixels(16)))
             throw new InvalidOperationException("Bố cục nhập tin hoặc lịch sử bị thu hẹp khi thêm tệp.");
     }
 

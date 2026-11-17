@@ -40,8 +40,8 @@ public sealed class SettingsForm : DpiForm
         layout.Controls.Add(feedback, 0, 5);
         var buttons = Theme.Toolbar();
         buttons.FlowDirection = FlowDirection.RightToLeft;
-        var apply = Theme.Button("Lưu");
-        var cancel = Theme.Secondary("Hủy"); cancel.DialogResult = DialogResult.Cancel;
+        var apply = Theme.Button("Lưu", UiIcon.Save);
+        var cancel = Theme.Secondary("Hủy", UiIcon.Close); cancel.DialogResult = DialogResult.Cancel;
         buttons.Controls.Add(apply); buttons.Controls.Add(cancel);
         layout.Controls.Add(buttons, 0, 6); Controls.Add(layout);
         AcceptButton = apply; CancelButton = cancel;

@@ -25,19 +25,19 @@ internal sealed class NetworkManagerForm : DpiForm
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 56));
         layout.Controls.Add(Theme.Label("Mạng đã lưu", 10, true), 0, 0); layout.Controls.Add(_list, 0, 1);
         var actions = Theme.Toolbar();
-        var show = Theme.Secondary("Chi tiết");
-        var retry = Theme.Secondary("Kết nối lại");
-        var rename = Theme.Secondary("Đổi tên");
-        var delete = Theme.Secondary("Gỡ mạng");
-        var restore = Theme.Secondary("Khôi phục mạng mặc định");
+        var show = Theme.Secondary("Chi tiết", UiIcon.Info);
+        var retry = Theme.Secondary("Kết nối lại", UiIcon.Refresh);
+        var rename = Theme.Secondary("Đổi tên", UiIcon.Edit);
+        var delete = Theme.Secondary("Gỡ mạng", UiIcon.Delete);
+        var restore = Theme.Secondary("Khôi phục mạng mặc định", UiIcon.Restore);
         actions.Controls.AddRange([show, retry, rename, delete, restore]); layout.Controls.Add(actions, 0, 2);
         layout.Controls.Add(Theme.Label("Mã tham gia (mỗi mã một dòng)"), 0, 3); layout.Controls.Add(_codes, 0, 4);
         var bottom = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1 };
         bottom.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         bottom.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         bottom.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        var add = Theme.Button("Thêm mã");
-        var create = Theme.Secondary("Tạo mạng");
+        var add = Theme.Button("Thêm mã", UiIcon.Add);
+        var create = Theme.Secondary("Tạo mạng", UiIcon.AddNetwork);
         bottom.Controls.Add(add, 0, 0); bottom.Controls.Add(create, 1, 0); bottom.Controls.Add(_status, 2, 0);
         layout.Controls.Add(bottom, 0, 5); Controls.Add(layout);
 

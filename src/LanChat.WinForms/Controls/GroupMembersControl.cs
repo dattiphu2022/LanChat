@@ -8,7 +8,7 @@ internal sealed class GroupMembersControl : UserControl
     private readonly PersonNameCheckedListBox _list = new(item => ((SelectionItem)item).DisplayName)
         { Dock = DockStyle.Fill, CheckOnClick = true, IntegralHeight = false, AccessibleName = "Thành viên nhóm" };
     private readonly Label _hint = Theme.Label("");
-    private readonly Button _save = Theme.Button("Lưu thành viên");
+    private readonly IconButton _save = Theme.Button("Lưu thành viên", UiIcon.Save);
     private readonly Dictionary<Guid, Dictionary<Guid, bool>> _drafts = [];
     private readonly HashSet<Guid> _newGroupMembers = [];
     private readonly bool _showAllContacts;
@@ -183,6 +183,7 @@ internal sealed class GroupMembersControl : UserControl
             (_group is { } group && _drafts.TryGetValue(group.Id, out var edits) && edits.Count > 0));
         _save.BackColor = _save.Enabled ? Theme.Blue : Theme.Border;
         _save.Text = _creating ? "Tạo nhóm" : "Lưu thành viên";
+        _save.Icon = _creating ? UiIcon.AddPerson : UiIcon.Save;
         _hint.Text = _status ?? (_creating ? "Tích chọn người rồi bấm Tạo nhóm." :
             _group is null ? "Chọn một nhóm để xem thành viên." :
             IsOwner ? "Tích để thêm, bỏ tích để bớt." : "Chỉ chủ nhóm có thể thay đổi thành viên.");

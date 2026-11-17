@@ -5,13 +5,17 @@ namespace LanChat.WinForms.Controls;
 
 public sealed class NavigationItemControl : UserControl
 {
-    private readonly Button _button = new() { Dock = DockStyle.Fill, FlatStyle = FlatStyle.Flat, TextAlign = ContentAlignment.MiddleCenter, Cursor = Cursors.Hand, ForeColor = Color.White, BackColor = Theme.Rail };
+    private readonly IconButton _button = new(UiIcon.Chat, 18)
+    {
+        Dock = DockStyle.Fill, FlatStyle = FlatStyle.Flat, TextImageRelation = TextImageRelation.ImageAboveText,
+        Cursor = Cursors.Hand, ForeColor = Color.White, BackColor = Theme.Rail
+    };
     private int _unreadCount;
     public event EventHandler? Selected;
     public NavigationItemControl()
     {
         _button.FlatAppearance.BorderSize = 0; _button.FlatAppearance.MouseOverBackColor = Theme.Blue;
-        Size = new Size(102, 48); Padding = new Padding(5); Controls.Add(_button);
+        Size = new Size(102, 54); Padding = new Padding(5); Controls.Add(_button);
         _button.Click += (_, _) => Selected?.Invoke(this, EventArgs.Empty);
         _button.Paint += (_, e) =>
         {
@@ -23,6 +27,7 @@ public sealed class NavigationItemControl : UserControl
     }
     [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
     public string Caption { get => _button.Text; set => _button.Text = value; }
+    internal UiIcon Icon { get => _button.Icon; set => _button.Icon = value; }
     [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
     public bool Active { set { _button.BackColor = value ? Theme.Blue : Theme.Rail; _button.ForeColor = Color.White; } }
     internal void SetUnreadCount(int count)
@@ -101,10 +106,11 @@ public sealed class ConversationItemControl : UserControl
         var menu = new ContextMenuStrip();
         Disposed += (_, _) => menu.Dispose();
         KeyDown += (_, e) => { if (e.KeyCode == Keys.Enter && _model is not null) { Selected?.Invoke(_model); e.SuppressKeyPress = true; } };
-        foreach (var pair in new[] { ("Ghim / Bỏ ghim", "pin"), ("Tắt / Bật thông báo", "mute"), ("Đánh dấu đã đọc", "read") })
-            menu.Items.Add(pair.Item1, null, (_, _) => { if (_model is not null) ActionRequested?.Invoke(_model, pair.Item2); });
+        foreach (var (caption, action, icon) in new[] { ("Ghim / Bỏ ghim", "pin", UiIcon.Pin),
+            ("Tắt / Bật thông báo", "mute", UiIcon.Mute), ("Đánh dấu đã đọc", "read", UiIcon.Check) })
+            menu.Items.Add(caption, UiIcons.ForMenu(icon), (_, _) => { if (_model is not null) ActionRequested?.Invoke(_model, action); });
         menu.Items.Add(new ToolStripSeparator());
-        menu.Items.Add("Xóa hội thoại phía tôi…", null, (_, _) => { if (_model is not null) ActionRequested?.Invoke(_model, "delete"); });
+        menu.Items.Add("Xóa hội thoại phía tôi…", UiIcons.ForMenu(UiIcon.Delete), (_, _) => { if (_model is not null) ActionRequested?.Invoke(_model, "delete"); });
         menu.Opening += (_, e) => e.Cancel = _model?.Id == Guid.Empty;
         ContextMenuStrip = menu;
         foreach (Control control in new Control[] { layout, _avatar, _title, _preview, _meta, _unread })

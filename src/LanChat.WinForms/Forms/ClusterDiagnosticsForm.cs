@@ -25,7 +25,7 @@ public sealed class ClusterDiagnosticsForm : DpiForm
         layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         layout.Controls.Add(_summary, 0, 0); layout.Controls.Add(_grid, 0, 1);
         var lifetime = new CancellationTokenSource();
-        var buttons = Theme.Toolbar(); var refresh = Theme.Button("Làm mới"); var copy = Theme.Button("Sao chép chẩn đoán");
+        var buttons = Theme.Toolbar(); var refresh = Theme.Button("Làm mới", UiIcon.Refresh); var copy = Theme.Button("Sao chép chẩn đoán", UiIcon.Copy);
         buttons.Controls.Add(refresh); buttons.Controls.Add(copy); layout.Controls.Add(buttons, 0, 2); Controls.Add(layout);
         async Task LoadAsync()
         {
@@ -56,8 +56,8 @@ public sealed class ClusterDiagnosticsForm : DpiForm
             check.CheckedChanged += (_, _) => { if (label == "Pause Replication") faults.PauseReplication = check.Checked; else if (label == "Stop Heartbeat") faults.StopHeartbeat = check.Checked; else faults.SimulateLeaderFailure = check.Checked; };
             buttons.Controls.Add(check);
         }
-        var discover = Theme.Button("Force Discovery"); discover.Click += (_, _) => discovery.RequestDiscovery(); buttons.Controls.Add(discover);
-        var forceSync = Theme.Button("Force Sync"); buttons.Controls.Add(forceSync);
+        var discover = Theme.Button("Force Discovery", UiIcon.Scan); discover.Click += (_, _) => discovery.RequestDiscovery(); buttons.Controls.Add(discover);
+        var forceSync = Theme.Button("Force Sync", UiIcon.Sync); buttons.Controls.Add(forceSync);
         forceSync.Click += async (_, _) => { forceSync.Enabled = false; try { await replication.SynchronizeAsync(lifetime.Token); await LoadAsync(); } catch (Exception ex) { if (!IsDisposed) _summary.Text = UiText.HideIpAddresses(ex.Message); } finally { if (!IsDisposed) forceSync.Enabled = true; } };
 #endif
         FormClosed += (_, _) => lifetime.Cancel();

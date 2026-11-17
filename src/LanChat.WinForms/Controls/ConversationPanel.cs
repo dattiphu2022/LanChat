@@ -10,9 +10,10 @@ internal sealed class ConversationPanel : UserControl
     private readonly ListBox _images = List("Ảnh");
     private readonly ListBox _files = List("Tệp");
     private readonly GroupMembersControl _members = new();
-    private readonly TabControl _tabs = new() { Dock = DockStyle.Fill };
-    private readonly TabPage _searchTab = new("Tìm tin");
-    private readonly TabPage _membersTab = new("Thành viên");
+    private readonly IconTabControl _tabs = new(UiIcon.Photo, UiIcon.File, UiIcon.Search, UiIcon.People)
+        { Dock = DockStyle.Fill, Multiline = true, Padding = new Point(5, 3) };
+    private readonly TabPage _searchTab;
+    private readonly TabPage _membersTab;
     private AttachmentDto[] _attachments = [];
     private static readonly Dictionary<Guid, UserSummary> NoContacts = [];
 
@@ -24,20 +25,22 @@ internal sealed class ConversationPanel : UserControl
 
     public ConversationPanel()
     {
+        _searchTab = _tabs.CreatePage("Tìm tin", UiIcon.Search);
+        _membersTab = _tabs.CreatePage("Thành viên", UiIcon.People);
         Dock = DockStyle.Fill; Visible = false; BackColor = Color.White; Padding = new Padding(6, 0, 0, 0);
         var root = Theme.Stack(2);
         root.RowStyles.Add(new RowStyle(SizeType.Absolute, 49)); root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         var header = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1 };
         header.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100)); header.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         header.Controls.Add(Theme.Label("Thông tin hội thoại", 11, true), 0, 0);
-        var close = Theme.Secondary("×"); close.MinimumSize = new Size(28, 32); close.AccessibleName = "Đóng thông tin hội thoại";
+        var close = Theme.Icon(UiIcon.Close, "Đóng thông tin hội thoại"); close.MinimumSize = new Size(28, 32);
         close.Click += (_, _) => CloseRequested?.Invoke(); header.Controls.Add(close, 1, 0);
         root.Controls.Add(header, 0, 0); root.Controls.Add(_tabs, 0, 1); Controls.Add(root);
 
         var searchLayout = Theme.Stack(3); searchLayout.Padding = new Padding(5);
         searchLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 30)); searchLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 44));
         searchLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        var find = Theme.Button("Tìm"); find.Dock = DockStyle.Left;
+        var find = Theme.Button("Tìm", UiIcon.Search); find.Dock = DockStyle.Left;
         _search.AccessibleName = "Tìm tin nhắn trong hội thoại";
         _search.TextChanged += (_, _) => { _results.Items.Clear(); find.Enabled = _search.Text.Trim().Length > 0; };
         void Search() { var query = _search.Text.Trim(); if (query.Length > 0) SearchRequested?.Invoke(query); }
@@ -46,8 +49,8 @@ internal sealed class ConversationPanel : UserControl
         _search.KeyDown += (_, e) => { if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; Search(); } };
         searchLayout.Controls.Add(_search, 0, 0); searchLayout.Controls.Add(find, 0, 1); searchLayout.Controls.Add(_results, 0, 2);
         _searchTab.Controls.Add(searchLayout);
-        var photos = new TabPage("Ảnh"); photos.Controls.Add(_images);
-        var files = new TabPage("Tệp"); files.Controls.Add(_files);
+        var photos = _tabs.CreatePage("Ảnh", UiIcon.Photo); photos.Controls.Add(_images);
+        var files = _tabs.CreatePage("Tệp", UiIcon.File); files.Controls.Add(_files);
         _membersTab.Controls.Add(_members);
         _members.SaveRequested += changes => MemberSaveRequested?.Invoke(changes);
         _tabs.TabPages.AddRange([photos, files, _searchTab]);

@@ -58,8 +58,8 @@ internal sealed class DonationForm : DpiForm
 
         var actions = Theme.Toolbar();
         actions.Margin = Padding.Empty;
-        var copy = Theme.Secondary("Sao chép số tài khoản");
-        var save = Theme.Secondary("Lưu ảnh QR");
+        var copy = Theme.Secondary("Sao chép số tài khoản", UiIcon.Copy);
+        var save = Theme.Secondary("Lưu ảnh QR", UiIcon.Save);
         actions.Controls.AddRange([copy, save]);
         details.Controls.Add(actions, 0, 6);
         var status = Theme.Label("", 9);
@@ -96,7 +96,7 @@ internal sealed class DonationForm : DpiForm
         var preview = QrPicture(qr);
         preview.Cursor = Cursors.Hand;
         preview.Click += (_, _) => ShowQr(qr);
-        var enlarge = Theme.Secondary("Phóng lớn mã QR");
+        var enlarge = Theme.Secondary("Phóng lớn mã QR", UiIcon.QrCode);
         enlarge.Anchor = AnchorStyles.None;
         enlarge.Click += (_, _) => ShowQr(qr);
         qrPanel.Controls.Add(preview, 0, 0);
@@ -136,7 +136,7 @@ internal sealed class DonationForm : DpiForm
     {
         var footer = Theme.Toolbar();
         footer.FlowDirection = FlowDirection.RightToLeft;
-        var close = Theme.Button("Đóng");
+        var close = Theme.Button("Đóng", UiIcon.Close);
         close.DialogResult = DialogResult.Cancel;
         form.CancelButton = close;
         footer.Controls.Add(close);

@@ -74,8 +74,20 @@ internal sealed class ReplyQuoteControl : Button
         if (width <= 0) return;
         var authorHeight = AuthorHeight;
         if (authorHeight > 0)
-            PersonNameDrawing.Draw(e.Graphics, new Rectangle(left, top, width, authorHeight), _author, AuthorFont,
+        {
+            var authorArea = new Rectangle(left, top, width, authorHeight);
+            var iconSize = this.ScalePixels(13);
+            var gap = this.ScalePixels(4);
+            if (width >= this.ScalePixels(58))
+            {
+                var icon = UiIcons.Get(UiIcon.Reply, iconSize, accent);
+                e.Graphics.DrawImageUnscaled(icon, left, top + (authorHeight - iconSize) / 2);
+                authorArea.X += iconSize + gap;
+                authorArea.Width -= iconSize + gap;
+            }
+            PersonNameDrawing.Draw(e.Graphics, authorArea, _author, AuthorFont,
                 SystemInformation.HighContrast ? SystemColors.ControlText : Theme.Ink);
+        }
         var preview = new Rectangle(left, top + authorHeight, width, Math.Max(0, Height - 2 * top - authorHeight));
         if (preview.Height > 0)
             TextRenderer.DrawText(e.Graphics, quote.Preview, Font, preview,

@@ -25,7 +25,7 @@ public sealed partial class MainForm : DpiForm
     private readonly DraftImageStore _draftImages;
     private readonly PersonNameLabel _profile = Theme.NameLabel("LanChat", 10, true);
     private readonly Label _initial = Theme.Label("", 20, true);
-    private readonly NavigationItemControl _networkNav = new() { Caption = "Mạng chat" };
+    private readonly NavigationItemControl _networkNav = new() { Caption = "Mạng chat", Icon = UiIcon.Network };
     private readonly ToolStripStatusLabel _status = new() { Spring = true, TextAlign = ContentAlignment.MiddleLeft };
     private readonly ToolStripStatusLabel _scanState = new();
     private readonly System.Windows.Forms.Timer _timer = new() { Interval = 500 };
@@ -70,8 +70,8 @@ public sealed partial class MainForm : DpiForm
     internal bool HasUnsentDrafts => _chat.Draft().HasContent || _drafts.Values.Any(draft => draft.HasContent);
     internal bool HasActiveWork => _chat.ComposerWorking || _scanCancellation is not null || _userOperations > 0;
     internal event Action? UnreadCountChanged;
-    private readonly NavigationItemControl _messageNav = new() { Caption = "Tin nhắn", Active = true };
-    private readonly NavigationItemControl _usersNav = new() { Caption = "Danh bạ" };
+    private readonly NavigationItemControl _messageNav = new() { Caption = "Tin nhắn", Icon = UiIcon.Chat, Active = true };
+    private readonly NavigationItemControl _usersNav = new() { Caption = "Danh bạ", Icon = UiIcon.Contacts };
     private readonly TableLayoutPanel _workspace = new() { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1, Margin = Padding.Empty };
     private readonly TableLayoutPanel _chatArea = new() { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1 };
 
@@ -108,12 +108,12 @@ public sealed partial class MainForm : DpiForm
             label.TextAlign = ContentAlignment.MiddleCenter; label.ForeColor = Color.White;
             navLayout.Controls.Add(label);
         }
-        var groups = new NavigationItemControl { Caption = "Nhóm" };
-        var files = new NavigationItemControl { Caption = "Tệp" };
-        var scan = new NavigationItemControl { Caption = "Quét lại" };
+        var groups = new NavigationItemControl { Caption = "Nhóm", Icon = UiIcon.People };
+        var files = new NavigationItemControl { Caption = "Tệp", Icon = UiIcon.File };
+        var scan = new NavigationItemControl { Caption = "Quét lại", Icon = UiIcon.Scan };
         foreach (var item in new[] { _messageNav, _usersNav, groups, files, scan, _networkNav })
         {
-            item.Dock = DockStyle.Fill; item.MinimumSize = new Size(0, 48); item.Margin = Padding.Empty;
+            item.Dock = DockStyle.Fill; item.MinimumSize = new Size(0, 54); item.Margin = Padding.Empty;
             navLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             navLayout.Controls.Add(item);
         }
@@ -732,7 +732,7 @@ public sealed partial class MainForm : DpiForm
     {
         if (_scanCancellation is not null) { _scanCancellation.Cancel(); return; }
         var cancellation = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
-        _scanCancellation = cancellation; button.Caption = "Dừng quét";
+        _scanCancellation = cancellation; button.Caption = "Dừng quét"; button.Icon = UiIcon.Stop;
         try
         {
             var progress = new Progress<LanScanProgress>(p =>
@@ -745,6 +745,11 @@ public sealed partial class MainForm : DpiForm
         }
         catch (OperationCanceledException) { if (!IsDisposed) _scanState.Text = "Đã dừng quét"; }
         catch (Exception ex) { if (!IsDisposed) _scanState.Text = "Quét mạng: " + UiText.HideIpAddresses(ex.Message); }
-        finally { _scanCancellation = null; cancellation.Dispose(); if (!IsDisposed) button.Caption = "Quét lại"; }
+        finally
+        {
+            _scanCancellation = null;
+            cancellation.Dispose();
+            if (!IsDisposed) { button.Caption = "Quét lại"; button.Icon = UiIcon.Scan; }
+        }
     }
 }

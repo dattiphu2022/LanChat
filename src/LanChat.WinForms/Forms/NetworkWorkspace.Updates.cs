@@ -9,8 +9,8 @@ internal sealed partial class NetworkWorkspace
     private readonly CancellationTokenSource _updateLifetime = new();
     private readonly FlowLayoutPanel _updateBar = Theme.Toolbar();
     private readonly Label _updateText = Theme.Label("", 9, true);
-    private readonly Button _applyUpdate = Theme.Secondary("Tải và cập nhật");
-    private readonly Button _cancelUpdate = Theme.Secondary("Hủy tải");
+    private readonly IconButton _applyUpdate = Theme.Secondary("Tải và cập nhật", UiIcon.Download);
+    private readonly Button _cancelUpdate = Theme.Secondary("Hủy tải", UiIcon.Close);
     private readonly ProgressBar _updateProgress = new() { Size = new Size(128, 18), Margin = new Padding(5, 12, 5, 5), AccessibleName = "Tiến độ tải bản cập nhật" };
     private string _checkMessage = "";
     private string? _updateNote;
@@ -42,7 +42,9 @@ internal sealed partial class NetworkWorkspace
         var downloading = _downloadCancellation is not null;
         _updateText.Text = $"LanChat {release.Version}" + (_updateNote is null ? "" : $" · {_updateNote}");
         _applyUpdate.Visible = !downloading;
-        _applyUpdate.Text = _updates.HasDownloaded(release) ? "Cài bản đã tải" : "Tải và cập nhật";
+        var downloaded = _updates.HasDownloaded(release);
+        _applyUpdate.Text = downloaded ? "Cài bản đã tải" : "Tải và cập nhật";
+        _applyUpdate.Icon = downloaded ? UiIcon.Install : UiIcon.Download;
         _updateProgress.Visible = _cancelUpdate.Visible = downloading;
     }
 

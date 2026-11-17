@@ -55,7 +55,7 @@ internal sealed class UserGuideForm : DpiForm
 
         var footer = Theme.Toolbar();
         footer.FlowDirection = FlowDirection.RightToLeft;
-        var close = Theme.Button("Đóng");
+        var close = Theme.Button("Đóng", UiIcon.Close);
         close.DialogResult = DialogResult.Cancel;
         footer.Controls.Add(close);
         CancelButton = close;

@@ -11,18 +11,28 @@ internal static class Theme
     public static readonly Color Border = Color.FromArgb(221, 229, 239);
     public static readonly Color Selection = Color.FromArgb(231, 241, 255);
     public static readonly Color Canvas = Color.FromArgb(245, 247, 251);
-    public static Button Button(string text) => new() { Text = text, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink,
+    public static IconButton Button(string text, UiIcon icon) => new(icon) { Text = text, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink,
         MinimumSize = new Size(90, 36),
         FlatStyle = FlatStyle.Flat, BackColor = Blue, ForeColor = Color.White, Cursor = Cursors.Hand, Padding = new Padding(8, 3, 8, 3), Margin = new Padding(5) };
-    public static Button Secondary(string text)
+    public static IconButton Secondary(string text, UiIcon icon)
     {
-        var button = Button(text);
+        var button = Button(text, icon);
         button.BackColor = Color.White;
         button.ForeColor = Ink;
         button.FlatAppearance.BorderColor = Border;
         button.FlatAppearance.MouseOverBackColor = Selection;
         return button;
     }
+
+    public static IconButton Icon(UiIcon icon, string accessibleName, bool primary = false)
+    {
+        var button = primary ? Button("", icon) : Secondary("", icon);
+        button.AccessibleName = accessibleName;
+        button.MinimumSize = new Size(32, 28);
+        button.Padding = new Padding(3);
+        return button;
+    }
+
     public static Label Label(string text, float size = 10, bool bold = false) => new() { Text = text, AutoSize = true,
         ForeColor = Ink, Font = GetFont(size, bold), Margin = new Padding(5, 1, 5, 1), Dock = DockStyle.Fill };
 

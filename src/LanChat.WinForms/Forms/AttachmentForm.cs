@@ -18,7 +18,7 @@ public sealed class AttachmentForm : DpiForm
         foreach (var height in new[] { 48, 36 }) layout.RowStyles.Add(new RowStyle(SizeType.Absolute, height));
         layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100)); layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 24)); layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         var name = Theme.Label($"{file.FileName} · {file.FileSize / 1024d:N1} KB", 12, true); name.AutoSize = false; name.AutoEllipsis = true;
-        var buttons = Theme.Toolbar(); var download = Theme.Button("Tải từ máy trong mạng"); var save = Theme.Button("Lưu thành…"); var cancel = Theme.Button("Hủy tải");
+        var buttons = Theme.Toolbar(); var download = Theme.Button("Tải từ máy trong mạng", UiIcon.Download); var save = Theme.Button("Lưu thành…", UiIcon.Save); var cancel = Theme.Button("Hủy tải", UiIcon.Close);
         save.Enabled = cancel.Enabled = false; buttons.Controls.AddRange([download, save, cancel]);
         layout.Controls.Add(name, 0, 0); layout.Controls.Add(_state, 0, 1); layout.Controls.Add(_image, 0, 2); layout.Controls.Add(_progress, 0, 3); layout.Controls.Add(buttons, 0, 4); Controls.Add(layout);
         void ShowPreview()

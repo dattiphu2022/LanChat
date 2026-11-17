@@ -9,10 +9,10 @@ internal sealed partial class NetworkWorkspace : DpiForm
 {
     private readonly NetworkCatalog _catalog;
     private readonly WindowsStartup _startup;
-    private readonly TabControl _tabs = new() { Dock = DockStyle.Fill, ShowToolTips = true };
-    private readonly ImageList _tabIcons = new() { ColorDepth = ColorDepth.Depth32Bit };
+    private readonly IconTabControl _tabs = new(UiIcon.Network, UiIcon.NetworkUnread)
+        { Dock = DockStyle.Fill, ShowToolTips = true };
     private readonly Dictionary<Guid, (RunningNetwork Network, MainForm View, TabPage Tab)> _running = new();
-    private readonly Button _scanButton = Theme.Secondary("Quét tất cả");
+    private readonly IconButton _scanButton = Theme.Secondary("Quét tất cả", UiIcon.Scan);
     private readonly Button _restoreDefaultButton;
     private readonly Label _feedback = Theme.Label("");
     private readonly NotifyIcon _tray = new() { Icon = AppIcon.Value, Text = "LanChat", Visible = true };
@@ -28,8 +28,6 @@ internal sealed partial class NetworkWorkspace : DpiForm
         Text = "LanChat";
         ClientSize = new Size(1260, 840); MinimumSize = new Size(660, 450);
         StartPosition = FormStartPosition.CenterScreen;
-        Load += (_, _) => UpdateTabIcons();
-        DpiChanged += (_, _) => UpdateTabIcons();
         var root = Theme.Stack(4);
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -38,26 +36,26 @@ internal sealed partial class NetworkWorkspace : DpiForm
         var actions = Theme.Toolbar();
         actions.Padding = new Padding(8, 0, 0, 0);
         _feedback.AutoSize = false; _feedback.AutoEllipsis = true;
-        Button AddAction(string label, Func<Task> action)
+        Button AddAction(string label, UiIcon icon, Func<Task> action)
         {
-            var button = Theme.Secondary(label);
+            var button = Theme.Secondary(label, icon);
             button.Click += async (_, _) => await RunAsync(action);
             actions.Controls.Add(button);
             return button;
         }
         _scanButton.Click += async (_, _) => { if (_scan is not null) _scan.Cancel(); else await RunAsync(ScanAsync); };
         actions.Controls.Add(_scanButton);
-        AddAction("Mạng chat", ManageAsync);
-        _restoreDefaultButton = AddAction("Khôi phục mạng mặc định", RestoreDefaultNetworkAsync);
+        AddAction("Mạng chat", UiIcon.Network, ManageAsync);
+        _restoreDefaultButton = AddAction("Khôi phục mạng mặc định", UiIcon.Restore, RestoreDefaultNetworkAsync);
         _restoreDefaultButton.Visible = _catalog.CanRestoreDefaultNetwork;
-        AddAction("Cài đặt", SettingsAsync);
-        AddAction("Giới thiệu", ShowAboutAsync);
+        AddAction("Cài đặt", UiIcon.Settings, SettingsAsync);
+        AddAction("Giới thiệu", UiIcon.Info, ShowAboutAsync);
         root.Controls.Add(actions, 0, 0); root.Controls.Add(_feedback, 0, 1);
         root.Controls.Add(CreateUpdateBar(), 0, 2); root.Controls.Add(_tabs, 0, 3);
         Controls.Add(root);
         var trayMenu = new ContextMenuStrip();
-        trayMenu.Items.Add("Mở LanChat", null, (_, _) => RestoreWindow());
-        trayMenu.Items.Add("Thoát LanChat", null, (_, _) => { _exitRequested = true; Close(); });
+        trayMenu.Items.Add("Mở LanChat", UiIcons.ForMenu(UiIcon.Open), (_, _) => RestoreWindow());
+        trayMenu.Items.Add("Thoát LanChat", UiIcons.ForMenu(UiIcon.Exit), (_, _) => { _exitRequested = true; Close(); });
         _tray.ContextMenuStrip = trayMenu;
         _tray.DoubleClick += (_, _) => RestoreWindow();
         _tray.BalloonTipClicked += async (_, _) =>
@@ -74,23 +72,8 @@ internal sealed partial class NetworkWorkspace : DpiForm
             if (WindowState == FormWindowState.Minimized) Hide();
             else _restoreState = WindowState;
         };
-        FormClosed += (_, _) => { trayMenu.Dispose(); _tabIcons.Dispose(); _updateLifetime.Dispose(); };
+        FormClosed += (_, _) => { trayMenu.Dispose(); _updateLifetime.Dispose(); };
         FormClosing += ClosingAsync;
-    }
-
-    private void UpdateTabIcons()
-    {
-        var size = new Size(LogicalToDeviceUnits(12), LogicalToDeviceUnits(12));
-        if (_tabIcons.Images.Count > 0 && _tabIcons.ImageSize == size) return;
-        _tabIcons.Images.Clear();
-        _tabIcons.ImageSize = size;
-        var inset = LogicalToDeviceUnits(1);
-        using var dot = new Bitmap(size.Width, size.Height);
-        using (var graphics = Graphics.FromImage(dot))
-            UnreadBadge.PaintDot(graphics, Rectangle.Inflate(new Rectangle(Point.Empty, size), -inset, -inset));
-        _tabIcons.Images.Add(dot);
-        _tabs.ImageList = _tabIcons;
-        _ = _tabIcons.Handle;
     }
 
     private void RestoreWindow()
@@ -139,7 +122,8 @@ internal sealed partial class NetworkWorkspace : DpiForm
         try
         {
             view = ActivatorUtilities.CreateInstance<MainForm>(network.Services);
-            tab = new TabPage(entry.Name) { Tag = entry.Id };
+            tab = _tabs.CreatePage(entry.Name, UiIcon.Network);
+            tab.Tag = entry.Id;
             view.EmbedInWorkspace((conversationId, title, body) => ShowNotification(entry.Id, conversationId, title, body),
                 () => Visible && WindowState != FormWindowState.Minimized && _tabs.SelectedTab == tab);
             view.Dock = DockStyle.Fill;
@@ -167,8 +151,7 @@ internal sealed partial class NetworkWorkspace : DpiForm
         foreach (var item in _running.Values)
         {
             var count = item.View.UnreadCount;
-            var image = count > 0 ? 0 : -1;
-            if (item.Tab.ImageIndex != image) item.Tab.ImageIndex = image;
+            _tabs.SetIcon(item.Tab, count > 0 ? UiIcon.NetworkUnread : UiIcon.Network);
             item.Tab.ToolTipText = count > 0 ? $"{count} tin nhắn chưa đọc" : "";
             hasUnread |= count > 0;
         }
@@ -211,6 +194,7 @@ internal sealed partial class NetworkWorkspace : DpiForm
         _scan = scan;
         _feedback.Text = $"Đang tìm máy trên {_running.Count} mạng…";
         _scanButton.Text = "Dừng quét";
+        _scanButton.Icon = UiIcon.Stop;
         try
         {
             var tasks = _running.Values.Select(x => x.Network.Services.GetRequiredService<ILanScanner>().ScanAsync(scan.Token)).ToArray();
@@ -225,7 +209,11 @@ internal sealed partial class NetworkWorkspace : DpiForm
             }
         }
         catch (OperationCanceledException) { if (!IsDisposed) _feedback.Text = "Đã dừng quét."; }
-        finally { _scan = null; if (!_scanButton.IsDisposed) _scanButton.Text = "Quét tất cả"; }
+        finally
+        {
+            _scan = null;
+            if (!_scanButton.IsDisposed) { _scanButton.Text = "Quét tất cả"; _scanButton.Icon = UiIcon.Scan; }
+        }
     }
 
     private Task SettingsAsync()
