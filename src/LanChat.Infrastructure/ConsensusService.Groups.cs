@@ -16,7 +16,7 @@ public sealed partial class ConsensusService
         using var db = database.Open(ct);
         if (command.Type == ControlCommandType.GroupCreated)
         {
-            if (db.Exists<Group>("Id=$0", command.GroupId)) return "Nhóm đã tồn tại.";
+            if (db.Exists<Group>("Id=$0", command.GroupId) && !IsPendingCreation(db, command)) return "Nhóm đã tồn tại.";
             if (command.Members is null || command.Members.Length > 100 || !command.Members.Contains(command.ActorUserId)) return "Danh sách thành viên không hợp lệ.";
             var known = db.Rows<LocalUserProfile>("Id IN (" + ChatDbContext.Parameters(command.Members.Length) + ")", command.Members.Cast<object>().ToArray()).Select(x => x.Id).ToArray();
             if (command.Members.Except(known).Any()) return "Thông tin thành viên chưa được đồng bộ. Vui lòng thử lại sau.";
@@ -25,6 +25,8 @@ public sealed partial class ConsensusService
         var group = db.One<Group>("Id=$0 AND IsDeleted=0", command.GroupId);
         if (group is null) return "Nhóm không tồn tại hoặc đã bị xóa.";
         if (group.OwnerUserId != command.ActorUserId) return "Chỉ chủ nhóm được thay đổi cấu trúc nhóm.";
+        if (db.Scalar("SELECT EXISTS(SELECT 1 FROM PendingPairGroups WHERE GroupId=$0)", group.Id) != 0)
+            return "Đang chờ xác nhận nhóm mới. Hãy thử sửa nhóm sau khi đồng bộ.";
         if (command.Type is ControlCommandType.GroupMemberAdded or ControlCommandType.GroupMemberRemoved or ControlCommandType.GroupOwnerChanged)
         {
             if (command.TargetUserId is null || command.TargetUserId == Guid.Empty) return "Chưa chọn người dùng.";
@@ -45,20 +47,12 @@ public sealed partial class ConsensusService
             if (c.Type >= ControlCommandType.GroupCreated)
             {
                 var group = db.One<Group>("Id=$0", c.GroupId);
-                store.VerifyGroupCommand(db, c, group);
-                if (c.Type == ControlCommandType.GroupCreated && group is null)
+                var pending = IsPendingCreation(db, c);
+                store.VerifyGroupCommand(db, c, pending ? null : group);
+                if (c.Type == ControlCommandType.GroupCreated)
                 {
-                    group = new Group { Id = c.GroupId, ConversationId = c.GroupId, Name = c.Name!, OwnerUserId = c.ActorUserId, AvatarBase64 = c.AvatarBase64 };
-                    db.Insert(group);
-                    var conversation = db.One<Conversation>("Id=$0", c.GroupId);
-                    if (conversation is null) db.Insert(new Conversation { Id = c.GroupId, Kind = ConversationKind.Group, Title = c.Name! });
-                    else { conversation.Kind = ConversationKind.Group; conversation.Title = c.Name!; }
-                    foreach (var user in c.Members!.Distinct())
-                    {
-                        db.Insert(new GroupMember { Id = LanChat.Domain.AppIdentity.NewId(), GroupId = c.GroupId, UserId = user });
-                        if (!db.Exists<ConversationMember>("ConversationId=$0 AND UserId=$1", c.GroupId, user))
-                            db.Insert(new ConversationMember { Id = LanChat.Domain.AppIdentity.NewId(), ConversationId = c.GroupId, UserId = user });
-                    }
+                    group ??= ProjectNewGroup(db, c);
+                    if (pending) db.Execute("DELETE FROM PendingPairGroups WHERE GroupId=$0", c.GroupId);
                 }
                 else if (group is not null)
                 {
@@ -97,5 +91,26 @@ public sealed partial class ConsensusService
             }
             state.LastAppliedIndex = entry.Index; db.SaveChanges();
         }
+    }
+
+    private static Group ProjectNewGroup(ChatDbContext db, ControlCommand command)
+    {
+        var group = new Group
+        {
+            Id = command.GroupId, ConversationId = command.GroupId, Name = command.Name!, OwnerUserId = command.ActorUserId,
+            AvatarBase64 = command.AvatarBase64, LastCommandId = command.Id
+        };
+        db.Insert(group);
+        var conversation = db.One<Conversation>("Id=$0", command.GroupId);
+        if (conversation is null)
+            db.Insert(new Conversation { Id = command.GroupId, Kind = ConversationKind.Group, Title = command.Name! });
+        else { conversation.Kind = ConversationKind.Group; conversation.Title = command.Name!; }
+        foreach (var user in command.Members!.Distinct())
+        {
+            db.Insert(new GroupMember { Id = AppIdentity.NewId(), GroupId = command.GroupId, UserId = user });
+            if (!db.Exists<ConversationMember>("ConversationId=$0 AND UserId=$1", command.GroupId, user))
+                db.Insert(new ConversationMember { Id = AppIdentity.NewId(), ConversationId = command.GroupId, UserId = user });
+        }
+        return group;
     }
 }

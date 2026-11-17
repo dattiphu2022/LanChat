@@ -88,6 +88,13 @@ public sealed partial class ChatStore
             DateTime.UtcNow.Ticks - PeerPresenceWindow.Ticks);
     }
 
+    internal PeerNode? GetSoleOnlinePeer(CancellationToken ct)
+    {
+        using var db = database.Open(ct);
+        var peers = db.Rows<PeerNode>("LastSeenTicks>=$0 LIMIT 2", DateTime.UtcNow.Ticks - PeerPresenceWindow.Ticks);
+        return peers.Length == 1 ? peers[0] : null;
+    }
+
     private static PeerEndpoint[] ReadPeerEndpoints(ChatDbContext db, string where, params object[] args) =>
         db.Rows<PeerNode>(where + " ORDER BY LastSeenTicks DESC", args).Select(x => new PeerEndpoint(x.NodeId, x.IPAddress, x.ServicePort)).ToArray();
 

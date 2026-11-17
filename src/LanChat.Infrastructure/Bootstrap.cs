@@ -120,6 +120,7 @@ public static class ServiceRegistration
         builder.Services.AddSingleton<PeerDiscoveryBackgroundService>();
         builder.Services.AddHostedService(x => x.GetRequiredService<PeerDiscoveryBackgroundService>());
         builder.Services.AddHostedService(x => x.GetRequiredService<ConsensusService>());
+        builder.Services.AddHostedService<PairGroupMaintenance>();
         builder.Services.AddHostedService<RestoreGroupsBackgroundService>();
         builder.Services.AddHostedService(x => x.GetRequiredService<ReplicationBackgroundService>());
         builder.Services.AddHostedService<FallbackScanBackgroundService>();

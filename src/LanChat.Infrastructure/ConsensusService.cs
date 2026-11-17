@@ -67,9 +67,20 @@ public sealed partial class ConsensusService(ChatStore store, ChatDatabase datab
             var state = await ReadAsync(ct); var config = Configuration(state.Log);
             var quorum = CanPropose(state);
             var ready = quorum || (_role == NodeRole.Follower && _remoteReady && FreshLeader(state));
+            var peer = ready ? null : GetPairPeer(config, ct);
+            var pair = _pair;
+            if (peer is null || pair?.Peer.NodeId != peer.NodeId) pair = null;
+            var text = quorum ? "Máy này đang điều phối" : ready ? "Đã kết nối mạng chat" :
+                pair is not null ? PairStatusText(pair) : _role == NodeRole.Candidate ? "Đang bầu máy trung tâm…" :
+                "Đang chờ máy trung tâm · tin nhắn vẫn được lưu";
             return new(_role, state.State.CurrentTerm, state.State.CurrentLeaderNodeId, quorum, config.Old, config.New,
-                state.State.CommitIndex, _lastHeartbeatTicks, quorum ? "Máy này đang điều phối" : ready ? "Đã kết nối mạng chat" :
-                _role == NodeRole.Candidate ? "Đang bầu máy trung tâm…" : "Đang chờ máy trung tâm · tin nhắn vẫn được lưu", runtime.CanLead, ready);
+                state.State.CommitIndex, _lastHeartbeatTicks, text, runtime.CanLead, ready)
+            {
+                SupportsPairGroups = true,
+                SoleOnlinePeerNodeId = peer?.NodeId,
+                PairCoordinatorNodeId = pair?.CoordinatorNodeId,
+                PairGroupMemberUserId = pair?.CanCreateGroup == true ? peer!.UserId : null
+            };
         }
         finally { _gate.Release(); }
     }
@@ -315,7 +326,7 @@ public sealed partial class ConsensusService(ChatStore store, ChatDatabase datab
     private async Task AppendLocalAsync(ControlCommand command, Snapshot snapshot, CancellationToken ct) => await store.WriteAsync(db =>
     {
         if (command.Type >= ControlCommandType.GroupCreated)
-            store.VerifyGroupCommand(db, command, db.One<Group>("Id=$0", command.GroupId));
+            store.VerifyGroupCommand(db, command, IsPendingCreation(db, command) ? null : db.One<Group>("Id=$0", command.GroupId));
         db.Insert(new ControlLogEntry { Id = command.Id, Index = snapshot.LastIndex + 1, Term = snapshot.State.CurrentTerm, CommandJson = JsonSerializer.Serialize(command) });
         return Task.FromResult(true);
     }, ct);
@@ -324,8 +335,17 @@ public sealed partial class ConsensusService(ChatStore store, ChatDatabase datab
         var local = await store.GetIdentityAsync(ct);
         if (command.ActorUserId != local.UserId) return new(false, "Sai người thực hiện thao tác.");
         var status = await GetStatusAsync(ct);
-        if (!status.LeaderReady) return new(false, "Máy trung tâm chưa sẵn sàng. Tin nhắn vẫn được đồng bộ.");
+        if (!status.LeaderReady)
+        {
+            if (command.Type == ControlCommandType.GroupCreated && status.PairGroupMemberUserId.HasValue)
+                return await SavePairGroupAsync(store.SignGroupCommand(command, local.NodeId, ct), local.NodeId, ct);
+            return new(false, "Máy trung tâm chưa đủ phiếu. Tin nhắn vẫn được đồng bộ.");
+        }
         command = store.SignGroupCommand(command, local.NodeId, ct);
+        return await SubmitSignedAsync(status, command, ct);
+    }
+    private async Task<ControlResult> SubmitSignedAsync(ConsensusStatus status, ControlCommand command, CancellationToken ct)
+    {
         if (status.Role != NodeRole.Leader)
         {
             var peer = (await store.GetPeerEndpointsAsync(ct)).FirstOrDefault(x => x.NodeId == status.LeaderNodeId);

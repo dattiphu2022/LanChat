@@ -38,7 +38,10 @@ public sealed class GroupsForm : DpiForm
     private GroupSummary? CurrentGroup => SelectedId is Guid id && _summaries.TryGetValue(id, out var group) ? group : null;
     private bool WaitingForCommit => _confirmedIndex > (_network?.CommitIndex ?? 0);
     private bool CanSubmit => !_saving && !WaitingForCommit && _network?.LeaderReady == true;
+    private Guid? PairMember => _network?.PairGroupMemberUserId;
+    private bool CanCreateGroup => !_saving && !WaitingForCommit && _profile is not null && (CanSubmit || PairMember.HasValue);
     private bool IsOwner(GroupSummary? group) => _profile is not null && group?.OwnerUserId == _profile.Id;
+    private bool CanModify(GroupSummary? group) => CanSubmit && group is { PendingCreation: false } && IsOwner(group);
 
     public GroupsForm(IChatStore chat, IDistributedStore store, IConsensusService consensus)
     {
@@ -231,7 +234,7 @@ public sealed class GroupsForm : DpiForm
     private void BindMembers()
     {
         var name = _profile is { } profile ? new PersonName(profile.DisplayName, profile.Department) : default;
-        _members.Bind(CurrentGroup, _contacts, _profile?.Id ?? Guid.Empty, name, _creating);
+        _members.Bind(CurrentGroup, _contacts, _profile?.Id ?? Guid.Empty, name, _creating, PairMember);
         UpdateActions();
     }
 
@@ -242,11 +245,13 @@ public sealed class GroupsForm : DpiForm
         _groups.Enabled = _search.Enabled = !_saving;
         _newGroup.Enabled = !_saving && !WaitingForCommit && _profile is not null;
         _open.Enabled = !_saving && group is not null;
-        _rename.Enabled = _delete.Enabled = CanSubmit && owner;
-        _transfer.Enabled = CanSubmit && owner && group!.Members.Length > 1;
-        _members.SetActions(allowChecks: !_saving && !WaitingForCommit, allowSave: CanSubmit);
+        var canModify = CanModify(group);
+        _rename.Enabled = _delete.Enabled = canModify;
+        _transfer.Enabled = canModify && group!.Members.Length > 1;
+        var allowMembers = _creating ? CanCreateGroup : canModify;
+        _members.SetActions(allowChecks: allowMembers, allowSave: allowMembers);
         _membersTitle.Text = _creating ? "Thành viên nhóm mới" : "Thành viên nhóm";
-        var details = group is null ? "Chọn nhóm hoặc tạo nhóm mới." :
+        var details = group is null ? "Chọn nhóm hoặc tạo nhóm mới." : group.PendingCreation ? "Nhóm mới · đang chờ mạng xác nhận." :
             $"{group.Members.Length} thành viên · {(owner ? "Bạn là chủ nhóm" : "Bạn là thành viên")}";
         _status.Text = (_network is null ? "Đang tải danh sách nhóm…" : UiText.HideIpAddresses(_network.StatusText)) + "\n" +
             (_error ?? _refreshError ?? (WaitingForCommit ? "Đang đồng bộ thay đổi nhóm…" : details));
@@ -260,7 +265,7 @@ public sealed class GroupsForm : DpiForm
         await SubmitAsync(new ControlCommand(AppIdentity.NewId(), ControlCommandType.GroupCreated, _profile!.Id, id, Name: name, Members: members));
         _createdGroup = id;
         _search.Clear();
-    });
+    }, createGroup: true);
 
     private ControlCommand Command(ControlCommandType type, Guid group, Guid? target = null, string? name = null) =>
         new(AppIdentity.NewId(), type, _profile!.Id, group, Name: name, TargetUserId: target);
@@ -272,9 +277,9 @@ public sealed class GroupsForm : DpiForm
         _confirmedIndex = Math.Max(_confirmedIndex, result.Index);
     }
 
-    private async Task RunAsync(Func<Task> action)
+    private async Task RunAsync(Func<Task> action, bool createGroup = false)
     {
-        if (!CanSubmit || _stop.IsCancellationRequested) return;
+        if (!(createGroup ? CanCreateGroup : CanSubmit) || _stop.IsCancellationRequested) return;
         _saving = true;
         _error = null;
         UpdateActions();
@@ -310,7 +315,7 @@ public sealed class GroupsForm : DpiForm
                 !_contacts.ContainsKey(user)) return null;
             var index = _groups.IndexFromPoint(_groups.PointToClient(new Point(e.X, e.Y)));
             if (index < 0 || _groups.Items[index] is not GroupSummary row ||
-                !_summaries.TryGetValue(row.Id, out var group) || !IsOwner(group) || group.Members.Contains(user)) return null;
+                !_summaries.TryGetValue(row.Id, out var group) || !CanModify(group) || group.Members.Contains(user)) return null;
             return (group, user);
         }
         void PreviewDrop(object? sender, DragEventArgs e) => e.Effect = DragTarget(e).HasValue ? DragDropEffects.Copy : DragDropEffects.None;

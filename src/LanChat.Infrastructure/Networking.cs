@@ -287,8 +287,8 @@ public sealed class PeerTransport(WireProtocol wire, ChatStore store, FaultInjec
     {
         faults.ThrowIfBlocked(peer.NodeId);
         if (type == "ChatPush") throw new IOException("Giao thức 4 chuyển tin nhắn qua sự kiện đã mã hóa.");
-        // Event synchronization can safely retry after a lost acknowledgment.
-        if (peer.NodeId == Guid.Empty || type is not ("Digest" or "EventRange" or "EventPush"))
+        // These operations can safely retry after a lost acknowledgment.
+        if (peer.NodeId == Guid.Empty || type is not ("Digest" or "EventRange" or "EventPush" or "ConsensusStatus" or "PairGroupCreate"))
             return await CallAtAddressAsync<T>(peer, type, payload, ct).ConfigureAwait(false);
 
         var preferred = store.GetPreferredPeerEndpoint(peer, ct);
@@ -425,6 +425,7 @@ public sealed class PeerConnectionManager(NodeOptions options, WireProtocol wire
                     case "Append": response = await services.GetRequiredService<ConsensusService>().AppendAsync(WireProtocol.Payload<AppendRequest>(request), request.SourceNodeId, timeout.Token); break;
                     case "ConsensusStatus": response = await services.GetRequiredService<IConsensusService>().GetStatusAsync(timeout.Token); break;
                     case "ControlProposal": response = await services.GetRequiredService<ConsensusService>().ProposeRemoteAsync(WireProtocol.Payload<ControlCommand>(request), request.SourceNodeId, timeout.Token); break;
+                    case "PairGroupCreate": response = await services.GetRequiredService<ConsensusService>().SavePairGroupAsync(WireProtocol.Payload<ControlCommand>(request), request.SourceNodeId, timeout.Token); break;
                     case "FileDownload":
                         timeout.CancelAfter(TimeSpan.FromMinutes(30));
                         var transfer = store.FindFileKey(WireProtocol.Payload<FileRequest>(request).TransferId, timeout.Token);

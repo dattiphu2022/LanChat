@@ -23,7 +23,10 @@ public sealed record ReplicationDigest(CursorDto[] Cursors);
 public sealed record EventRangeRequest(Guid OriginNodeId, long AfterSequence, int Limit = 100);
 public sealed record EventBatch(EventDto[] Events);
 public sealed record EventAck(Guid[] EventIds);
-public sealed record GroupSummary(Guid Id, string Name, Guid OwnerUserId, Guid[] Members, bool IsDeleted, string? AvatarBase64);
+public sealed record GroupSummary(Guid Id, string Name, Guid OwnerUserId, Guid[] Members, bool IsDeleted, string? AvatarBase64)
+{
+    public bool PendingCreation { get; init; }
+}
 public sealed record MessageDetails(Message Message, AttachmentDto[] Attachments, string[] Reactions, int ReceivedCount, int ReadCount, string? ReplyPreview, string? SenderName = null)
 {
     public string? SenderDepartment { get; init; }
@@ -45,7 +48,13 @@ public sealed record AppendRequest(long Term, Guid LeaderNodeId, long PreviousIn
 public sealed record AppendResponse(long Term, bool Success, long MatchIndex);
 public sealed record ControlResult(bool Success, string? Error, long Index = 0, Guid? LeaderNodeId = null);
 public sealed record ConsensusStatus(NodeRole Role, long Term, Guid? LeaderNodeId, bool HasQuorum,
-    Guid[] Voters, Guid[]? JointVoters, long CommitIndex, long LastLeaderHeartbeatTicks, string StatusText, bool CanLead = true, bool LeaderReady = false);
+    Guid[] Voters, Guid[]? JointVoters, long CommitIndex, long LastLeaderHeartbeatTicks, string StatusText, bool CanLead = true, bool LeaderReady = false)
+{
+    public bool SupportsPairGroups { get; init; }
+    public Guid? SoleOnlinePeerNodeId { get; init; }
+    public Guid? PairCoordinatorNodeId { get; init; }
+    public Guid? PairGroupMemberUserId { get; init; }
+}
 public sealed record LeadershipResult(bool Success, string? Error);
 public sealed record LeadershipHandoff(long Term, long LastIndex, long LastTerm);
 

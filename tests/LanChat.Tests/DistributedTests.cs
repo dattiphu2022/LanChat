@@ -276,6 +276,85 @@ public sealed class DistributedTests
     }
 
     [Fact]
+    public async Task TwoOnlineVotersCreateGroupAndRejoinQuorumWithoutChangingExistingGroups()
+    {
+        var cluster = Guid.NewGuid();
+        var secret = FrameworkIO.RandomBytes(32);
+        var bootstrap = Guid.NewGuid();
+        await using var a = new TestNode(cluster, secret, "A");
+        await using var b = new TestNode(cluster, secret, "B");
+        await using var c = new TestNode(cluster, secret, "C");
+        var nodes = new[] { a, b, c };
+        a.Options.InitialNodeId = bootstrap;
+        foreach (var node in nodes)
+        {
+            node.Options.BootstrapNodeId = bootstrap;
+            node.Options.LeaderTimeout = TimeSpan.FromSeconds(2);
+            await node.InitializeAsync();
+        }
+
+        var identities = await Task.WhenAll(nodes.Select(node => node.Store.GetIdentityAsync()));
+        await a.Store.RememberPeerAsync(await b.Store.GetNodeInfoAsync(), "127.0.0.1");
+        await b.Store.RememberPeerAsync(await a.Store.GetNodeInfoAsync(), "127.0.0.1");
+        foreach (var node in nodes.Take(2)) await c.Store.RememberPeerAsync(await node.Store.GetNodeInfoAsync(), "127.0.0.1");
+
+        var voters = identities.Select(id => id.NodeId).Append(Guid.NewGuid()).Append(Guid.NewGuid()).ToArray();
+        var config = new ControlCommand(Guid.NewGuid(), ControlCommandType.FinalMembership, Guid.Empty, Guid.Empty, NewVoters: voters);
+        var previous = new ControlCommand(Guid.NewGuid(), ControlCommandType.GroupCreated, identities[0].UserId, Guid.NewGuid(),
+            "Nhóm đã có", Members: [identities[0].UserId, identities[1].UserId]);
+        previous = a.Host.Services.GetRequiredService<ChatStore>().SignGroupCommand(previous, bootstrap, CancellationToken.None);
+        foreach (var node in nodes)
+        {
+            var service = node.Host.Services.GetRequiredService<ConsensusService>();
+            var result = await service.AppendAsync(new(1, bootstrap, 0, 0,
+                [new(config.Id, 1, 1, config), new(previous.Id, 2, 1, previous)], 2), bootstrap, CancellationToken.None);
+            Assert.True(result.Success);
+        }
+
+        var services = nodes.Select(node => node.Host.Services.GetRequiredService<IConsensusService>()).ToArray();
+        await a.Host.StartAsync();
+        await b.Host.StartAsync();
+        await TestNode.WaitUntilAsync(async () => (await Task.WhenAll(services.Take(2).Select(service => service.GetStatusAsync())))
+            .All(status => status.PairGroupMemberUserId.HasValue));
+
+        var pair = await Task.WhenAll(services.Take(2).Select(service => service.GetStatusAsync()));
+        var center = Assert.Single(pair.Select(status => status.PairCoordinatorNodeId).Distinct());
+        Assert.NotNull(center);
+        Assert.All(pair, status => { Assert.False(status.LeaderReady); Assert.Equal(2, status.CommitIndex); });
+
+        var rename = await services[0].ProposeAsync(new(Guid.NewGuid(), ControlCommandType.GroupRenamed,
+            identities[0].UserId, previous.GroupId, "Không được sửa"));
+        Assert.False(rename.Success);
+        var recreate = await services[0].ProposeAsync(previous with { Id = Guid.NewGuid(), Name = "Không được ghi đè" });
+        Assert.False(recreate.Success);
+
+        var creator = identities[0].NodeId == center ? 1 : 0;
+        var recipient = 1 - creator;
+        var fresh = new ControlCommand(Guid.NewGuid(), ControlCommandType.GroupCreated, identities[creator].UserId,
+            Guid.NewGuid(), "Nhóm hai máy", Members: [identities[0].UserId, identities[1].UserId]);
+        var created = await services[creator].ProposeAsync(fresh);
+        Assert.True(created.Success, created.Error);
+        Assert.True((await services[creator].ProposeAsync(fresh)).Success);
+        await TestNode.WaitUntilAsync(async () => (await Distributed(nodes[recipient]).GetGroupsAsync())
+            .Any(group => group.Id == fresh.GroupId && group.PendingCreation));
+
+        var message = await Distributed(nodes[creator]).SendToConversationAsync(fresh.GroupId, "Tin nhắn từ nhóm hai máy");
+        await TestNode.WaitUntilAsync(async () => (await nodes[recipient].Store.GetMessagesAsync(fresh.GroupId)).Any(m => m.Id == message.Id));
+        Assert.Equal("Nhóm đã có", (await Distributed(a).GetGroupsAsync()).Single(group => group.Id == previous.GroupId).Name);
+
+        foreach (var node in nodes.Take(2)) await node.Store.RememberPeerAsync(await c.Store.GetNodeInfoAsync(), "127.0.0.1");
+        await c.Host.StartAsync();
+        await TestNode.WaitUntilAsync(async () => (await Task.WhenAll(services.Select(service => service.GetStatusAsync())))
+            .All(status => status.LeaderReady && status.PairCoordinatorNodeId is null), 25);
+        await TestNode.WaitUntilAsync(async () => (await Task.WhenAll(nodes.Take(2).Select(node => Distributed(node).GetGroupsAsync())))
+            .All(groups => groups.Any(group => group.Id == fresh.GroupId && !group.PendingCreation)), 20);
+        var promotedRename = await services[creator].ProposeAsync(new(Guid.NewGuid(), ControlCommandType.GroupRenamed,
+            identities[creator].UserId, fresh.GroupId, "Nhóm đã xác nhận"));
+        Assert.True(promotedRename.Success, promotedRename.Error);
+        Assert.Contains(await nodes[recipient].Store.GetMessagesAsync(fresh.GroupId), m => m.Id == message.Id);
+    }
+
+    [Fact]
     public async Task LeaderLossStartsElectionAtFiveSecondsAndRecoversWithinSeven()
     {
         var cluster = Guid.NewGuid();

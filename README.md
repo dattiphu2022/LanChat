@@ -1,4 +1,4 @@
-# LanChat v1.2.2 — Chat nội bộ cho Windows
+# LanChat v1.2.3 — Chat nội bộ cho Windows
 
 LanChat hỗ trợ chat riêng, chat nhóm và truyền ảnh, tệp, thư mục giữa các máy Windows trên mạng LAN. Mỗi máy lưu dữ liệu trong SQLite. Tin nhắn và tệp được mã hóa đầu cuối. Kiểm tra và tải bản cập nhật từ GitHub cần Internet.
 
@@ -21,6 +21,8 @@ Mở **Giới thiệu → Hướng dẫn sử dụng** để đọc hướng d�
 Tin đã đồng bộ nghĩa là ít nhất một máy khác có bản sao. Trạng thái **Đã nhận** và **Đã đọc** dựa trên xác nhận của người tham gia. Ghim, tắt thông báo và xóa phía tôi áp dụng trên máy này.
 
 Mạng có ba voter đang hoạt động ổn định chịu được một máy mất kết nối mà vẫn thay đổi cấu trúc nhóm. Khi thiếu số máy điều phối cần thiết, tin nhắn vẫn được lưu và có thể đồng bộ giữa các máy còn kết nối.
+
+Khi chỉ còn hai máy kết nối trong mạng thiếu phiếu, LanChat chọn một máy điều phối. Hai máy chạy v1.2.3 có thể tạo nhóm mới cho hai người và dùng ngay. Sửa nhóm đã có vẫn cần đủ phiếu. Các máy v1.2.2 tiếp tục nhắn tin, gửi tệp và nhận nhóm mới khi nhóm được xác nhận trong nhật ký chung.
 
 Trong **Cài đặt**, bật **Khởi động cùng hệ thống** để mở LanChat khi đăng nhập Windows. Nhấn **Thu nhỏ** hoặc **X** để đưa LanChat xuống khay hệ thống. Nhấp đúp biểu tượng để mở lại, hoặc bấm chuột phải và chọn **Thoát LanChat** để dừng ứng dụng.
 

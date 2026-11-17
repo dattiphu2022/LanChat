@@ -115,8 +115,9 @@ public sealed class NetworkForm : DpiForm
             var data = await Task.Run(async () => (await consensus.GetStatusAsync(ct), await store.GetIdentityAsync(ct), await store.GetUsersAsync(ct: ct)), ct);
             if (IsDisposed || leadershipBusy) return;
             var (state, identity, peers) = data;
-            var leader = peers.FirstOrDefault(p => p.NodeId == state.LeaderNodeId);
-            var center = state.LeaderReady ? (state.LeaderNodeId == identity.NodeId ? "Máy này" :
+            var centerId = state.LeaderReady ? state.LeaderNodeId : state.PairCoordinatorNodeId;
+            var leader = peers.FirstOrDefault(p => p.NodeId == centerId);
+            var center = centerId.HasValue ? (centerId == identity.NodeId ? "Máy này" :
                 leader is null ? "Máy trong LAN" : new PersonName(leader.DisplayName, leader.Department).ToString()) : "Đang chờ";
             _cluster.Text = $"Máy trung tâm: {center}\r\n{UiText.HideIpAddresses(state.StatusText)}\r\nMáy bỏ phiếu: {state.Voters.Length}   ·   Nhiệm kỳ: {state.Term}\r\nMáy đã biết: {peers.Count}\r\nID mạng: {options.ClusterId:N} · Giao thức: v{NodeInfoDto.CurrentProtocol}";
             loadingLeadership = true; allow.Checked = state.CanLead; allow.Enabled = true; loadingLeadership = false;

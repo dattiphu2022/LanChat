@@ -1,6 +1,6 @@
 # Nghiệm thu LanChat trên mạng thật
 
-Danh sách dưới đây dùng để nghiệm thu v1.2.2 trên các PC tại nơi sử dụng. Xem thao tác của người dùng và kết quả đã ghi nhận trong [Hướng dẫn sử dụng](HUONG_DAN_SU_DUNG.md) và [Kết quả kiểm chứng](VERIFICATION.md).
+Danh sách dưới đây dùng để nghiệm thu v1.2.3 trên các PC tại nơi sử dụng. Xem thao tác của người dùng và kết quả đã ghi nhận trong [Hướng dẫn sử dụng](HUONG_DAN_SU_DUNG.md) và [Kết quả kiểm chứng](VERIFICATION.md).
 
 ## Chuẩn bị
 
@@ -34,6 +34,7 @@ Danh sách dưới đây dùng để nghiệm thu v1.2.2 trên các PC tại nơ
 - [ ] Cô lập một voter khỏi hai voter còn lại. Phía một voter không đổi nhóm được; phía hai voter vẫn đổi nhóm.
 - [ ] Hai phía vẫn gửi chat local; nối lại và đối chiếu MessageIds/nội dung.
 - [ ] Thử cụm hai voter: một máy offline thì thao tác nhóm bị chặn đúng quorum.
+- [ ] Trong mạng có ít nhất bốn voter, chỉ để hai máy v1.2.3 kết nối. Hai máy hiện cùng trung tâm, tạo và chat trong nhóm mới. Nút sửa nhóm đã có bị khóa. Bật thêm máy để đủ phiếu rồi đối chiếu nhóm mới trên máy v1.2.2.
 
 ## Tệp và giao diện
 

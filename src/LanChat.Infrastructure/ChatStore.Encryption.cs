@@ -115,6 +115,16 @@ public sealed partial class ChatStore
     internal ControlCommand SignGroupCommand(ControlCommand command, Guid nodeId, CancellationToken ct)
     {
         using var db = database.Open(ct);
+        if (command.Type == ControlCommandType.GroupCreated)
+        {
+            using var query = db.Command("SELECT CommandJson FROM PendingPairGroups WHERE GroupId=$0 AND OriginNodeId=$1", command.GroupId, nodeId);
+            if (query.ExecuteScalar() is string json && JsonSerializer.Deserialize<ControlCommand>(json) is { } saved)
+            {
+                var retry = command with { OriginNodeId = nodeId, CreatedAtTicks = saved.CreatedAtTicks,
+                    PreviousCommandId = saved.PreviousCommandId, DeviceKeys = saved.DeviceKeys, Signature = saved.Signature };
+                if (JsonSerializer.Serialize(retry) == json) return saved;
+            }
+        }
         var issued = command with { OriginNodeId = nodeId, CreatedAtTicks = DateTime.UtcNow.Ticks,
             PreviousCommandId = db.One<Group>("Id=$0", command.GroupId)?.LastCommandId, DeviceKeys = Device.PublicKeys, Signature = null };
         return issued with { Signature = Device.Sign(options.ClusterId, "group", issued) };

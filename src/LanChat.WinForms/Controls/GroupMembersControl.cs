@@ -16,6 +16,7 @@ internal sealed class GroupMembersControl : UserControl
     private GroupSummary? _group;
     private HashSet<Guid> _members = [];
     private Guid _localUser;
+    private Guid? _pairMember;
     private PersonName _localName;
     private bool _creating, _binding, _allowChecks, _allowSave;
     private string? _status;
@@ -25,7 +26,7 @@ internal sealed class GroupMembersControl : UserControl
     public event Action<Guid[]>? CreateRequested;
 
     private bool IsOwner => _group?.OwnerUserId == _localUser;
-    private bool CanEdit => _creating || IsOwner;
+    private bool CanEdit => _creating || (IsOwner && _group is { PendingCreation: false });
 
     public GroupMembersControl(bool showAllContacts = false)
     {
@@ -51,7 +52,7 @@ internal sealed class GroupMembersControl : UserControl
         {
             if (!_save.Enabled) return;
             if (_creating)
-                CreateRequested?.Invoke(_newGroupMembers.Append(_localUser).ToArray());
+                CreateRequested?.Invoke(_pairMember is Guid peer ? [_localUser, peer] : _newGroupMembers.Append(_localUser).ToArray());
             else if (IsOwner && _group is { } group && _drafts.TryGetValue(group.Id, out var edits))
                 SaveRequested?.Invoke(new GroupMemberChanges(group.Id, _localUser, edits.ToArray()));
         };
@@ -78,7 +79,7 @@ internal sealed class GroupMembersControl : UserControl
     }
 
     public void Bind(GroupSummary? group, IReadOnlyDictionary<Guid, UserSummary> contacts,
-        Guid localUser, PersonName localName, bool creating = false)
+        Guid localUser, PersonName localName, bool creating = false, Guid? pairMember = null)
     {
         var resetViewport = _group?.Id != group?.Id || _creating != creating;
         _group = group;
@@ -86,6 +87,7 @@ internal sealed class GroupMembersControl : UserControl
         _localUser = localUser;
         _localName = localName;
         _creating = creating;
+        _pairMember = creating ? pairMember : null;
         _members = new HashSet<Guid>(group?.Members ?? []);
         var edits = IsOwner && group is not null && _drafts.TryGetValue(group.Id, out var changes) ? changes : null;
 
@@ -93,7 +95,8 @@ internal sealed class GroupMembersControl : UserControl
         if (localUser != Guid.Empty && (creating || group is not null))
         {
             var owner = creating ? localUser : group?.OwnerUserId;
-            var ids = _showAllContacts || CanEdit ? contacts.Keys.Append(localUser).Concat(_members).Distinct() : _members;
+            var ids = _pairMember is Guid peer ? new[] { localUser, peer } :
+                _showAllContacts || CanEdit ? contacts.Keys.Append(localUser).Concat(_members).Distinct() : _members;
             rows = ids.Select(MemberName).OrderByDescending(person => person.Id == owner)
                 .ThenByDescending(person => _members.Contains(person.Id))
                 .ThenBy(person => person.ToString(), StringComparer.CurrentCultureIgnoreCase).ToArray();
@@ -118,7 +121,7 @@ internal sealed class GroupMembersControl : UserControl
         UpdateActions();
     }
 
-    private bool CanCheck(SelectionItem person) => _allowChecks && CanEdit && person.Id != _localUser;
+    private bool CanCheck(SelectionItem person) => _allowChecks && CanEdit && !_pairMember.HasValue && person.Id != _localUser;
 
     private void BindRows(SelectionItem[] rows, Dictionary<Guid, bool>? edits, bool resetViewport)
     {
@@ -142,7 +145,7 @@ internal sealed class GroupMembersControl : UserControl
             for (var i = 0; i < rows.Length; i++)
             {
                 var id = rows[i].Id;
-                var check = _creating ? id == _localUser || _newGroupMembers.Contains(id) :
+                var check = _creating ? id == _localUser || (_pairMember is Guid peer ? id == peer : _newGroupMembers.Contains(id)) :
                     edits is not null && edits.TryGetValue(id, out var draft) ? draft : _members.Contains(id);
                 if (_list.GetItemChecked(i) != check) _list.SetItemChecked(i, check);
             }
@@ -184,8 +187,9 @@ internal sealed class GroupMembersControl : UserControl
         _save.BackColor = _save.Enabled ? Theme.Blue : Theme.Border;
         _save.Text = _creating ? "Tạo nhóm" : "Lưu thành viên";
         _save.Icon = _creating ? UiIcon.AddPerson : UiIcon.Save;
-        _hint.Text = _status ?? (_creating ? "Tích chọn người rồi bấm Tạo nhóm." :
+        _hint.Text = _status ?? (_creating ? (_pairMember.HasValue ? "Nhóm sẽ gồm hai người dùng đang kết nối." : "Tích chọn người rồi bấm Tạo nhóm.") :
             _group is null ? "Chọn một nhóm để xem thành viên." :
+            _group.PendingCreation ? "Chờ mạng xác nhận để sửa thành viên." :
             IsOwner ? "Tích để thêm, bỏ tích để bớt." : "Chỉ chủ nhóm có thể thay đổi thành viên.");
         _list.Invalidate();
     }

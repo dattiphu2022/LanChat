@@ -74,6 +74,8 @@ Leader bị cô lập mất quyền commit khi xác nhận đa số hết hạn 
 
 Cấu hình khởi đầu chứa BootstrapNodeId trong mã mời, không dựa vào “máy nào online đầu tiên”. Hai voter cần cả hai; ba voter chịu được một voter offline. Không tự giảm membership vì mất kết nối. Chưa có UI loại voter, snapshot/compaction hoặc phục hồi cưỡng bức khi mất đa số vĩnh viễn.
 
+Khi hai máy xác nhận kết nối với nhau và cặp máy thiếu phiếu, chúng chọn cùng một máy điều phối theo quyền ứng cử và NodeId. Hai máy v1.2.3 lưu lệnh tạo nhóm có chữ ký của chủ nhóm trong `PendingPairGroups`. Khi có quorum, máy tạo gửi lại lệnh qua `ControlProposal` để ghi vào ControlLog. Các bản v1.2.2 nhận nhóm qua ControlLog và tiếp tục đồng bộ tin nhắn, tệp qua giao thức v4.
+
 Tham khảo thuật toán: [Raft paper](https://raft.github.io/raft.pdf). Việc có kiểm thử không tương đương chứng minh hình thức cho mọi interleaving của một distributed system.
 
 ## Tệp

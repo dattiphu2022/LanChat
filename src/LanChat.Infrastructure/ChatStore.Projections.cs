@@ -242,7 +242,12 @@ public sealed partial class ChatStore
         using var db = database.Open(ct); var local = (db.Required<LocalSettings>()).UserId;
         var groups = db.Rows<Group>("IsDeleted=0 AND Id IN (SELECT GroupId FROM GroupMembers WHERE UserId=$0)", local);
         var members = db.Rows<GroupMember>();
-        return groups.Select(x => new GroupSummary(x.Id, x.Name, x.OwnerUserId, members.Where(m => m.GroupId == x.Id).Select(m => m.UserId).ToArray(), x.IsDeleted, x.AvatarBase64)).ToArray();
+        using var query = db.Command("SELECT GroupId FROM PendingPairGroups");
+        using var reader = query.ExecuteReader();
+        var pending = new HashSet<Guid>();
+        while (reader.Read()) pending.Add(reader.GetGuid(0));
+        return groups.Select(x => new GroupSummary(x.Id, x.Name, x.OwnerUserId, members.Where(m => m.GroupId == x.Id).Select(m => m.UserId).ToArray(), x.IsDeleted, x.AvatarBase64)
+            { PendingCreation = pending.Contains(x.Id) }).ToArray();
     }
     public async Task<SearchResult[]> SearchMessagesAsync(string text, Guid? conversationId = null, CancellationToken ct = default)
     {

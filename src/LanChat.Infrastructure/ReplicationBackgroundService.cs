@@ -34,7 +34,12 @@ public sealed class ReplicationBackgroundService(IDistributedStore store, ChatSt
             var peers = activeOnly ? chat.GetActivePeerEndpoints(ct) : await store.GetPeerEndpointsAsync(ct);
             if (activeOnly && peers.Length == 0) return;
             var self = await chat.GetNodeInfoAsync(ct);
-            var leader = preferred ?? (await consensus.GetStatusAsync(ct)).LeaderNodeId;
+            var leader = preferred;
+            if (leader is null)
+            {
+                var state = await consensus.GetStatusAsync(ct);
+                leader = state.PairCoordinatorNodeId ?? state.LeaderNodeId;
+            }
             if (preferred.HasValue && peers.FirstOrDefault(p => p.NodeId == preferred) is { } center)
             {
                 logger.LogInformation("Immediate sync started with leader {Node}", center.NodeId);
