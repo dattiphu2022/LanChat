@@ -1,10 +1,10 @@
 # Nghiệm thu LanChat trên mạng thật
 
-Bản đã được kiểm thử tự động và chạy hai tiến trình trên cùng Windows. Các mục dưới đây cần làm trên các PC tại nơi sử dụng; không đánh dấu đạt thay cho kiểm tra thực tế.
+Danh sách dưới đây dùng để nghiệm thu v1.2.1 trên các PC tại nơi sử dụng. Xem thao tác của người dùng và kết quả đã ghi nhận trong [Hướng dẫn sử dụng](HUONG_DAN_SU_DUNG.md) và [Kết quả kiểm chứng](VERIFICATION.md).
 
 ## Chuẩn bị
 
-- [ ] Ít nhất 3 PC Windows 11 x64 dùng cùng ZIP. Có một máy Windows 11 sạch, tài khoản thường, chưa cài .NET Desktop Runtime.
+- [ ] Ít nhất ba PC Windows x64 dùng cùng bộ cài `LanChat-Setup-Windows-x64.exe`. Có một máy Windows 11 sạch với tài khoản thường để thử cài mới.
 - [ ] Mỗi PC có thư mục dữ liệu local riêng; không clone database/NodeId.
 - [ ] Sao lưu dữ liệu cũ khi app đóng trước nâng cấp.
 - [ ] Cùng mã mời hoặc mã nâng cấp từ một máy duy nhất.
@@ -18,6 +18,7 @@ Bản đã được kiểm thử tự động và chạy hai tiến trình trên
 - [ ] Nhấp phải để reply/edit/recall/forward/reaction/delete local; người khác không sửa/thu hồi tin của mình.
 - [ ] Thu hồi biến mất khỏi tìm kiếm; xóa phía tôi không xóa ở peer.
 - [ ] Tìm không dấu trong nội dung tiếng Việt; mở đúng vị trí tin cũ.
+- [ ] Bấm khung trích dẫn của tin đang hiển thị và tin ngoài trang hiện tại. Thử tin gốc đã thu hồi hoặc xóa phía tôi. Bấm **Quay về tin nhắn mới** và đối chiếu bản nháp.
 - [ ] Ghim, im lặng và thông báo khi cửa sổ không có focus hoạt động theo cài đặt.
 - [ ] Tắt một node, gửi nhiều tin trên các node khác rồi bật lại; lịch sử hội tụ, không trùng.
 - [ ] Node mới tải được lịch sử A/B trong database nhưng giao diện không lộ hội thoại không thuộc nó.
@@ -37,6 +38,8 @@ Bản đã được kiểm thử tự động và chạy hai tiến trình trên
 ## Tệp và giao diện
 
 - [ ] Kéo nhiều tệp Explorer vào ChatView/ChatInput; có tên, size, preview và remove; chưa bấm Gửi thì chưa phát metadata.
+- [ ] Chọn thư mục bằng cách nhập đường dẫn. Dán bitmap hoặc PNG vào bản nháp, gỡ ảnh trước khi gửi, rồi thử gửi sang máy khác.
+- [ ] Bấm **Chụp vùng** khi một cửa sổ khác nằm phía sau LanChat. Xác minh ảnh lấy đúng vùng, LanChat hiện lại sau khi chụp hoặc hủy bằng **Esc**. Lặp lại ở hai mức DPI hoặc trên màn hình phụ.
 - [ ] Tải ảnh/tài liệu từ A sang B; xem progress, hủy giữa chừng và tải lại.
 - [ ] Gửi nhiều ảnh kèm chú thích nhiều dòng: ảnh hiện ngay trong chat của A/B, ảnh từ xa tự lưu local khi xuất hiện trong vùng xem.
 - [ ] Bấm ảnh mở đúng ảnh đã chọn; caption giữ xuống dòng, tên người gửi và số thứ tự chính xác. Chuyển bằng thumbnail/Trước/Sau/phím mũi tên qua các lần gửi khác nhau.
@@ -52,8 +55,9 @@ Bản đã được kiểm thử tự động và chạy hai tiến trình trên
 
 ## Vận hành
 
-- [ ] Mở lần đầu vào Mạng mặc định mà không qua form nhập mã. Máy mới được cấp cùng mã mặc định có thể tìm máy tạo và trao đổi tin nhắn.
-- [ ] Thêm mã riêng đầu tiên, thử cả giữ và gỡ mạng mặc định. Mở lại ứng dụng và thêm mã tiếp theo để kiểm tra lựa chọn được nhớ. Xác minh tin nhắn và tệp không xuất hiện ngoài mạng của mã đã dùng.
+- [ ] Cài mới bản công khai và dùng **Mạng chat → Tạo mạng** hoặc **Thêm mã**. Với bản nội bộ có cấu hình cấp sẵn, thử giữ hoặc gỡ mạng mặc định khi thêm mạng riêng đầu tiên.
+- [ ] Mở **Giới thiệu → Hướng dẫn sử dụng** khi máy mất Internet. Đổi chủ đề, cuộn và đóng bằng bàn phím ở mức 100%, 125% và trên cửa sổ hẹp.
+- [ ] Từ bản cũ có chức năng cập nhật, dùng **Kiểm tra cập nhật**, tải EXE và thử nâng cấp tại chỗ bằng cùng tài khoản Windows. Đối chiếu hồ sơ, danh sách mạng và lịch sử. Thử hủy tải và hoãn cài khi còn bản nháp hoặc tác vụ đang chạy.
 
 - [ ] Cài đặt chỉ có Tên, Đơn vị và Khởi động cùng hệ thống. Đăng xuất/đăng nhập để xác nhận Windows mở ứng dụng khi bật.
 - [ ] Mở lần hai, kể cả dùng thư mục dữ liệu khác, chỉ có một cửa sổ LanChat hoạt động.
@@ -62,5 +66,5 @@ Bản đã được kiểm thử tự động và chạy hai tiến trình trên
 - [ ] Join code sai/cluster khác không đồng bộ.
 - [ ] Chẩn đoán/copy diagnostics không lộ secret, mã mời hoặc nội dung chat.
 - [ ] Đóng ứng dụng dừng socket/background và có thể mở lại cùng cổng.
-- [ ] Xác nhận phạm vi tin cậy: mọi thành viên cluster có bản sao lịch sử; chưa có E2EE hoặc mã hóa database.
+- [ ] Xác minh nội dung tin nhắn và khóa tệp chỉ được giải mã ở thiết bị được cấp quyền. Danh bạ, hiện diện và cấu trúc nhóm được chia sẻ trong mạng. Dữ liệu đã giải mã lưu cục bộ nên cần bảo vệ thiết bị và bản sao lưu.
 - [ ] Có quy trình sao lưu, bảo vệ Windows account và xử lý máy mất vĩnh viễn. Bản hiện tại không tự loại voter offline.

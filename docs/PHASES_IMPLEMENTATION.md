@@ -1,5 +1,7 @@
 # Triển khai Phase 2–5
 
+Đây là ghi nhận triển khai theo từng phase năm 2026. Tài liệu sử dụng, đóng gói và kết quả kiểm thử hiện hành nằm ở [Hướng dẫn sử dụng](HUONG_DAN_SU_DUNG.md), [Đóng gói và phát hành](../installer/README.md) và [Kết quả kiểm chứng](VERIFICATION.md).
+
 Giữ nguyên dữ liệu Phase 1 và giao diện native WinForms. Không thay đổi dữ liệu người dùng khi kiểm thử.
 
 ## Phase 2
@@ -26,4 +28,4 @@ Các hạng mục Phase 2–5 nêu trên đã có mã chạy và giao diện tư
 
 Control log giữ các sự kiện thay đổi nhóm/membership; chat event store giữ các sự kiện chat/profile/receipt. Binary không replicate. Giao diện có chẩn đoán và các nút mô phỏng lỗi chỉ trong Debug.
 
-Chi tiết bằng chứng và giới hạn nghiệm thu: [VERIFICATION.md](VERIFICATION.md). Cần nghiệm thu tiếp trên các PC vật lý theo [ACCEPTANCE.md](ACCEPTANCE.md); chưa có benchmark cụm lớn, mã hóa DB/E2EE, voter decommission hay compaction.
+Tại thời điểm kiểm chứng Phase 5, chưa có benchmark cụm lớn, E2EE, mã hóa toàn bộ cơ sở dữ liệu, voter decommission hay compaction. Phạm vi bảo mật hiện tại nằm trong [Kiến trúc và luồng dữ liệu](ARCHITECTURE.md). Nghiệm thu trên PC vật lý theo [Checklist nghiệm thu](ACCEPTANCE.md).

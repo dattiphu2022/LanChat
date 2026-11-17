@@ -1,29 +1,28 @@
-# LanChat — Chat nội bộ P2P cho Windows 11
+# LanChat v1.2.1 — Chat nội bộ cho Windows
 
-Đã triển khai Phase 1–5: chat trực tiếp/nhóm, tự bầu điều phối, lịch sử và sự kiện đồng bộ giữa các máy, làm việc khi mất kết nối, tệp P2P, tìm kiếm, TLS/HMAC và chẩn đoán. Ứng dụng chạy hoàn toàn trong LAN, giao diện WinForms native; mỗi máy có SQLite riêng.
+LanChat hỗ trợ chat riêng, chat nhóm và truyền ảnh, tệp, thư mục giữa các máy Windows trên mạng LAN. Mỗi máy lưu dữ liệu trong SQLite. Tin nhắn và tệp được mã hóa đầu cuối. Kiểm tra và tải bản cập nhật từ GitHub cần Internet.
 
-## Mở bản chạy
+## Tải và bắt đầu sử dụng
 
-Giải nén **`LanChat-Win11-x64.zip`** rồi mở **`LanChat.WinForms.exe`** trong thư mục vừa giải nén. Giữ các DLL bên cạnh EXE. Ứng dụng dùng .NET Framework 4.8/4.8.1 có sẵn trên Windows 11 và chạy với tài khoản thường.
+1. Tải **LanChat-Setup-Windows-x64.exe** từ [GitHub Releases](https://github.com/dattiphu2022/LanChat/releases/latest) và chạy bộ cài. Hỗ trợ Windows 10 từ phiên bản 1903 và Windows 11 x64 với .NET Framework 4.8.
+2. Mở **Cài đặt** để nhập **Tên** và **Đơn vị**. Danh bạ hiển thị đơn vị trước tên.
+3. Mở **Mạng chat → Thêm mã** nếu đã có mã. Chọn **Tạo mạng** nếu bạn muốn bắt đầu mạng mới. Để mời máy khác, mở **Chi tiết → Hiện mã mời tham gia** và gửi mã cho người được phép tham gia.
+4. Chọn người dùng trong **Danh bạ** hoặc bấm **Quét tất cả** để tìm lại máy. Dùng các tab để đổi mạng.
 
-1. Mở LanChat để vào thẳng **Mạng mặc định**. Sửa **Tên** và **Đơn vị** trong **Cài đặt**.
-2. Vào **Mạng chat** để thêm mã, mỗi mã một dòng. Khi kết nối mạng riêng đầu tiên, LanChat hỏi có gỡ mạng mặc định hay giữ cả hai. Để mời máy khác vào một mạng, chọn **Chi tiết → Hiện mã mời tham gia**.
-3. Dùng các tab để đổi mạng. **Quét tất cả** tìm máy đồng thời trên các mạng đã kết nối. Vào **Mạng chat** để thêm mã, đổi tên hoặc gỡ mạng. Khi nhập lại mã cũ, LanChat mở lại lịch sử đã lưu của mạng đó.
-4. Vào **Danh bạ** hoặc tìm tên ở ô tìm hội thoại để chat. Tin được lưu trước khi gửi ra mạng.
-5. Vào **Nhóm**, chọn thành viên và tạo nhóm. Chủ nhóm có thể đổi tên, thêm/xóa thành viên, chuyển quyền và xóa nhóm.
-6. Kéo nhiều ảnh/tệp vào khung chat hoặc bấm **Đính kèm**; kiểm tra preview rồi bấm **Gửi**. Nội dung nhập cùng ảnh là **chú thích chung** cho các ảnh trong lần gửi đó. **Ảnh hiện trực tiếp trong tin nhắn**; bấm ảnh mở khung xem lớn có chú thích và dải ảnh của cuộc trò chuyện. Dùng **Trước/Sau**, phím **← →** hoặc bấm hình thu nhỏ để chuyển ảnh; cuộn chuột để zoom, kéo để di chuyển, **Vừa khung/100%** để đổi tỷ lệ và **Esc** để đóng.
-   **Bấm tên tệp khác để mở bằng ứng dụng mặc định của Windows**. Nếu chưa có local, LanChat tự tải vào dữ liệu máy, kiểm tra SHA256 rồi mở. Tải lâu sẽ hiện tiến độ và nút Hủy. Trong khung xem ảnh có nút **Ứng dụng ngoài**; Trong bảng **Thông tin**, chọn **Tệp** để tìm tệp đã gửi.
-7. Nhấp phải tin nhắn để trả lời, sao chép, chuyển tiếp, cảm xúc, sửa, thu hồi hoặc xóa phía tôi. Bấm **Tìm tin** trong hội thoại và nhấp đúp kết quả để mở đúng vị trí trong lịch sử.
-8. Nhấp phải một hội thoại và chọn **Xóa hội thoại phía tôi** để bỏ lịch sử trên máy này. Tin mới sẽ đưa hội thoại trở lại danh sách. Tin đến khi đang ở hội thoại khác hoặc ở khay hệ thống có thể hiện thông báo Windows. Bấm thông báo để mở hội thoại hoặc dùng **Tắt / Bật thông báo** trong menu hội thoại.
-9. Kéo thư mục từ Explorer vào ô soạn tin hoặc chọn **+ Đính kèm → Thêm thư mục**. Khi người nhận bấm tên thư mục, LanChat tải từng tệp và mở thư mục đã dựng lại trong Explorer. Mỗi thư mục có thể chứa tối đa 10.000 mục và 20 GB dữ liệu. Dùng bản LanChat mới ở hai đầu để mở được đính kèm dạng thư mục.
+Mở **Giới thiệu → Hướng dẫn sử dụng** để đọc hướng dẫn ngay trong ứng dụng, kể cả khi đang ngoại tuyến. Tài liệu này cũng có trên GitHub. [Hướng dẫn sử dụng](docs/HUONG_DAN_SU_DUNG.md)
 
-**Enter** gửi, **Shift+Enter** xuống dòng, **Ctrl+K** tìm hội thoại/người dùng và **Ctrl+F** tìm tin. Tin đã đồng bộ nghĩa là có ít nhất một bản sao tại peer khác; “đã nhận” và “đã đọc” dựa trên receipt của người tham gia. Ghim, im lặng và xóa phía tôi chỉ áp dụng trên máy này.
+## Nhắn tin, gửi ảnh và tệp
 
-Nên có **ít nhất 3 máy đã tham gia ổn định** để chịu được một máy mất kết nối mà vẫn thay đổi nhóm được. Với 2 voter, cần cả hai cho quorum. Khi thiếu quorum, chat vẫn lưu local và đồng bộ qua các peer còn kết nối; các thay đổi cấu trúc nhóm bị từ chối.
+- **Enter** gửi tin, **Shift+Enter** xuống dòng, **Ctrl+K** tìm hội thoại và **Ctrl+F** tìm tin. Bấm khung trích dẫn để đến tin gốc, rồi chọn **Quay về tin nhắn mới** để trở lại cuối hội thoại.
+- Dùng **Dán ảnh**, **Chụp vùng** hoặc kéo tệp vào ô soạn tin. LanChat tạm ẩn khi chụp vùng và hiện lại khi chụp xong hoặc nhấn **Esc**.
+- Nội dung nhập cùng ảnh là chú thích chung cho lần gửi. Bấm ảnh để mở khung xem lớn. Dùng **Trước/Sau** hoặc phím mũi tên để chuyển ảnh, cuộn chuột để phóng to và **Esc** để đóng.
+- Dùng **Đính kèm → Thêm thư mục** để chọn thư mục từ Windows. Mỗi thư mục có thể chứa tối đa 10.000 mục và 20 GB dữ liệu. Bấm tên tệp để tải, kiểm tra SHA-256 và mở bằng ứng dụng mặc định.
 
-Trong **Cài đặt**, bạn có thể sửa Tên, Đơn vị và bật **Khởi động cùng hệ thống** để mở LanChat khi đăng nhập Windows. LanChat dùng chữ cái làm ảnh đại diện và chỉ mở một tiến trình trên máy.
+Tin đã đồng bộ nghĩa là ít nhất một máy khác có bản sao. Trạng thái **Đã nhận** và **Đã đọc** dựa trên xác nhận của người tham gia. Ghim, tắt thông báo và xóa phía tôi áp dụng trên máy này.
 
-Nhấn **Thu nhỏ** hoặc **X** để đưa LanChat xuống khay hệ thống. Nhấp đúp biểu tượng để mở lại, hoặc bấm chuột phải và chọn **Thoát LanChat** để dừng ứng dụng.
+Mạng có ba voter đang hoạt động ổn định chịu được một máy mất kết nối mà vẫn thay đổi cấu trúc nhóm. Khi thiếu số máy điều phối cần thiết, tin nhắn vẫn được lưu và có thể đồng bộ giữa các máy còn kết nối.
+
+Trong **Cài đặt**, bật **Khởi động cùng hệ thống** để mở LanChat khi đăng nhập Windows. Nhấn **Thu nhỏ** hoặc **X** để đưa LanChat xuống khay hệ thống. Nhấp đúp biểu tượng để mở lại, hoặc bấm chuột phải và chọn **Thoát LanChat** để dừng ứng dụng.
 
 ## Mã mặc định cho nhiều máy
 
@@ -31,7 +30,9 @@ Bản phát hành nội bộ tự tham gia mạng mặc định được nhúng 
 
 ## Nâng cấp
 
-Đóng LanChat trên từng máy, nâng cấp toàn cụm trong cùng đợt rồi mở lại bằng cùng tài khoản Windows. **Giao thức v4 xóa lịch sử tin nhắn cũ, chỉ mục tìm kiếm và các tin đang chờ gửi khi khởi động lần đầu.** Nếu cần lưu trữ dữ liệu cũ để tra cứu riêng, sao lưu trước khi mở bản mới và bảo vệ bản sao vì dữ liệu đó ở dạng rõ.
+Với bản đã có trình cập nhật, mở **Giới thiệu → Kiểm tra cập nhật**. Khi có bản mới hơn, đóng Giới thiệu và chọn **Tải và cập nhật**. Có thể cài thủ công EXE từ GitHub Releases bằng cùng tài khoản Windows. Để thoát trước khi cài thủ công, dùng **Thoát LanChat** ở khay hệ thống.
+
+Khi nâng từ giao thức cũ lên **giao thức v4** lần đầu, migration xóa lịch sử tin nhắn cũ, chỉ mục tìm kiếm và các tin đang chờ gửi. Sao lưu khi LanChat đã thoát nếu cần lưu dữ liệu cũ để tra cứu. Bảo vệ bản sao vì có thể chứa dữ liệu dạng rõ.
 
 Ứng dụng giữ mã mời v2, danh tính cục bộ, danh bạ và cấu hình từng mạng. Nhóm đang hoạt động được tạo lại từ danh sách thành viên trên máy chủ nhóm khi máy đó có kết nối đến máy điều phối. Những người nhận cần chạy bản mới ít nhất một lần để LanChat ghi nhận khóa trước khi gửi tin cho họ.
 
@@ -49,10 +50,12 @@ dotnet test tests/LanChat.Tests --no-restore
 dotnet run --project src/LanChat.WinForms --no-build
 ```
 
-Project khởi động trong Visual Studio: **LanChat.WinForms**. Cần .NET SDK có trình biên dịch C# 13 và bộ reference assemblies .NET Framework 4.8 trên máy phát triển. Máy người dùng chạy bằng Framework có sẵn.
+Project khởi động trong Visual Studio là **LanChat.WinForms**. Máy build cần .NET SDK hỗ trợ C# 13 và reference assemblies .NET Framework 4.8.
+
+Để làm bộ cài công khai, chọn **LanChat.WinForms → Publish → PublicRelease**, rồi mở `installer/LanChat.Public.iss` và chọn **Build → Compile** trong Inno Setup. Tệp `LanChat-Setup-Windows-x64.exe` nằm trong `artifacts/public-release/installer`. [Hướng dẫn đóng gói và phát hành](installer/README.md)
 
 ```powershell
-pwsh -NoProfile -File scripts/Publish-Windows.ps1
+pwsh -NoProfile -File scripts/Publish-Windows.ps1 -PublicRelease
 ```
 
 Bản phát hành mở một cửa sổ. Dùng các tab để kết nối nhiều mạng từ cùng tiến trình.
@@ -104,6 +107,8 @@ Khi bật nhiều mạng, xem cổng TCP thực tế trong **Mạng chat → Chi
 
 ## Tài liệu
 
+- [Hướng dẫn sử dụng](docs/HUONG_DAN_SU_DUNG.md)
+- [Đóng gói và phát hành](installer/README.md)
 - [Kiến trúc và luồng dữ liệu](docs/ARCHITECTURE.md)
 - [Kết quả kiểm chứng](docs/VERIFICATION.md)
 - [Checklist nghiệm thu trên các PC](docs/ACCEPTANCE.md)

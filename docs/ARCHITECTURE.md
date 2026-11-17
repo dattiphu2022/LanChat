@@ -10,7 +10,7 @@
 | LanChat.WinForms | Form/UserControl native, trạng thái giao diện, Generic Host và DI |
 | LanChat.Tests | Kiểm thử database, mạng thật, partition, event, tệp và bảo mật |
 
-Form gọi application interfaces; không trực tiếp mở socket hoặc query SQLite. MainForm được tách phần thao tác nâng cao và harness Debug.
+Form gọi các interface của tầng application. MainForm có phần thao tác nâng cao và harness Debug. **Giới thiệu → Hướng dẫn sử dụng** đọc tài liệu Markdown nhúng trong EXE nên hoạt động ngoại tuyến. [Hướng dẫn sử dụng](HUONG_DAN_SU_DUNG.md)
 
 ## Hai loại dữ liệu
 
@@ -56,6 +56,8 @@ Recall là trạng thái cuối, thắng các edit đến muộn. Edit chỉ c�
 
 FTS5 với unicode61/remove_diacritics=2 là chỉ mục tìm nội dung. Trigger cập nhật chỉ mục khi text thay đổi; query loại tin đã thu hồi/xóa local và hội thoại không thuộc người dùng. Chọn kết quả tải cửa sổ 101 tin quanh kết quả, không tải toàn lịch sử vào UI.
 
+Phần trích dẫn dựa trên `ReplyToMessageId` và dữ liệu đã chiếu ở cùng hội thoại. Bấm khung cuộn tới tin gốc nếu đang hiển thị hoặc tải một cửa sổ quanh tin gốc. Tin đã thu hồi, bị xóa phía người dùng hoặc chưa đồng bộ có trạng thái riêng và không mở được từ khung trích dẫn.
+
 ## Điều phối, quorum và chia cắt mạng
 
 ConsensusService triển khai cơ chế Raft cho control plane:
@@ -90,6 +92,14 @@ Bản mở tách khỏi blob theo hash để Word/Excel có thể sửa local m�
 
 Bấm ảnh truy vấn metadata ảnh thuộc cuộc trò chuyện (loại tin thu hồi/xóa phía tôi), lấy nội dung tin làm caption và sắp xếp theo HLC. ImageGalleryForm hiển thị từng ảnh trong ImageViewportControl (fit, 100%, zoom theo vị trí con trỏ, pan), kèm caption, số thứ tự và tối đa chín thumbnail lân cận; nút/phím mũi tên duyệt toàn bộ danh sách. Chuyển ảnh hủy tác vụ cũ, kiểm tra generation trước khi gán bitmap để kết quả cũ không ghi đè ảnh mới. Caption dùng Message.Text hiện có nên không đổi schema/protocol. Nút Ứng dụng ngoài sử dụng PrepareOpenAsync như tệp thường.
 
+Ảnh dán và ảnh chụp vùng được tạo thành tệp PNG trong bản nháp theo hội thoại. Chụp vùng dùng tọa độ màn hình ảo, ẩn cửa sổ LanChat và lấy lại trạng thái cửa sổ sau khi chụp hoặc hủy. Khi bấm gửi, ảnh đi qua quy trình import tệp đính kèm hiện có.
+
+## Bộ cài công khai và cập nhật
+
+Profile `PublicRelease` tạo bản publish sạch cho `LanChat.Public.iss` và kiểm tra gói đã loại tài nguyên cùng tệp cấp mã mạng nội bộ. `CurrentApplicationVersion` trong `Contracts.cs` cung cấp phiên bản của ứng dụng và bộ cài. Bản công khai dùng cùng AppId của Inno Setup để nâng cấp tại chỗ.
+
+`UpdateService` lấy thông tin release ổn định mới nhất của `dattiphu2022/LanChat`. Phiên bản trong tag `vX.Y.Z` phải cao hơn bản đang chạy và có đúng asset `LanChat-Setup-Windows-x64.exe`. Ứng dụng kiểm tra kích thước và SHA-256 do GitHub cung cấp trước khi cài. Trạng thái kiểm tra và bộ cài đã tải nằm trong `Data/Updates`. Sau khi người dùng chọn cài, tiến trình mở Inno Setup khi LanChat đã đóng và giải phóng khóa. [Đóng gói và phát hành](../installer/README.md)
+
 ## Bảo mật và lưu trữ
 
 Giao thức v4 dùng mã mời v2, frame tối đa 4 MB, request correlation, HMAC-SHA256 và kiểm tra replay/thời gian. TCP TLS 1.2/1.3 ghim chứng chỉ theo mã mời. [Tài liệu SslStream](https://learn.microsoft.com/en-us/dotnet/core/extensions/sslstream-troubleshooting)
@@ -117,3 +127,5 @@ Mỗi host dùng SQLite và khóa riêng theo thư mục dữ liệu. Migration 
 | Mã mời/DI/nâng cấu hình | Bootstrap.cs |
 | Chat controls và preview | src/LanChat.WinForms/Controls/ChatControls.cs, AttachmentPreviewControl.cs |
 | Nhóm/tệp/tìm kiếm/chẩn đoán | src/LanChat.WinForms/Forms/*Form.cs |
+| Hướng dẫn sử dụng | docs/HUONG_DAN_SU_DUNG.md, src/LanChat.WinForms/Forms/UserGuideForm.cs |
+| Cập nhật và đóng gói | src/LanChat.WinForms/UpdateService.cs, installer/LanChat.Public.iss |

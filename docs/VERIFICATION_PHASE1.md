@@ -1,5 +1,7 @@
 # Kết quả kiểm chứng Phase 1
 
+Báo cáo lưu kết quả Phase 1 với target .NET 9 tại thời điểm kiểm thử. Xem [Kết quả kiểm chứng](VERIFICATION.md) cho bản hiện hành dùng .NET Framework 4.8 và [Hướng dẫn sử dụng](HUONG_DAN_SU_DUNG.md) cho thao tác trên ứng dụng.
+
 Ngày kiểm chứng: **21/09/2026**, Windows, SDK **10.0.400**, target **net9.0/net9.0-windows**, Desktop Runtime **9.0.19**.
 
 ## Build và migration

@@ -64,8 +64,19 @@ internal sealed class AboutForm : DpiForm
         introduction.AutoSize = false;
         introduction.Margin = new Padding(0, 12, 0, 0);
 
-        var project = new LinkLabel { Text = "Dự án trên GitHub", AutoSize = true, Dock = DockStyle.Fill,
-            Margin = new Padding(5, 4, 5, 4), LinkColor = Theme.Blue, AccessibleDescription = ProjectUrl };
+        var resources = Theme.Toolbar();
+        resources.Margin = Padding.Empty;
+        LinkLabel ResourceLink(string text) => new() { Text = text, AutoSize = true,
+            Margin = new Padding(5, 4, 12, 4), LinkColor = Theme.Blue };
+        var guide = ResourceLink("Hướng dẫn sử dụng");
+        guide.LinkClicked += (_, _) =>
+        {
+            using var dialog = new UserGuideForm();
+            dialog.ShowDialog(this);
+        };
+        var project = ResourceLink("Dự án trên GitHub");
+        project.AccessibleDescription = ProjectUrl;
+        resources.Controls.AddRange([guide, project]);
         var links = new ToolTip();
         links.SetToolTip(project, ProjectUrl);
         Disposed += (_, _) => links.Dispose();
@@ -113,7 +124,7 @@ internal sealed class AboutForm : DpiForm
         layout.Controls.Add(header, 0, 0);
         layout.Controls.Add(author, 0, 1);
         layout.Controls.Add(introduction, 0, 2);
-        layout.Controls.Add(project, 0, 3);
+        layout.Controls.Add(resources, 0, 3);
         layout.Controls.Add(status, 0, 4);
         layout.Controls.Add(footer, 0, 5);
         Controls.Add(layout);

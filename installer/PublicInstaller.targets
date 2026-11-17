@@ -1,0 +1,74 @@
+<Project>
+  <UsingTask TaskName="PrepareLanChatPublicPayload" TaskFactory="RoslynCodeTaskFactory"
+             AssemblyFile="$(MSBuildToolsPath)/Microsoft.Build.Tasks.Core.dll">
+    <ParameterGroup>
+      <PayloadDirectory ParameterType="System.String" Required="true" />
+      <ReleaseVersion ParameterType="System.String" Required="true" />
+      <DefinitionsPath ParameterType="System.String" Required="true" />
+    </ParameterGroup>
+    <Task>
+      <Using Namespace="System" />
+      <Using Namespace="System.IO" />
+      <Using Namespace="System.Reflection" />
+      <Code Type="Fragment" Language="cs"><![CDATA[
+        foreach (var name in new[] { "LanChat.WinForms.exe", "LanChat.WinForms.exe.config", "Microsoft.Data.Sqlite.dll", "e_sqlite3.dll" })
+        {
+            if (!File.Exists(Path.Combine(PayloadDirectory, name)))
+                Log.LogError("Public payload is missing " + name + ".");
+        }
+        if (Log.HasLoggedErrors) return false;
+
+        var app = Assembly.Load(File.ReadAllBytes(Path.Combine(PayloadDirectory, "LanChat.WinForms.exe")));
+        if (app.GetName().Version.ToString() != ReleaseVersion + ".0")
+            Log.LogError("The published app version does not match CurrentApplicationVersion in Contracts.cs.");
+        if (Array.IndexOf(app.GetManifestResourceNames(), "LanChat.DefaultNetwork") >= 0)
+            Log.LogError("Public payload contains the internal network invitation resource.");
+        foreach (var file in Directory.EnumerateFiles(PayloadDirectory, "*.json", SearchOption.AllDirectories))
+        {
+            var name = Path.GetFileName(file);
+            if (string.Equals(name, "default-network.json", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(name, "DefaultNetwork.local.json", StringComparison.OrdinalIgnoreCase))
+                Log.LogError("Public payload contains a network provisioning file: " + name + ".");
+        }
+        if (Log.HasLoggedErrors) return false;
+
+        var temporary = DefinitionsPath + "." + Guid.NewGuid().ToString("N") + ".tmp";
+        try
+        {
+            File.WriteAllLines(temporary, new[]
+            {
+                "#define PublishDir \"" + Path.Combine(PayloadDirectory, ".") + "\"",
+                "#define AppVersion \"" + ReleaseVersion + "\""
+            }, System.Text.Encoding.UTF8);
+            if (File.Exists(DefinitionsPath))
+                File.Replace(temporary, DefinitionsPath, null);
+            else
+                File.Move(temporary, DefinitionsPath);
+        }
+        finally
+        {
+            File.Delete(temporary);
+        }
+      ]]></Code>
+    </Task>
+  </UsingTask>
+
+  <Target Name="PrepareLanChatPublicInstaller" AfterTargets="Publish">
+    <Error Condition="'$(LanChatPublicRelease)' != 'true'" Text="Select the PublicRelease publish profile to prepare the public installer." />
+    <Error Condition="'$(LanChatReleaseVersion)' == ''" Text="CurrentApplicationVersion in Contracts.cs must have the form X.Y.Z." />
+    <PropertyGroup>
+      <_PublicPayloadDir>$(LanChatPublicArtifactsDir)payload/$([System.Guid]::NewGuid().ToString('N'))/</_PublicPayloadDir>
+      <_PublicPayloadPath>$([MSBuild]::NormalizeDirectory('$(_PublicPayloadDir)'))</_PublicPayloadPath>
+    </PropertyGroup>
+    <ItemGroup>
+      <_PublicInstallerFile Include="@(ResolvedFileToPublish)"
+        Condition="'%(ResolvedFileToPublish.CopyToPublishDirectory)' != 'Never' and '%(ResolvedFileToPublish.Extension)' != '.pdb'" />
+    </ItemGroup>
+    <!-- Stage the files resolved by this publish so repeat publishes cannot pick up stray files. -->
+    <Copy SourceFiles="@(_PublicInstallerFile->'%(FullPath)')"
+          DestinationFiles="@(_PublicInstallerFile->'$(_PublicPayloadPath)%(RelativePath)')" />
+    <PrepareLanChatPublicPayload PayloadDirectory="$(_PublicPayloadPath)" ReleaseVersion="$(LanChatReleaseVersion)"
+                                 DefinitionsPath="$(MSBuildThisFileDirectory)PublicPublishDir.local.iss" />
+    <Message Importance="high" Text="Public publish ready. Open installer/LanChat.Public.iss and compile in Inno Setup." />
+  </Target>
+</Project>

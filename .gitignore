@@ -9,3 +9,4 @@ Data/
 /src/LanChat.WinForms/Assets/DefaultNetwork.local.json
 
 /installer/PublishDir.local.iss
+/installer/PublicPublishDir.local.iss

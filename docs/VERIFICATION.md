@@ -1,4 +1,17 @@
-# Kết quả kiểm chứng Phase 1–5
+# Kết quả kiểm chứng LanChat
+
+## LanChat v1.2.1
+
+Kiểm thử ngày **17/11/2026** trên Windows với target .NET Framework 4.8.
+
+- Build **Debug** và **Release** thành công, không có lỗi hoặc cảnh báo.
+- Bộ kiểm thử **Release** đạt **86/86**, gồm kiểm tra trích dẫn cùng hội thoại, truyền tệp và xác minh bản cập nhật.
+- Hai phiên WinForms với dữ liệu riêng vượt qua kiểm tra chat trực tiếp và nhóm, trích dẫn trong và ngoài trang hiện tại, gửi ảnh dán và tải tệp.
+- **Giới thiệu → Hướng dẫn sử dụng** mở đủ sáu chủ đề từ nội dung nhúng. Đã thử đổi chủ đề, kiểm tra phần hướng dẫn cập nhật và xác nhận phần Giới thiệu, QR và nút kiểm tra cập nhật ở mức **100%** và **125%**.
+
+Nghiệm thu nâng cấp bằng trình cài trên PC đã cài bản cũ và thử trên nhiều máy trong LAN được theo dõi ở [Checklist nghiệm thu](ACCEPTANCE.md).
+
+## Báo cáo Phase 1–5
 
 Ngày kiểm chứng: **22/09/2026**. Windows, SDK **10.0.400**, target **net9.0 / net9.0-windows**, Desktop Runtime **9.0.19**.
 
@@ -74,7 +87,7 @@ Bằng chứng trong [verification/phase2-5/](verification/phase2-5/): A.json, B
 
 Kiểm tra UI dùng **hai tiến trình cùng máy Windows**, còn failover/partition dùng **ba host riêng và SQLite riêng trong integration test**. Chưa chạy ba PC vật lý, kiểm thử dài ngày, DPI đa dạng hay tải tệp 20 GB. Thao tác kéo thả được đưa qua WinForms DragEnter/DragDrop trong harness; chưa thao tác chuột kéo trực tiếp từ Explorer. Các nút quản trị nhóm có kiểm thử nghiệp vụ; chưa click thủ công hết mọi nút và thông báo desktop.
 
-Không coi các kết quả này là chứng nhận an toàn cho cụm lớn hoặc thành viên ác ý. Cluster chia sẻ credential và toàn lịch sử; không có E2EE, mã hóa DB, voter decommission hoặc control-log compaction. Xem [ACCEPTANCE.md](ACCEPTANCE.md) để nghiệm thu thực địa và [ARCHITECTURE.md](ARCHITECTURE.md) cho phạm vi thiết kế.
+Kết quả Phase 1–5 ghi nhận kiến trúc và giới hạn tại thời điểm thử nghiệm, trước khi áp dụng mã hóa đầu cuối của giao thức v4. Xem [Kiến trúc và luồng dữ liệu](ARCHITECTURE.md) để biết phạm vi bảo mật hiện tại và [Checklist nghiệm thu](ACCEPTANCE.md) để kiểm thử thực địa.
 
 Bằng chứng Phase 1 cũ giữ ở [VERIFICATION_PHASE1.md](VERIFICATION_PHASE1.md).
 

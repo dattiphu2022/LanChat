@@ -1,5 +1,5 @@
 #ifndef AppVersion
-  #define AppVersion "1.2.0"
+  #define AppVersion "1.2.1"
 #endif
 #ifndef PublishDir
   #if FileExists("PublishDir.local.iss")
@@ -11,6 +11,9 @@
 #define AppExe "LanChat.WinForms.exe"
 #ifndef SetupOutputName
   #define SetupOutputName "LanChat-Setup-Windows-x64-1711"
+#endif
+#ifndef SetupOutputDirectory
+  #define SetupOutputDirectory "..\artifacts\installer"
 #endif
 
 [Setup]
@@ -28,7 +31,7 @@ MinVersion=10.0.18362
 AppMutex=Global\LanChat.WinForms.3D1D7FFD9E1C47B499752218E7C71FF3
 DisableProgramGroupPage=yes
 UninstallDisplayIcon={app}\{#AppExe}
-OutputDir=..\artifacts\installer
+OutputDir={#SetupOutputDirectory}
 OutputBaseFilename={#SetupOutputName}
 Compression=lzma2
 SolidCompression=yes
