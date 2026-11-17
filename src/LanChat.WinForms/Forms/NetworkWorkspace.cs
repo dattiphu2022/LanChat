@@ -5,7 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace LanChat.WinForms.Forms;
 
-internal sealed class NetworkWorkspace : DpiForm
+internal sealed partial class NetworkWorkspace : DpiForm
 {
     private readonly NetworkCatalog _catalog;
     private readonly WindowsStartup _startup;
@@ -13,41 +13,47 @@ internal sealed class NetworkWorkspace : DpiForm
     private readonly ImageList _tabIcons = new() { ColorDepth = ColorDepth.Depth32Bit };
     private readonly Dictionary<Guid, (RunningNetwork Network, MainForm View, TabPage Tab)> _running = new();
     private readonly Button _scanButton = Theme.Secondary("Quét tất cả");
+    private readonly Button _restoreDefaultButton;
     private readonly Label _feedback = Theme.Label("");
     private readonly NotifyIcon _tray = new() { Icon = AppIcon.Value, Text = "LanChat", Visible = true };
     private bool _busy, _exiting, _closed, _exitRequested;
     private FormWindowState _restoreState;
     private (Guid NetworkId, Guid ConversationId)? _notificationTarget;
 
-    public NetworkWorkspace(NetworkCatalog catalog, WindowsStartup startup)
+    public NetworkWorkspace(NetworkCatalog catalog, WindowsStartup startup, UpdateService updates)
     {
         _catalog = catalog; _startup = startup;
+        _updates = updates;
         Icon = AppIcon.Value;
         Text = "LanChat";
         ClientSize = new Size(1260, 840); MinimumSize = new Size(660, 450);
         StartPosition = FormStartPosition.CenterScreen;
         Load += (_, _) => UpdateTabIcons();
         DpiChanged += (_, _) => UpdateTabIcons();
-        var root = Theme.Stack(3);
+        var root = Theme.Stack(4);
+        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         var actions = Theme.Toolbar();
         actions.Padding = new Padding(8, 0, 0, 0);
         _feedback.AutoSize = false; _feedback.AutoEllipsis = true;
-        void Button(string label, Func<Task> action)
+        Button AddAction(string label, Func<Task> action)
         {
             var button = Theme.Secondary(label);
             button.Click += async (_, _) => await RunAsync(action);
             actions.Controls.Add(button);
+            return button;
         }
         _scanButton.Click += async (_, _) => { if (_scan is not null) _scan.Cancel(); else await RunAsync(ScanAsync); };
         actions.Controls.Add(_scanButton);
-        Button("Mạng chat", ManageAsync);
-        Button("Khôi phục mạng mặc định", RestoreDefaultNetworkAsync);
-        Button("Cài đặt", SettingsAsync);
-        Button("Giới thiệu", ShowAboutAsync);
-        root.Controls.Add(actions, 0, 0); root.Controls.Add(_feedback, 0, 1); root.Controls.Add(_tabs, 0, 2);
+        AddAction("Mạng chat", ManageAsync);
+        _restoreDefaultButton = AddAction("Khôi phục mạng mặc định", RestoreDefaultNetworkAsync);
+        _restoreDefaultButton.Visible = _catalog.CanRestoreDefaultNetwork;
+        AddAction("Cài đặt", SettingsAsync);
+        AddAction("Giới thiệu", ShowAboutAsync);
+        root.Controls.Add(actions, 0, 0); root.Controls.Add(_feedback, 0, 1);
+        root.Controls.Add(CreateUpdateBar(), 0, 2); root.Controls.Add(_tabs, 0, 3);
         Controls.Add(root);
         var trayMenu = new ContextMenuStrip();
         trayMenu.Items.Add("Mở LanChat", null, (_, _) => RestoreWindow());
@@ -68,7 +74,7 @@ internal sealed class NetworkWorkspace : DpiForm
             if (WindowState == FormWindowState.Minimized) Hide();
             else _restoreState = WindowState;
         };
-        FormClosed += (_, _) => { trayMenu.Dispose(); _tabIcons.Dispose(); };
+        FormClosed += (_, _) => { trayMenu.Dispose(); _tabIcons.Dispose(); _updateLifetime.Dispose(); };
         FormClosing += ClosingAsync;
     }
 
@@ -97,6 +103,7 @@ internal sealed class NetworkWorkspace : DpiForm
 
     public async Task StartAsync()
     {
+        _ = CheckForUpdatesAsync(manual: false);
         _busy = true;
         try { await LoadNetworksAsync(); }
         finally { _busy = false; }
@@ -105,6 +112,7 @@ internal sealed class NetworkWorkspace : DpiForm
     private async Task LoadNetworksAsync()
     {
         await _catalog.LoadAsync();
+        _restoreDefaultButton.Visible = _catalog.CanRestoreDefaultNetwork;
         var failures = new List<string>();
         if (_catalog.DefaultNetworkError is string defaultError) failures.Add(defaultError);
         foreach (var entry in _catalog.Entries.OrderByDescending(e => e.Primary))
@@ -115,8 +123,12 @@ internal sealed class NetworkWorkspace : DpiForm
         if (_catalog.DefaultNetwork is { } selectedDefault && _running.TryGetValue(selectedDefault.Id, out var defaultNetwork))
             _tabs.SelectedTab = defaultNetwork.Tab;
         _feedback.Text = failures.Count > 0 ? string.Join("  |  ", failures) :
-            _running.Count == 0 ? "Chọn Khôi phục mạng mặc định để tiếp tục chat." : "";
+            _running.Count == 0 ? NoNetworkMessage : "";
     }
+
+    private string NoNetworkMessage => _catalog.CanRestoreDefaultNetwork
+        ? "Chọn Khôi phục mạng mặc định để tiếp tục chat."
+        : "Mở Mạng chat rồi chọn Thêm mã hoặc Tạo mạng để bắt đầu.";
 
     private async Task OpenNetworkAsync(NetworkEntry entry, bool allowUpgrade = false)
     {
@@ -186,7 +198,7 @@ internal sealed class NetworkWorkspace : DpiForm
 
     private Task ShowAboutAsync()
     {
-        using var dialog = new AboutForm();
+        using var dialog = new AboutForm(_checkMessage, () => CheckForUpdatesAsync(manual: true));
         dialog.ShowDialog(this);
         return Task.CompletedTask;
     }
@@ -246,6 +258,8 @@ internal sealed class NetworkWorkspace : DpiForm
         using var manager = new NetworkManagerForm(_catalog, OpenNetworkAsync, RemoveNetworkAsync, StopNetworkAsync, NetworkDetails, IsConnected, RestoreDefaultNetworkAsync,
             () => _tabs.SelectedTab?.Tag as Guid?, id => { if (_running.TryGetValue(id, out var network)) _tabs.SelectedTab = network.Tab; });
         manager.ShowDialog(this);
+        if (_running.Count == 0 || _feedback.Text == NoNetworkMessage)
+            _feedback.Text = _running.Count == 0 ? NoNetworkMessage : "";
         foreach (var entry in _catalog.Entries)
             if (_running.TryGetValue(entry.Id, out var item)) item.Tab.Text = entry.Name;
         return Task.CompletedTask;
@@ -289,7 +303,7 @@ internal sealed class NetworkWorkspace : DpiForm
         _exiting = true;
         _scan?.Cancel();
         foreach (var item in _running.Values) item.View.Close();
-        try { await Task.WhenAll(_running.Values.Select(x => _catalog.StopAsync(x.Network))); }
+        try { await Task.WhenAll(_running.Values.Select(x => _catalog.StopAsync(x.Network)).Append(StopUpdateOperationsAsync())); }
         catch (Exception ex) { System.Diagnostics.Trace.TraceError(ex.ToString()); }
         finally
         {

@@ -8,6 +8,7 @@ internal sealed class PromptTextBox : TextBox
     private const int PaintMessage = 0x000F;
     private const int StartComposition = 0x010D;
     private const int EndComposition = 0x010E;
+    private const int PasteMessage = 0x0302;
     private string _placeholderText = "";
     public string PlaceholderText
     {
@@ -16,8 +17,18 @@ internal sealed class PromptTextBox : TextBox
     }
 
     internal bool IsComposing { get; private set; }
+    internal Func<bool>? TryPasteImage { get; set; }
+
+    protected override bool ProcessCmdKey(ref System.Windows.Forms.Message msg, Keys keyData)
+    {
+        if ((keyData == (Keys.Control | Keys.V) || keyData == (Keys.Shift | Keys.Insert)) && TryPasteImage?.Invoke() == true)
+            return true;
+        return base.ProcessCmdKey(ref msg, keyData);
+    }
+
     protected override void WndProc(ref System.Windows.Forms.Message m)
     {
+        if (m.Msg == PasteMessage && TryPasteImage?.Invoke() == true) return;
         if (m.Msg == StartComposition) IsComposing = true;
         if (m.Msg == EndComposition) IsComposing = false;
         base.WndProc(ref m);

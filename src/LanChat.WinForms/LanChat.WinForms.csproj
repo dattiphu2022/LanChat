@@ -7,11 +7,20 @@
     <ApplicationIcon>Assets/LanChat.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
   </PropertyGroup>
-  <ItemGroup><ProjectReference Include="../LanChat.Infrastructure/LanChat.Infrastructure.csproj" /></ItemGroup>
-  <ItemGroup Condition="Exists('Assets/DefaultNetwork.local.json')">
+  <PropertyGroup Condition="'$(LanChatPublicRelease)' == 'true'">
+    <DefineConstants>$(DefineConstants);LANCHAT_PUBLIC_RELEASE</DefineConstants>
+    <IntermediateOutputPath Condition="'$(LanChatPublicBuildDirectory)' != ''">$(LanChatPublicBuildDirectory)/obj/</IntermediateOutputPath>
+    <OutputPath Condition="'$(LanChatPublicBuildDirectory)' != ''">$(LanChatPublicBuildDirectory)/bin/</OutputPath>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../LanChat.Infrastructure/LanChat.Infrastructure.csproj" />
+    <Reference Include="System.Net.Http" />
+    <InternalsVisibleTo Include="LanChat.Tests" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(LanChatPublicRelease)' != 'true' and Exists('Assets/DefaultNetwork.local.json')">
     <EmbeddedResource Include="Assets/DefaultNetwork.local.json" LogicalName="LanChat.DefaultNetwork" />
   </ItemGroup>
-  <Target Name="BuildInnoSetup" AfterTargets="Publish" Condition="'$(BuildInstaller)' != 'false'">
+  <Target Name="BuildInnoSetup" AfterTargets="Publish" Condition="'$(BuildInstaller)' != 'false' and '$(LanChatPublicRelease)' != 'true'">
     <PropertyGroup>
       <InnoSetupCompiler Condition="'$(InnoSetupCompiler)' == '' and Exists('$(MSBuildProgramFiles32)/Inno Setup 6/ISCC.exe')">$(MSBuildProgramFiles32)/Inno Setup 6/ISCC.exe</InnoSetupCompiler>
       <InnoSetupCompiler Condition="'$(InnoSetupCompiler)' == '' and Exists('$(LocalAppData)/Programs/Inno Setup 6/ISCC.exe')">$(LocalAppData)/Programs/Inno Setup 6/ISCC.exe</InnoSetupCompiler>

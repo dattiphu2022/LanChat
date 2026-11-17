@@ -9,11 +9,16 @@
   #endif
 #endif
 #define AppExe "LanChat.WinForms.exe"
+#ifndef SetupOutputName
+  #define SetupOutputName "LanChat-Setup-Windows-x64-1711"
+#endif
 
 [Setup]
 AppId={{4E443C61-CA96-4788-A06E-3505499B0317}
 AppName=LanChat
 AppVersion={#AppVersion}
+VersionInfoVersion={#AppVersion}
+VersionInfoProductVersion={#AppVersion}
 AppPublisher=LanChat
 DefaultDirName={localappdata}\Programs\LanChat
 PrivilegesRequired=lowest
@@ -24,14 +29,14 @@ AppMutex=Global\LanChat.WinForms.3D1D7FFD9E1C47B499752218E7C71FF3
 DisableProgramGroupPage=yes
 UninstallDisplayIcon={app}\{#AppExe}
 OutputDir=..\artifacts\installer
-OutputBaseFilename=LanChat-Setup-Windows-x64-16112
+OutputBaseFilename={#SetupOutputName}
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
 SetupIconFile=..\src\LanChat.WinForms\Assets\LanChat.ico
 
 [Files]
-Source: "{#PublishDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "*.pdb,default-network.json"
+Source: "{#PublishDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "*.pdb,default-network.json,DefaultNetwork.local.json"
 
 [Tasks]
 Name: "desktopicon"; Description: "Create a desktop shortcut"; Flags: unchecked

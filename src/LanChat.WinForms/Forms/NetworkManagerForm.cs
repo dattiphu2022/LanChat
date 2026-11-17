@@ -47,7 +47,7 @@ internal sealed class NetworkManagerForm : DpiForm
             show.Enabled = item is not null && connected(item.Id);
             retry.Enabled = item is not null && !connected(item.Id);
             rename.Enabled = delete.Enabled = item is not null;
-            restore.Visible = !catalog.Entries.Any(catalog.IsDefault);
+            restore.Visible = catalog.CanRestoreDefaultNetwork && !catalog.Entries.Any(catalog.IsDefault);
         }
         void RefreshList(Guid? id)
         {

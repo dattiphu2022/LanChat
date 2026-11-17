@@ -3,6 +3,7 @@ using LanChat.Infrastructure;
 using LanChat.WinForms.Controls;
 using LanChat.WinForms.Forms;
 using Microsoft.Extensions.DependencyInjection;
+using System.Diagnostics;
 using System.Security.AccessControl;
 using System.Security.Principal;
 
@@ -15,63 +16,84 @@ internal static class Program
     {
         System.Windows.Forms.Application.EnableVisualStyles();
         System.Windows.Forms.Application.SetCompatibleTextRenderingDefault(false);
-        try
+        VerifiedInstaller? pending;
+        try { pending = Run(args); }
+        catch (Exception ex)
         {
-            var options = new NodeOptions();
-            string? verification = null;
-            var startup = false;
-            for (var i = 0; i < args.Length; i++)
-            {
-                string Value() => ++i < args.Length ? args[i] : throw new ArgumentException("Thiếu giá trị tham số.");
-                switch (args[i])
-                {
-                    case "--startup": startup = true; break;
-                    case "--data-dir": options.DataDirectory = Path.GetFullPath(Value()); break;
-                    case "--port": options.ServicePort = int.Parse(Value()); options.OverrideServicePort = true; break;
-                    case "--discovery-port": options.DiscoveryPort = int.Parse(Value()); options.OverrideDiscoveryPort = true; break;
-                    case "--discovery-target": options.DiscoveryTargets.Add(Value()); break;
-                    case "--display-name": options.InitialDisplayName = Value(); break;
-#if DEBUG
-                    case "--verify-ui": verification = Path.GetFullPath(Value()); break;
-#endif
-                    default: throw new ArgumentException("Tham số không hỗ trợ: " + args[i]);
-                }
-            }
-
-            // Release builds share a single process slot across Windows sessions and data directories.
-            var acquired = true;
-            using var instance = verification is null ? AcquireInstance(out acquired) : null;
-            if (instance is not null && !acquired)
-            {
-                instance.Dispose();
-                if (!startup) MessageBox.Show("LanChat đang chạy. Hãy mở cửa sổ hiện tại từ khay hệ thống.", "LanChat",
-                    MessageBoxButtons.OK, MessageBoxIcon.Information);
-                return;
-            }
-            ServiceRegistration.ValidateDataDirectory(options.DataDirectory);
-            Directory.CreateDirectory(options.DataDirectory);
-            using var dataLock = new FileStream(Path.Combine(options.DataDirectory, "instance.lock"), FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
-#if DEBUG
-            if (verification is not null)
-            {
-                System.Windows.Forms.Application.Run(new VerificationStartup(options, verification));
-                return;
-            }
-#endif
-            using var window = new NetworkWorkspace(new NetworkCatalog(options), new WindowsStartup(options.DataDirectory));
-            window.Shown += async (_, _) =>
-            {
-                try { await window.StartAsync(); }
-                catch (OperationCanceledException) { window.ExitApplication(); }
-                catch (Exception ex)
-                {
-                    MessageBox.Show(window, UiText.HideIpAddresses(ex.Message), "Không khởi động được LanChat", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                    window.ExitApplication();
-                }
-            };
-            System.Windows.Forms.Application.Run(window);
+            MessageBox.Show(UiText.HideIpAddresses(ex.Message), "Không khởi động được LanChat", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            return;
         }
-        catch (Exception ex) { MessageBox.Show(UiText.HideIpAddresses(ex.Message), "Không khởi động được LanChat", MessageBoxButtons.OK, MessageBoxIcon.Error); }
+        using (pending)
+        {
+            if (pending is null) return;
+            try
+            {
+                using var installer = Process.Start(new ProcessStartInfo(pending.Path)
+                { UseShellExecute = true, WorkingDirectory = Path.GetDirectoryName(pending.Path) });
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(UiText.HideIpAddresses(ex.Message), "Không mở được bộ cài LanChat", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+    }
+
+    private static VerifiedInstaller? Run(string[] args)
+    {
+        var options = new NodeOptions();
+        string? verification = null;
+        var startup = false;
+        for (var i = 0; i < args.Length; i++)
+        {
+            string Value() => ++i < args.Length ? args[i] : throw new ArgumentException("Thiếu giá trị tham số.");
+            switch (args[i])
+            {
+                case "--startup": startup = true; break;
+                case "--data-dir": options.DataDirectory = Path.GetFullPath(Value()); break;
+                case "--port": options.ServicePort = int.Parse(Value()); options.OverrideServicePort = true; break;
+                case "--discovery-port": options.DiscoveryPort = int.Parse(Value()); options.OverrideDiscoveryPort = true; break;
+                case "--discovery-target": options.DiscoveryTargets.Add(Value()); break;
+                case "--display-name": options.InitialDisplayName = Value(); break;
+#if DEBUG
+                case "--verify-ui": verification = Path.GetFullPath(Value()); break;
+#endif
+                default: throw new ArgumentException("Tham số không hỗ trợ: " + args[i]);
+            }
+        }
+
+        // Release builds share a single process slot across Windows sessions and data directories.
+        var acquired = true;
+        using var instance = verification is null ? AcquireInstance(out acquired) : null;
+        if (instance is not null && !acquired)
+        {
+            if (!startup) MessageBox.Show("LanChat đang chạy. Hãy mở cửa sổ hiện tại từ khay hệ thống.", "LanChat",
+                MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return null;
+        }
+        ServiceRegistration.ValidateDataDirectory(options.DataDirectory);
+        Directory.CreateDirectory(options.DataDirectory);
+        using var dataLock = new FileStream(Path.Combine(options.DataDirectory, "instance.lock"), FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+#if DEBUG
+        if (verification is not null)
+        {
+            System.Windows.Forms.Application.Run(new VerificationStartup(options, verification));
+            return null;
+        }
+#endif
+        using var updates = new UpdateService(options.DataDirectory);
+        using var window = new NetworkWorkspace(new NetworkCatalog(options), new WindowsStartup(options.DataDirectory), updates);
+        window.Shown += async (_, _) =>
+        {
+            try { await window.StartAsync(); }
+            catch (OperationCanceledException) { window.ExitApplication(); }
+            catch (Exception ex)
+            {
+                MessageBox.Show(window, UiText.HideIpAddresses(ex.Message), "Không khởi động được LanChat", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                window.ExitApplication();
+            }
+        };
+        System.Windows.Forms.Application.Run(window);
+        return window.PendingInstaller;
     }
 
     private static Mutex AcquireInstance(out bool acquired)

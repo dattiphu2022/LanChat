@@ -21,6 +21,7 @@ internal sealed class NetworkCatalog(NodeOptions primary)
     private readonly HashSet<int> _ports = new();
     private readonly string _directory = primary.DataDirectory;
     private readonly string _provisionedPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "default-network.json");
+    private string SavedDefaultPath => Path.Combine(_directory, "default-network.json");
     private AppProfile? _savedProfile;
     private const string DefaultNetworkResource = "LanChat.DefaultNetwork";
     private bool HasProvisionedDefault => File.Exists(_provisionedPath) ||
@@ -32,6 +33,11 @@ internal sealed class NetworkCatalog(NodeOptions primary)
     public bool NeedsDefaultChoice => !FirstPrivateCodeHandled && _entries.Any(IsDefault);
     public string? DefaultNetworkError { get; private set; }
     public bool IsDefault(NetworkEntry entry) => entry.Id == DefaultNetwork?.Id;
+#if LANCHAT_PUBLIC_RELEASE
+    public bool CanRestoreDefaultNetwork => DefaultNetwork is not null || HasProvisionedDefault || File.Exists(SavedDefaultPath);
+#else
+    public bool CanRestoreDefaultNetwork => true;
+#endif
 
     public async Task LoadAsync()
     {
@@ -59,7 +65,7 @@ internal sealed class NetworkCatalog(NodeOptions primary)
             _entries.Select(e => e.Id).Distinct().Count() != _entries.Count || _entries.Count(e => e.Primary) > 1)
             throw new InvalidDataException("Danh sách mạng chat không hợp lệ.");
 
-        if (DefaultNetwork is null)
+        if (DefaultNetwork is null && CanRestoreDefaultNetwork)
         {
             try { DefaultNetwork = await PrepareDefaultAsync(); }
             catch (Exception ex) when (_entries.Count > 0 && ex is IOException or JsonException or ArgumentException)
@@ -71,11 +77,10 @@ internal sealed class NetworkCatalog(NodeOptions primary)
                 await SaveNetworksAsync(_entries.Any(IsDefault) ? _entries : _entries.Prepend(DefaultNetwork));
         }
 
-        else if (_entries.Any(IsDefault) && HasProvisionedDefault)
+        else if (DefaultNetwork is { } previous && _entries.Any(IsDefault) && HasProvisionedDefault)
         {
             try
             {
-                var previous = DefaultNetwork;
                 var provisioned = await PrepareDefaultAsync(useProvisionedCode: true);
                 if (provisioned.Id != previous.Id)
                 {
@@ -95,6 +100,7 @@ internal sealed class NetworkCatalog(NodeOptions primary)
 
     public async Task<NetworkEntry> RestoreDefaultAsync()
     {
+        if (!CanRestoreDefaultNetwork) throw new InvalidOperationException("Chưa có mạng mặc định để khôi phục.");
         var entry = HasProvisionedDefault
             ? await PrepareDefaultAsync(useProvisionedCode: true) : DefaultNetwork ?? await PrepareDefaultAsync();
         DefaultNetwork = entry;
@@ -259,7 +265,7 @@ internal sealed class NetworkCatalog(NodeOptions primary)
     {
         // The private, deployment-provided code is optional. A fresh installation owns its own default network.
         var provisioned = _provisionedPath;
-        var persisted = Path.Combine(_directory, "default-network.json");
+        var persisted = SavedDefaultPath;
         if (!useProvisionedCode && !HasProvisionedDefault && !string.Equals(provisioned, persisted, StringComparison.OrdinalIgnoreCase) && File.Exists(persisted))
             return JsonSerializer.Deserialize<NetworkEntry>(await FrameworkIO.ReadTextAsync(persisted))
                 ?? throw new InvalidDataException("Cấu hình mạng mặc định không hợp lệ.");

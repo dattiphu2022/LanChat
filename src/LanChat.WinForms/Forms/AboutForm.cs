@@ -5,20 +5,21 @@ namespace LanChat.WinForms.Forms;
 
 internal sealed class AboutForm : DpiForm
 {
-    public AboutForm()
+    public AboutForm(string updateMessage, Func<Task<string>> checkForUpdate)
     {
         Text = "Giới thiệu LanChat";
         Icon = AppIcon.Value;
         StartPosition = FormStartPosition.CenterParent;
         FormBorderStyle = FormBorderStyle.FixedDialog;
         ShowInTaskbar = MinimizeBox = MaximizeBox = false;
-        ClientSize = new Size(524, 386);
+        ClientSize = new Size(524, 420);
 
-        var layout = Theme.Stack(4);
+        var layout = Theme.Stack(5);
         layout.Padding = new Padding(24, 20, 24, 16);
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 91));
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 76));
         layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
         var header = new TableLayoutPanel { Dock = DockStyle.Fill, Margin = Padding.Empty, ColumnCount = 2, RowCount = 3 };
@@ -63,12 +64,27 @@ internal sealed class AboutForm : DpiForm
         var close = Theme.Button("Đóng");
         close.DialogResult = DialogResult.OK;
         footer.Controls.Add(close);
+        var check = Theme.Secondary("Kiểm tra cập nhật");
+        footer.Controls.Add(check);
+        var status = Theme.Label(updateMessage, 9);
+        status.ForeColor = Theme.Muted;
+        status.UseMnemonic = false;
+        check.Click += async (_, _) =>
+        {
+            check.Enabled = false;
+            status.Text = "Đang kiểm tra cập nhật…";
+            var message = await checkForUpdate();
+            if (IsDisposed) return;
+            status.Text = message;
+            check.Enabled = true;
+        };
         AcceptButton = CancelButton = close;
 
         layout.Controls.Add(header, 0, 0);
         layout.Controls.Add(author, 0, 1);
         layout.Controls.Add(introduction, 0, 2);
-        layout.Controls.Add(footer, 0, 3);
+        layout.Controls.Add(status, 0, 3);
+        layout.Controls.Add(footer, 0, 4);
         Controls.Add(layout);
     }
 }

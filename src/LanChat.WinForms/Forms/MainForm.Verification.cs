@@ -89,6 +89,10 @@ public sealed partial class MainForm
             _chat.DropForVerification([textFile, imageFile, portraitFile]); await Task.Delay(200, deadline.Token);
             VerifyComposerLayout();
             var previewPath = Path.ChangeExtension(reportPath, "drop-preview.png"); CaptureForm(this, previewPath); captures.Add(previewPath);
+            ResizeForVerification(this, new Size(660, 450));
+            await Task.Delay(200, deadline.Token);
+            VerifyComposerLayout();
+            ResizeForVerification(this, new Size(1240, 800));
             await _chat.SubmitForVerificationAsync("Bộ ảnh của " + profile.DisplayName + "\nChú thích chung cho ảnh ngang và ảnh dọc.");
             // The recipient must still receive the sent snapshot after originals change or disappear.
             await FrameworkIO.WriteTextAsync(textFile, "Nội dung đã sửa sau khi gửi", deadline.Token);
@@ -170,11 +174,14 @@ public sealed partial class MainForm
                 VerifyNoPeerIp(diagnostics.BuildReport(), contacts);
                 var path = Path.ChangeExtension(reportPath, "diagnostics.png"); CaptureForm(diagnostics, path); captures.Add(path); diagnostics.Close();
             }
+            await VerifyRepliesAsync(conversation, theirs, firstInstance, deadline.Token);
+            await VerifyClipboardImagesAsync(conversation, group.Id, profile.DisplayName, otherName.Name, firstInstance, deadline.Token);
             var identity = await _store.GetIdentityAsync(deadline.Token);
             await FrameworkIO.WriteTextAsync(reportPath, JsonSerializer.Serialize(new { Success = true, identity.NodeId, identity.UserId, DeviceDpi,
                 Messages = messages.Select(x => new { x.Id, x.Text, x.Status, x.IsEdited, x.ReplyToMessageId }).ToArray(),
                 GroupId = group.Id, GroupMessageIds = groupMessages.Select(x => x.Id).ToArray(), VerifiedFiles = attachments.Length, VerifiedOpenRequests = openedPaths.Count,
                 VerifiedGalleries = verifiedGalleries, InlineImagesLoaded = inlineImagesLoaded, VerifiedSourceChanges = 3,
+                VerifiedReplies = true, VerifiedClipboard = true,
                 Consensus = await Consensus.GetStatusAsync(deadline.Token), Captures = captures }, new JsonSerializerOptions { WriteIndented = true }), deadline.Token);
             var partnerReport = Path.Combine(Path.GetDirectoryName(reportPath)!, firstInstance ? "B.json" : "A.json");
             while (!File.Exists(partnerReport)) await Task.Delay(200, deadline.Token);
@@ -185,6 +192,135 @@ public sealed partial class MainForm
             await FrameworkIO.WriteTextAsync(reportPath, JsonSerializer.Serialize(new { Success = false, Error = ex.ToString(), Captures = captures }));
         }
         finally { Close(); }
+    }
+
+    private async Task VerifyRepliesAsync(Guid conversation, Domain.Message target, bool firstInstance, CancellationToken ct)
+    {
+        await SelectConversationAsync(conversation);
+        var reply = await Distributed.SendToConversationAsync(conversation, "Trích dẫn trong trang", target.Id, ct: ct);
+        await RefreshAsync();
+        const string draft = "Bản nháp cần giữ khi nhảy tin";
+        _chat.RestoreDraft(new ComposerDraft(draft, [], null, null, ""));
+        await ClickQuoteAsync(reply.Id, target.Id, ct);
+        if (_searchAnchor.HasValue || !_jumpedInLatest) throw new InvalidOperationException("Tin gốc trong trang bị mở lại ở cửa sổ lịch sử.");
+        await LoadOlderAsync();
+        if (_chat.Draft().Text != draft || !_chat.AtBottom) throw new InvalidOperationException("Thiếu bản nháp hoặc chưa quay về tin mới.");
+
+        // The other process sends this marker once it has exercised the loaded-page case.
+        await Distributed.SendToConversationAsync(conversation, "Đã thử trích dẫn trong trang", ct: ct);
+        if (firstInstance)
+        {
+            await WaitForMessageAsync(conversation, m => m.SenderUserId != _localUser && m.Text == "Đã thử trích dẫn trong trang", ct);
+            for (var i = 0; i <= PageSize; i++)
+                await Distributed.SendToConversationAsync(conversation, $"Lịch sử thử nghiệm {i + 1}", ct: ct);
+        }
+        else await WaitForMessageAsync(conversation, m => m.Text == $"Lịch sử thử nghiệm {PageSize + 1}", ct);
+        await RefreshAsync();
+        if (_visibleMessages.Any(m => m.Id == target.Id)) throw new InvalidOperationException("Tin đích phải nằm ngoài trang hiện tại.");
+        reply = await Distributed.SendToConversationAsync(conversation, "Trích dẫn tin ngoài trang", target.Id, ct: ct);
+        await RefreshAsync();
+        await ClickQuoteAsync(reply.Id, target.Id, ct);
+        if (_searchAnchor != target.Id) throw new InvalidOperationException("Quote chưa mở cửa sổ lịch sử quanh tin cũ.");
+        await JumpToMessageAsync(conversation, Guid.NewGuid(), useLoadedHistory: true);
+        if (_searchAnchor != target.Id) throw new InvalidOperationException("Tin chưa đồng bộ đã thay trang lịch sử.");
+        await LoadOlderAsync();
+        if (_searchAnchor.HasValue || !_chat.AtBottom || _chat.Draft().Text != draft)
+            throw new InvalidOperationException("Quay lại từ tin cũ làm mất bản nháp hoặc sai vị trí.");
+        _chat.ResetDraft();
+
+        var recalled = await Distributed.SendToConversationAsync(conversation, "Tin thử thu hồi", ct: ct);
+        var deleted = await Distributed.SendToConversationAsync(conversation, "Tin thử xóa cục bộ", ct: ct);
+        var recalledReply = await Distributed.SendToConversationAsync(conversation, "Trả lời tin sẽ thu hồi", recalled.Id, ct: ct);
+        var deletedReply = await Distributed.SendToConversationAsync(conversation, "Trả lời tin sẽ xóa", deleted.Id, ct: ct);
+        await Distributed.RecallMessageAsync(recalled.Id, ct);
+        await Distributed.DeleteLocalAsync(deleted.Id, ct);
+        await RefreshAsync();
+        foreach (var (id, caption) in new[] { (recalledReply.Id, "Tin nhắn đã thu hồi"), (deletedReply.Id, "Tin nhắn đã xóa phía bạn") })
+        {
+            var quote = QuoteFor(id);
+            if (quote.Enabled || quote.TabStop || quote.AccessibleName != caption)
+                throw new InvalidOperationException("Vẫn có thể nhảy tới tin bị thu hồi hoặc đã xóa.");
+        }
+    }
+
+    private ReplyQuoteControl QuoteFor(Guid reply) => Descendants(_chat).OfType<MessageBubbleControl>()
+        .Where(bubble => bubble.MessageId == reply).SelectMany(Descendants).OfType<ReplyQuoteControl>().Single();
+
+    private async Task ClickQuoteAsync(Guid reply, Guid target, CancellationToken ct)
+    {
+        var quote = QuoteFor(reply);
+        if (!quote.Visible || !quote.Enabled || !quote.TabStop) throw new InvalidOperationException("Quote chưa thể chọn bằng chuột và bàn phím.");
+        quote.PerformClick();
+        MessageBubbleControl? selected;
+        do
+        {
+            await Task.Delay(50, ct);
+            selected = Descendants(_chat).OfType<MessageBubbleControl>().FirstOrDefault(bubble => bubble.MessageId == target && bubble.Highlighted);
+        } while (selected is null);
+        if (!selected.Bounds.IntersectsWith(selected.Parent.ClientRectangle))
+            throw new InvalidOperationException("Tin gốc chưa cuộn vào vùng hiển thị.");
+    }
+
+    private async Task<Domain.Message> WaitForMessageAsync(Guid conversation, Func<Domain.Message, bool> match, CancellationToken ct)
+    {
+        while (true)
+        {
+            var messages = await _store.GetMessagesAsync(conversation, ct: ct);
+            if (messages.FirstOrDefault(match) is { } message) return message;
+            await Task.Delay(100, ct);
+        }
+    }
+
+    private async Task VerifyClipboardImagesAsync(Guid conversation, Guid group, string name, string peer, bool firstInstance, CancellationToken ct)
+    {
+        await SelectConversationAsync(conversation);
+        var composer = Descendants(_chat).OfType<ChatInputControl>().Single();
+        using var image = new Bitmap(160, 96);
+        using (var graphics = Graphics.FromImage(image)) graphics.Clear(firstInstance ? Color.CornflowerBlue : Color.SeaGreen);
+        using var stream = new MemoryStream();
+        image.Save(stream, ImageFormat.Png);
+        var bitmap = new DataObject(DataFormats.Bitmap, image);
+        var png = new DataObject();
+        png.SetData("PNG", false, stream);
+        if (!ClipboardDraftImage.PreferImageOnPaste(bitmap) || !ClipboardDraftImage.PreferImageOnPaste(png) ||
+            ClipboardDraftImage.PreferImageOnPaste(new DataObject(DataFormats.UnicodeText, "Chỉ có chữ")))
+            throw new InvalidOperationException("Ctrl+V chưa nhận đúng ảnh bitmap, PNG hoặc văn bản.");
+        png.SetData(DataFormats.UnicodeText, "Cả chữ lẫn ảnh");
+        if (ClipboardDraftImage.PreferImageOnPaste(png)) throw new InvalidOperationException("Ctrl+V phải ưu tiên văn bản.");
+
+        await composer.AddImageForVerificationAsync(() => ClipboardDraftImage.Read(bitmap));
+        var removed = _chat.Draft().Files.Single();
+        var preview = Descendants(composer).OfType<AttachmentPreviewControl>().Single();
+        Descendants(preview).OfType<Button>().Single().PerformClick();
+        if (File.Exists(removed) || _chat.Draft().Files.Length > 0) throw new InvalidOperationException("Ảnh tạm chưa được dọn sau khi gỡ.");
+
+        Task? move = null;
+        await composer.AddImageForVerificationAsync(() =>
+        {
+            move = SelectConversationAsync(group);
+            return ClipboardDraftImage.Read(bitmap);
+        });
+        await move!;
+        if (_chat.Draft().Files.Length > 0) throw new InvalidOperationException("Ảnh đang dán bị đưa vào sai hội thoại.");
+        await SelectConversationAsync(conversation);
+        if (_chat.Draft().Files.Length > 0) throw new InvalidOperationException("Ảnh của thao tác dán cũ còn dính vào bản nháp sau khi chuyển hội thoại.");
+
+        await composer.AddImageForVerificationAsync(() => ClipboardDraftImage.Read(png));
+        var staged = _chat.Draft().Files.Single();
+        await SelectConversationAsync(group);
+        await SelectConversationAsync(conversation);
+        if (!File.Exists(staged) || _chat.Draft().Files.Single() != staged) throw new InvalidOperationException("Chuyển hội thoại làm mất ảnh nháp.");
+        await _chat.SubmitForVerificationAsync("Ảnh dán từ " + name);
+        if (File.Exists(staged)) throw new InvalidOperationException("Ảnh tạm chưa được dọn sau khi gửi.");
+        var received = await WaitForMessageAsync(conversation, m => m.Text == "Ảnh dán từ " + peer, ct);
+        var photo = (await Distributed.GetMessageDetailsAsync(received.Id, ct)).Attachments.Single();
+        using var downloaded = new Bitmap(await Files.DownloadAsync(photo, ct: ct));
+        if (downloaded.Size != image.Size || downloaded.GetPixel(40, 40).ToArgb() != (firstInstance ? Color.SeaGreen : Color.CornflowerBlue).ToArgb())
+            throw new InvalidOperationException("Ảnh dán nhận được không khớp nội dung gốc.");
+
+        var desktop = new Rectangle(-1600, -900, 3520, 1980);
+        if (RegionCaptureForm.SelectionBounds(desktop, new Point(720, 650), new Point(-1700, -700)) != new Rectangle(-1600, -700, 2320, 1350))
+            throw new InvalidOperationException("Sai tọa độ vùng chụp khi màn hình có gốc âm.");
     }
     private void VerifyVisibleControls()
     {
@@ -206,8 +342,11 @@ public sealed partial class MainForm
         var editor = Descendants(composer).OfType<TextBox>().Single();
         var layout = (TableLayoutPanel)composer.Parent;
         var messages = Descendants(_chat).OfType<MessageListControl>().Single();
+        var composerActions = Descendants(composer).OfType<Button>().Where(button =>
+            button.AccessibleName is "Chọn tệp hoặc thư mục" or "Dán ảnh" or "Chụp vùng").ToArray();
         if (layout.GetRowHeights().Any(h => h < 0) || messages.Height < this.ScalePixels(24) ||
-            editor.Height < this.ScalePixels(32) || editor.Width < this.ScalePixels(80))
+            editor.Height < this.ScalePixels(32) || editor.Width < this.ScalePixels(80) || composerActions.Length != 3 ||
+            composerActions.Any(button => !button.Visible || button.Right > button.Parent.ClientSize.Width))
             throw new InvalidOperationException("Bố cục nhập tin hoặc lịch sử bị thu hẹp khi thêm tệp.");
     }
 

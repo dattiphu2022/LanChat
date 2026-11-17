@@ -27,7 +27,9 @@ public sealed record GroupSummary(Guid Id, string Name, Guid OwnerUserId, Guid[]
 public sealed record MessageDetails(Message Message, AttachmentDto[] Attachments, string[] Reactions, int ReceivedCount, int ReadCount, string? ReplyPreview, string? SenderName = null)
 {
     public string? SenderDepartment { get; init; }
+    public ReplyQuote? Quote { get; init; }
 }
+public sealed record ReplyQuote(Guid MessageId, string Preview, string? SenderName = null, string? SenderDepartment = null, bool CanNavigate = false);
 public sealed record SearchResult(Guid MessageId, Guid ConversationId, string Text, long CreatedAtTicks);
 public sealed record DistributedDiagnostics(int EventCount, int OutboxPending, CursorDto[] Cursors, long LastSyncTicks);
 public sealed record PeerDiagnostic(Guid NodeId, string DeviceName, string Address, NodeRole Role, long Term, long LastSeenTicks);

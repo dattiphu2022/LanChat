@@ -22,6 +22,7 @@ public sealed partial class MainForm : DpiForm
     private readonly Panel _userRows = new BufferedPanel { Dock = DockStyle.Fill, AutoScroll = true };
     private readonly Dictionary<Guid, UserItemControl> _users = new();
     private readonly Dictionary<Guid, ComposerDraft> _drafts = new();
+    private readonly DraftImageStore _draftImages;
     private readonly PersonNameLabel _profile = Theme.NameLabel("LanChat", 10, true);
     private readonly Label _initial = Theme.Label("", 20, true);
     private readonly NavigationItemControl _networkNav = new() { Caption = "Mạng chat" };
@@ -34,11 +35,13 @@ public sealed partial class MainForm : DpiForm
     private Guid _localUser;
     private Guid? _activeConversation;
     private Guid? _searchAnchor;
-    private bool _anchorScrolled;
+    private bool _jumpedInLatest;
+    private long _historyRequest;
     private bool _panelOpen;
     private bool _showPeople;
     private bool _layoutQueued;
     private bool _ticking;
+    private int _userOperations;
     private Message[] _olderMessages = [];
     private Message[] _visibleMessages = [];
     private long _revision = -1;
@@ -58,6 +61,8 @@ public sealed partial class MainForm : DpiForm
     private Guid? _notificationConversation;
     private long? _incomingPosition;
     internal int UnreadCount { get; private set; }
+    internal bool HasUnsentDrafts => _chat.Draft().HasContent || _drafts.Values.Any(draft => draft.HasContent);
+    internal bool HasActiveWork => _chat.ComposerWorking || _scanCancellation is not null || _userOperations > 0;
     internal event Action? UnreadCountChanged;
     private readonly NavigationItemControl _messageNav = new() { Caption = "Tin nhắn", Active = true };
     private readonly NavigationItemControl _usersNav = new() { Caption = "Danh bạ" };
@@ -68,6 +73,9 @@ public sealed partial class MainForm : DpiForm
     {
         _store = store; _scanner = scanner; _services = services; _health = health;
         _images = images; _chat.ConfigureImages(images);
+        _draftImages = new DraftImageStore(services.GetRequiredService<NodeOptions>().DataDirectory);
+        _chat.ConfigureDraftImages(_draftImages, _lifetime.Token);
+        _chat.DraftFilesChanged += CleanupDraftImages;
         Icon = AppIcon.Value;
         Text = "LanChat — Chat nội bộ - phát triển bởi Trung tá Nguyễn Quốc Đạt";
         ClientSize = new Size(1240, 800); MinimumSize = new Size(660, 420);
@@ -156,6 +164,7 @@ public sealed partial class MainForm : DpiForm
                 await _store.DeleteConversationLocalAsync(c.Id, _lifetime.Token);
                 _drafts.Remove(c.Id);
                 if (_activeConversation == c.Id) ClearActiveConversation();
+                else CleanupDraftImages();
             }
             else
                 await store.SetConversationAsync(c.Id, action == "pin" ? !c.IsPinned : (bool?)null,
@@ -163,13 +172,14 @@ public sealed partial class MainForm : DpiForm
             await RefreshAsync();
         });
         _chat.SendRequested += SendSubmissionAsync;
-        _chat.ActionRequested += async (m, action) => await RunUiAsync(() => MessageActionAsync(m, action));
-        _chat.FileRequested += async file => await RunUiAsync(() => OpenAttachmentAsync(file));
+        _chat.ActionRequested += async (m, action) => await RunUiAsync(() => MessageActionAsync(m, action), userOperation: true);
+        _chat.QuoteRequested += async (conversation, message) => await RunUiAsync(() => JumpToMessageAsync(conversation, message, useLoadedHistory: true));
+        _chat.FileRequested += async file => await RunUiAsync(() => OpenAttachmentAsync(file), userOperation: true);
         _chat.OlderRequested += async () => await RunUiAsync(LoadOlderAsync);
         _chat.ReadRequested += async () => await RunUiAsync(MarkActiveReadAsync);
         _chat.PanelRequested += async search => await RunUiAsync(() => OpenPanelAsync(search));
         _info.CloseRequested += () => SetPanel(false);
-        _info.FileRequested += async file => await RunUiAsync(() => OpenAttachmentAsync(file));
+        _info.FileRequested += async file => await RunUiAsync(() => OpenAttachmentAsync(file), userOperation: true);
         _info.SearchRequested += async query => await RunUiAsync(() => SearchInPanelAsync(query));
         _info.ResultSelected += async result => await RunUiAsync(() => JumpAsync(result));
         _chatArea.SizeChanged += (_, _) => QueueWorkspaceLayout();
@@ -186,9 +196,10 @@ public sealed partial class MainForm : DpiForm
             Show(); WindowState = FormWindowState.Normal; Activate();
             if (_notificationConversation is Guid id) await OpenNotificationAsync(id);
         };
-        FormClosed += (_, _) =>
+        Disposed += (_, _) =>
         {
             _timer.Stop(); _timer.Dispose(); _lifetime.Cancel(); _scanCancellation?.Cancel();
+            _draftImages.Dispose();
             _notification.Dispose();
         };
     }
@@ -251,9 +262,13 @@ public sealed partial class MainForm : DpiForm
     {
         if (_activeConversation != id)
         {
-            if (_activeConversation is Guid old) _drafts[old] = _chat.Draft();
-            _chat.RestoreDraft(_drafts.TryGetValue(id, out var draft) ? draft : null);
-            _olderMessages = _visibleMessages = []; _searchAnchor = null; _hasOlder = true;
+            if (_activeConversation is Guid old && _chat.Draft() is { HasContent: true } previousDraft) _drafts[old] = previousDraft;
+            _drafts.TryGetValue(id, out var draft);
+            _drafts.Remove(id);
+            _chat.RestoreDraft(draft);
+            _boundConversation = null;
+            _olderMessages = _visibleMessages = []; _searchAnchor = null; _jumpedInLatest = false; _hasOlder = true;
+            _historyRequest++;
             _info.ResetSearch();
         }
         _activeConversation = id; ShowPeople(false);
@@ -263,6 +278,8 @@ public sealed partial class MainForm : DpiForm
     private void ClearActiveConversation()
     {
         _activeConversation = _boundConversation = _searchAnchor = null;
+        _historyRequest++;
+        _jumpedInLatest = false;
         _olderMessages = _visibleMessages = [];
         _hasOlder = true;
         _info.ResetSearch();
@@ -270,11 +287,19 @@ public sealed partial class MainForm : DpiForm
         SetPanel(false);
     }
 
-    private async Task RunUiAsync(Func<Task> action)
+    private void CleanupDraftImages()
     {
+        if (!_chat.ComposerWorking && !IsDisposed)
+            _draftImages.Prune(_drafts.Values.SelectMany(draft => draft.Files).Concat(_chat.Draft().Files));
+    }
+
+    private async Task RunUiAsync(Func<Task> action, bool userOperation = false)
+    {
+        if (userOperation) _userOperations++;
         try { await action(); }
         catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { }
         catch (Exception ex) { if (!IsDisposed) MessageBox.Show(this, UiText.HideIpAddresses(ex.Message), "LanChat", MessageBoxButtons.OK, MessageBoxIcon.Warning); }
+        finally { if (userOperation) _userOperations--; }
     }
 
     private async Task TickAsync()
@@ -337,25 +362,11 @@ public sealed partial class MainForm : DpiForm
                     _chat.SelectConversation(new PersonName(current.DisplayName, current.Department), current.Presence == PresenceStatus.Online, current.Kind == ConversationKind.Group);
                     if (changed || _boundConversation != id || _boundSearch != anchor || _boundOlder != previous)
                     {
-                        var data = await Task.Run(async () =>
-                        {
-                            var latest = anchor.HasValue ? await Distributed.GetMessageWindowAsync(id.Value, anchor.Value, ct) :
-                                await _store.GetMessagesAsync(id.Value, ct: ct, limit: PageSize);
-                            var cached = previous.Length == 0 || anchor.HasValue ? [] : await Distributed.GetMessageDetailsBatchAsync(previous.Select(m => m.Id).ToArray(), ct);
-                            var messages = cached.Select(m => m.Message).Where(m => !m.IsDeletedLocal).Concat(latest)
-                                .GroupBy(m => m.Id).Select(g => g.Last()).OrderBy(m => m.PhysicalTicks).ThenBy(m => m.LogicalCounter)
-                                .ThenBy(m => m.OriginNodeId.ToString(), StringComparer.Ordinal).ThenBy(m => m.Id.ToString(), StringComparer.Ordinal).ToArray();
-                            var details = await Distributed.GetMessageDetailsBatchAsync(latest.Select(m => m.Id).ToArray(), ct);
-                            return (messages, details: cached.Concat(details).ToArray(), more: latest.Count >= PageSize);
-                        }, ct);
+                        var data = await ReadHistoryAsync(id.Value, anchor, previous, ct);
                         if (IsDisposed) return;
-                        if (id == _activeConversation && anchor == _searchAnchor)
+                        if (id == _activeConversation && anchor == _searchAnchor && previous == _olderMessages)
                         {
-                            _visibleMessages = data.messages;
-                            _chat.Bind(id.Value, data.messages, _localUser, data.details, anchor.HasValue);
-                            _boundConversation = id; _boundSearch = anchor; _boundOlder = previous;
-                            _chat.SetHistoryAvailable(anchor.HasValue || (_hasOlder && (previous.Length > 0 || data.more)), anchor.HasValue);
-                            if (anchor.HasValue && !_anchorScrolled) { _chat.FocusMessage(anchor.Value); _anchorScrolled = true; }
+                            BindHistory(id.Value, anchor, previous, data);
                             if (_panelOpen) await LoadPanelAsync(id.Value);
                             await MarkActiveReadAsync();
                         }
@@ -366,6 +377,30 @@ public sealed partial class MainForm : DpiForm
             await UpdateStatusAsync();
         }
         finally { _refresh.Release(); }
+    }
+
+    private Task<(Message[] Messages, MessageDetails[] Details, bool More)> ReadHistoryAsync(
+        Guid conversation, Guid? anchor, Message[] previous, CancellationToken ct) => Task.Run(async () =>
+    {
+        var latest = anchor is Guid id ? await Distributed.GetMessageWindowAsync(conversation, id, ct) :
+            await _store.GetMessagesAsync(conversation, ct: ct, limit: PageSize);
+        var cached = anchor.HasValue ? Array.Empty<Message>() : previous;
+        var ids = cached.Select(m => m.Id).Concat(latest.Select(m => m.Id)).Distinct().ToArray();
+        var details = await Distributed.GetMessageDetailsBatchAsync(ids, ct);
+        var messages = details.Select(m => m.Message).Where(m => !m.IsDeletedLocal)
+            .OrderBy(m => m.PhysicalTicks).ThenBy(m => m.LogicalCounter)
+            .ThenBy(m => m.OriginNodeId.ToString(), StringComparer.Ordinal).ThenBy(m => m.Id.ToString(), StringComparer.Ordinal).ToArray();
+        return (messages, details, latest.Count >= PageSize);
+    }, ct);
+
+    private void BindHistory(Guid conversation, Guid? anchor, Message[] previous, (Message[] Messages, MessageDetails[] Details, bool More) data)
+    {
+        _visibleMessages = data.Messages;
+        _chat.Bind(conversation, data.Messages, _localUser, data.Details, anchor.HasValue);
+        _boundConversation = conversation;
+        _boundSearch = anchor;
+        _boundOlder = previous;
+        _chat.SetHistoryAvailable(_hasOlder && (previous.Length > 0 || data.More), anchor.HasValue || _jumpedInLatest);
     }
 
     private void UpdateUnreadCount()
@@ -402,7 +437,7 @@ public sealed partial class MainForm : DpiForm
 
     private bool IsReadingActiveConversation => Visible && (TopLevel ? Form.ActiveForm == this : Form.ActiveForm == TopLevelControl) &&
         WindowState != FormWindowState.Minimized &&
-        (_isSelectedNetwork?.Invoke() ?? true) && !_showPeople && !_searchAnchor.HasValue &&
+        (_isSelectedNetwork?.Invoke() ?? true) && !_showPeople && !_searchAnchor.HasValue && !_jumpedInLatest &&
         _boundConversation == _activeConversation && _chat.Visible && _chat.AtBottom;
 
     private Task MarkActiveReadAsync()
@@ -474,12 +509,29 @@ public sealed partial class MainForm : DpiForm
         _loadingOlder = true;
         try
         {
-            if (_searchAnchor.HasValue) { _searchAnchor = null; _olderMessages = []; _hasOlder = true; await RefreshAsync(); _chat.ScrollToEnd(); return; }
+            var request = ++_historyRequest;
+            if (_searchAnchor.HasValue || _jumpedInLatest)
+            {
+                _searchAnchor = null;
+                _jumpedInLatest = false;
+                _olderMessages = [];
+                _boundOlder = null;
+                _hasOlder = true;
+                _chat.ClearHighlight();
+                _chat.SetHistoryAvailable(false);
+                await RefreshAsync();
+                if (IsCurrentHistory(id, request))
+                {
+                    _chat.ScrollToEnd();
+                    await MarkActiveReadAsync();
+                }
+                return;
+            }
             var first = _visibleMessages.FirstOrDefault();
             if (first is null || !_hasOlder) return;
             var ct = _lifetime.Token;
             var page = await Task.Run(() => _store.GetOlderMessagesAsync(id, first, PageSize, ct), ct);
-            if (id != _activeConversation || IsDisposed) return;
+            if (!IsCurrentHistory(id, request)) return;
             _hasOlder = page.Length == PageSize;
             _olderMessages = page.Concat(_visibleMessages).ToArray();
             await RefreshAsync();
@@ -545,12 +597,46 @@ public sealed partial class MainForm : DpiForm
         var results = await Task.Run(() => Distributed.SearchMessagesAsync(query, id, ct), ct);
         if (!IsDisposed && id == _activeConversation) _info.SetResults(query, results);
     }
-    private async Task JumpAsync(SearchResult result)
+    private Task JumpAsync(SearchResult result) => JumpToMessageAsync(result.ConversationId, result.MessageId);
+
+    private bool IsCurrentHistory(Guid conversation, long request) =>
+        !IsDisposed && conversation == _activeConversation && request == _historyRequest && (_isSelectedNetwork?.Invoke() ?? true);
+
+    private async Task JumpToMessageAsync(Guid conversation, Guid message, bool useLoadedHistory = false)
     {
-        if (_activeConversation != result.ConversationId) return;
-        _searchAnchor = result.MessageId; _anchorScrolled = false;
-        if (IsCompactChat) SetPanel(false);
-        await RefreshAsync();
+        if (_activeConversation != conversation) return;
+        var request = ++_historyRequest;
+        var ct = _lifetime.Token;
+        await _refresh.WaitAsync(ct);
+        try
+        {
+            if (!IsCurrentHistory(conversation, request)) return;
+            if (useLoadedHistory && _boundConversation == conversation && _visibleMessages.Any(m => m.Id == message))
+            {
+                var latest = await Task.Run(() => Distributed.GetMessageDetailsBatchAsync([message], ct), ct);
+                if (!IsCurrentHistory(conversation, request) || !latest.Any(d => CanJump(d.Message))) return;
+                if (IsCompactChat) SetPanel(false);
+                if (_chat.FocusMessage(message))
+                {
+                    _jumpedInLatest = !_searchAnchor.HasValue;
+                    _chat.SetHistoryAvailable(false, returnToLatest: true);
+                    return;
+                }
+            }
+
+            var data = await ReadHistoryAsync(conversation, message, [], ct);
+            if (!IsCurrentHistory(conversation, request)) return;
+            if (!data.Messages.Any(CanJump)) return;
+
+            if (IsCompactChat) SetPanel(false);
+            _searchAnchor = message;
+            _jumpedInLatest = false;
+            BindHistory(conversation, message, _olderMessages, data);
+            _chat.FocusMessage(message);
+        }
+        finally { _refresh.Release(); }
+
+        bool CanJump(Message target) => target.Id == message && target.ConversationId == conversation && !target.IsRecalled && !target.IsDeletedLocal;
     }
 
     private async Task ScanAsync(NavigationItemControl button)

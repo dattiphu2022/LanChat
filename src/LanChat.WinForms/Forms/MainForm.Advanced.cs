@@ -55,7 +55,7 @@ public sealed partial class MainForm
         try
         {
             await RefreshAsync();
-            if (_activeConversation == conversation && !_searchAnchor.HasValue) _chat.ScrollToEnd();
+            if (_activeConversation == conversation && !_searchAnchor.HasValue && !_jumpedInLatest) _chat.ScrollToEnd();
         }
         catch (Exception ex) { if (!IsDisposed && !_lifetime.IsCancellationRequested) _status.Text = UiText.HideIpAddresses(ex.Message); }
     }
@@ -133,7 +133,11 @@ public sealed partial class MainForm
         if (form.ShowDialog(this) == DialogResult.OK && form.SelectedConversation is { } id)
         {
             var conversations = await _store.GetConversationsAsync(ct: _lifetime.Token); var selected = conversations.FirstOrDefault(x => x.Id == id);
-            if (selected is not null) { await SelectConversationAsync(id); _searchAnchor = form.SelectedMessage; _anchorScrolled = false; await RefreshAsync(); }
+            if (selected is not null && form.SelectedMessage is Guid message)
+            {
+                await SelectConversationAsync(id);
+                await JumpToMessageAsync(id, message);
+            }
         }
     }
     private async Task OpenFilesAsync()

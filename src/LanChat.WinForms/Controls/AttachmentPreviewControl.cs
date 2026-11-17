@@ -4,7 +4,9 @@ public sealed class AttachmentPreviewControl : UserControl
 {
     private readonly PictureBox _image = new() { Dock = DockStyle.Fill, SizeMode = PictureBoxSizeMode.Zoom };
     public event Action? RemoveRequested;
-    public AttachmentPreviewControl(string path)
+    public AttachmentPreviewControl(string path) : this(path, null) { }
+
+    internal AttachmentPreviewControl(string path, Bitmap? thumbnail)
     {
         Size = new Size(260, 52); BackColor = Theme.Canvas;
         var layout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1 };
@@ -24,11 +26,11 @@ public sealed class AttachmentPreviewControl : UserControl
             _image.Dispose();
             layout.Controls.Add(icon, 0, 0);
         }
-        else _image.Image = SystemIcons.Application.ToBitmap();
-        if (!isFolder && file.Exists && file.Length < 20 * 1024 * 1024 &&
+        else _image.Image = thumbnail is null ? SystemIcons.Application.ToBitmap() : new Bitmap(thumbnail);
+        if (thumbnail is null && !isFolder && file.Exists && file.Length < 20 * 1024 * 1024 &&
             new[] { ".jpg", ".jpeg", ".png", ".gif", ".bmp" }.Contains(file.Extension.ToLowerInvariant()))
         {
-            try { using var original = Image.FromFile(path); var thumbnail = new Bitmap(original, new Size(48, 48)); _image.Image.Dispose(); _image.Image = thumbnail; }
+            try { using var original = Image.FromFile(path); var preview = new Bitmap(original, new Size(48, 48)); _image.Image.Dispose(); _image.Image = preview; }
             catch (Exception ex) when (ex is ArgumentException or IOException or OutOfMemoryException) { }
         }
     }

@@ -20,6 +20,80 @@ public sealed class ChatIntegrationTests
     }
 
     [Fact]
+    public async Task QuoteExposesOnlyAnAvailableOriginalInTheSameConversation()
+    {
+        var cluster = Guid.NewGuid();
+        var secret = FrameworkIO.RandomBytes(32);
+        await using var sender = new TestNode(cluster, secret, "Lan");
+        await using var recipient = new TestNode(cluster, secret, "Hà");
+        await using var other = new TestNode(cluster, secret, "Minh");
+        await sender.InitializeAsync();
+        await recipient.InitializeAsync();
+        await other.InitializeAsync();
+        var profile = await sender.Store.GetProfileAsync();
+        profile.Department = "Phòng kỹ thuật";
+        await sender.Store.SaveProfileAsync(profile);
+        var peer = await recipient.Store.GetNodeInfoAsync();
+        await sender.Store.RememberPeerAsync(peer, "127.0.0.1");
+        var original = await sender.Store.SaveOutgoingAsync(peer.User.Id, "Dòng một\r\nDòng hai");
+        var reply = await Distributed(sender).SendToConversationAsync(original.ConversationId, "Trả lời", original.Id);
+        var events = await EventsFromAsync(sender);
+        var receiverStore = Distributed(recipient);
+        await receiverStore.ImportEventsAsync(new([Assert.Single(events.Events, e => e.EntityId == reply.Id)]));
+        Assert.Equal(new ReplyQuote(original.Id, "Chưa có tin nhắn gốc"), (await receiverStore.GetMessageDetailsAsync(reply.Id)).Quote);
+
+        await receiverStore.ImportEventsAsync(events);
+        Assert.Equal(new ReplyQuote(original.Id, "Dòng một Dòng hai", "Lan", "Phòng kỹ thuật", true),
+            (await receiverStore.GetMessageDetailsAsync(reply.Id)).Quote);
+        Assert.Contains(await receiverStore.GetMessageWindowAsync(original.ConversationId, original.Id), m => m.Id == original.Id);
+        await receiverStore.DeleteLocalAsync(original.Id);
+        Assert.Equal(new ReplyQuote(original.Id, "Tin nhắn đã xóa phía bạn"), (await receiverStore.GetMessageDetailsAsync(reply.Id)).Quote);
+        Assert.Empty(await receiverStore.GetMessageWindowAsync(original.ConversationId, original.Id));
+
+        var senderStore = Distributed(sender);
+        await senderStore.RecallMessageAsync(original.Id);
+        Assert.Equal(new ReplyQuote(original.Id, "Tin nhắn đã thu hồi"), (await senderStore.GetMessageDetailsAsync(reply.Id)).Quote);
+
+        var otherPeer = await other.Store.GetNodeInfoAsync();
+        await sender.Store.RememberPeerAsync(otherPeer, "127.0.0.1");
+        var elsewhere = await sender.Store.SaveOutgoingAsync(otherPeer.User.Id, "Nội dung hội thoại khác");
+        using (var database = sender.Host.Services.GetRequiredService<ChatDatabase>().Open())
+            database.Execute("UPDATE Messages SET ReplyToMessageId=$0 WHERE Id=$1", elsewhere.Id, reply.Id);
+        Assert.Equal(new ReplyQuote(elsewhere.Id, "Chưa có tin nhắn gốc"), (await senderStore.GetMessageDetailsAsync(reply.Id)).Quote);
+        Assert.Empty(await senderStore.GetMessageWindowAsync(original.ConversationId, elsewhere.Id));
+    }
+
+    [Fact]
+    public async Task QuoteShowsAnAttachmentTypeWhenTheOriginalHasNoText()
+    {
+        var cluster = Guid.NewGuid();
+        var secret = FrameworkIO.RandomBytes(32);
+        await using var sender = new TestNode(cluster, secret, "Lan");
+        await using var recipient = new TestNode(cluster, secret, "Hà");
+        await sender.InitializeAsync();
+        await recipient.InitializeAsync();
+        var peer = await recipient.Store.GetNodeInfoAsync();
+        await sender.Store.RememberPeerAsync(peer, "127.0.0.1");
+        var conversation = await sender.Store.OpenDirectAsync(peer.User.Id);
+        var store = Distributed(sender);
+        var files = sender.Host.Services.GetRequiredService<IFileTransferService>();
+        var png = Path.Combine(sender.Options.DataDirectory, "quote.png");
+        var txt = Path.Combine(sender.Options.DataDirectory, "quote.txt");
+        var folder = Path.Combine(Path.GetTempPath(), "LanChat.Tests", Guid.NewGuid().ToString("N"), "quote-folder");
+        File.WriteAllText(png, "Test attachment");
+        File.WriteAllText(txt, "Test file");
+        Directory.CreateDirectory(folder);
+        foreach (var (attachment, preview) in new[] { (await files.ImportLocalAsync(png), "Ảnh"),
+            (await files.ImportLocalAsync(txt), "Tệp"), (await files.ImportFolderAsync(folder), "Thư mục") })
+        {
+            var original = await store.SendToConversationAsync(conversation, "", attachments: [attachment]);
+            var reply = await store.SendToConversationAsync(conversation, "Trả lời", original.Id);
+            var quote = (await store.GetMessageDetailsAsync(reply.Id)).Quote;
+            Assert.Equal(new ReplyQuote(original.Id, preview, "Lan", "Tên Đơn Vị", true), quote);
+        }
+    }
+
+    [Fact]
     public async Task MigrationCreatesIndexedWalDatabaseAndIdentitySurvivesRestartAndRename()
     {
         var cluster = Guid.NewGuid(); var secret = FrameworkIO.RandomBytes(32); string directory; NodeIdentity initial;
