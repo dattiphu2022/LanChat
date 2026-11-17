@@ -176,12 +176,16 @@ public sealed partial class MainForm
             }
             await VerifyRepliesAsync(conversation, theirs, firstInstance, deadline.Token);
             await VerifyClipboardImagesAsync(conversation, group.Id, profile.DisplayName, otherName.Name, firstInstance, deadline.Token);
+            await VerifyGroupMembersPanelAsync(conversation, group.Id, other.UserId, firstInstance, deadline.Token);
+            var membersPath = Path.ChangeExtension(reportPath, "group-members.png");
+            CaptureForm(this, membersPath);
+            captures.Add(membersPath);
             var identity = await _store.GetIdentityAsync(deadline.Token);
             await FrameworkIO.WriteTextAsync(reportPath, JsonSerializer.Serialize(new { Success = true, identity.NodeId, identity.UserId, DeviceDpi,
                 Messages = messages.Select(x => new { x.Id, x.Text, x.Status, x.IsEdited, x.ReplyToMessageId }).ToArray(),
                 GroupId = group.Id, GroupMessageIds = groupMessages.Select(x => x.Id).ToArray(), VerifiedFiles = attachments.Length, VerifiedOpenRequests = openedPaths.Count,
                 VerifiedGalleries = verifiedGalleries, InlineImagesLoaded = inlineImagesLoaded, VerifiedSourceChanges = 3,
-                VerifiedReplies = true, VerifiedClipboard = true,
+                VerifiedReplies = true, VerifiedClipboard = true, VerifiedGroupMembers = true,
                 Consensus = await Consensus.GetStatusAsync(deadline.Token), Captures = captures }, new JsonSerializerOptions { WriteIndented = true }), deadline.Token);
             var partnerReport = Path.Combine(Path.GetDirectoryName(reportPath)!, firstInstance ? "B.json" : "A.json");
             while (!File.Exists(partnerReport)) await Task.Delay(200, deadline.Token);
@@ -192,6 +196,70 @@ public sealed partial class MainForm
             await FrameworkIO.WriteTextAsync(reportPath, JsonSerializer.Serialize(new { Success = false, Error = ex.ToString(), Captures = captures }));
         }
         finally { Close(); }
+    }
+
+    private async Task VerifyGroupMembersPanelAsync(Guid direct, Guid group, Guid other, bool owner, CancellationToken ct)
+    {
+        const string ready = "Đã mở danh sách thành viên";
+        const string removed = "Đã thấy nhóm bị gỡ khỏi danh sách";
+        var tabs = Descendants(_info).OfType<TabControl>().Single();
+        await OpenMembersAsync();
+        var members = Descendants(tabs.SelectedTab!).OfType<CheckedListBox>().Single();
+        var save = Descendants(tabs.SelectedTab!).OfType<Button>().Single(action => action.Text == "Lưu thành viên");
+        int Row(Guid id) => members.Items.Cast<SelectionItem>().ToList().FindIndex(person => person.Id == id);
+        void VerifyBothChecked()
+        {
+            if (!members.CheckedItems.Cast<SelectionItem>().Select(person => person.Id).ToHashSet().SetEquals(new[] { _localUser, other }))
+                throw new InvalidOperationException("Dấu tích trong Thông tin hội thoại chưa khớp danh sách thành viên.");
+        }
+        VerifyBothChecked();
+        members.SetItemChecked(Row(_localUser), false);
+        VerifyBothChecked();
+        if (save.Visible != owner || save.Enabled)
+            throw new InvalidOperationException("Nút Lưu thành viên chưa phản ánh quyền chủ nhóm hoặc thay đổi cần lưu.");
+
+        if (owner)
+        {
+            await WaitForMessageAsync(direct, message => message.SenderUserId == other && message.Text == ready, ct);
+            await SetMembershipAsync(false);
+            await WaitForMessageAsync(direct, message => message.SenderUserId == other && message.Text == removed, ct);
+            await SetMembershipAsync(true);
+        }
+        else
+        {
+            members.SetItemChecked(Row(other), false);
+            VerifyBothChecked();
+            await Distributed.SendToConversationAsync(direct, ready, ct: ct);
+            while (_activeConversation == group) await Task.Delay(150, ct);
+            await SelectConversationAsync(direct);
+            await OpenPanelAsync(false);
+            if (tabs.TabPages.Cast<TabPage>().Any(tab => tab.Text == "Thành viên"))
+                throw new InvalidOperationException("Hội thoại riêng còn hiển thị tab Thành viên của nhóm trước.");
+            await Distributed.SendToConversationAsync(direct, removed, ct: ct);
+            while (!_summaries.Any(conversation => conversation.Id == group)) await Task.Delay(150, ct);
+            await OpenMembersAsync();
+        }
+        VerifyBothChecked();
+
+        async Task OpenMembersAsync()
+        {
+            await SelectConversationAsync(group);
+            SetPanel(false);
+            await OpenPanelAsync(false);
+            tabs.SelectedTab = tabs.TabPages.Cast<TabPage>().Single(tab => tab.Text == "Thành viên");
+        }
+
+        async Task SetMembershipAsync(bool isMember)
+        {
+            members.SetItemChecked(Row(other), isMember);
+            while (!save.Enabled) await Task.Delay(150, ct);
+            save.PerformClick();
+            while (_savingMembers || WaitingForMemberCommit) await Task.Delay(150, ct);
+            if (_memberSaveError is { } error) throw new InvalidOperationException(error);
+            var projection = (await Distributed.GetGroupsAsync(ct)).Single(item => item.Id == group);
+            if (projection.Members.Contains(other) != isMember || members.GetItemChecked(Row(other)) != isMember || save.Enabled)
+                throw new InvalidOperationException("Thay đổi từ tab Thành viên chưa được lưu và hiển thị đúng.");
+        }
     }
 
     private async Task VerifyRepliesAsync(Guid conversation, Domain.Message target, bool firstInstance, CancellationToken ct)

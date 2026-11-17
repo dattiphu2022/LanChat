@@ -16,7 +16,8 @@ Mỗi tab tương ứng với một mạng. Khi gỡ mạng rồi nhập lại �
 
 1. Chọn người dùng trong **Danh bạ** hoặc mở tin nhắn từ danh sách hội thoại. Dùng **Ctrl+K** để tới ô tìm hội thoại.
 2. Nhập tin, nhấn **Enter** để gửi hoặc **Shift+Enter** để xuống dòng. Tin được lưu trên máy và sẽ tiếp tục gửi khi kết nối trở lại.
-3. Để chat theo nhóm, mở **Nhóm**, chọn thành viên và bấm **Tạo nhóm**. Chủ nhóm có thể quản lý tên, thành viên và quyền chủ nhóm. Thay đổi cấu trúc nhóm cần đủ số máy điều phối của mạng.
+3. Để tạo nhóm chat, mở **Nhóm → Nhóm mới**, tích chọn thành viên rồi bấm **Tạo nhóm**.
+4. Trong **Nhóm**, chọn nhóm để xem dấu tích cạnh từng thành viên ở cột **Thành viên nhóm**. Bạn cũng có thể mở **Tin nhắn → chọn nhóm → Thông tin → Thành viên**. Ở cả hai nơi, chủ nhóm có thể tích để thêm, bỏ tích để bớt rồi bấm **Lưu thành viên**. Thay đổi thành viên cần đủ số máy điều phối của mạng.
 
 Nhấp phải hội thoại để ghim, tắt thông báo hoặc **Xóa hội thoại phía tôi**. Thay đổi này áp dụng trên máy của bạn. Bấm thông báo Windows để mở hội thoại tương ứng.
 

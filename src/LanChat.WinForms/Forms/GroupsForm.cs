@@ -6,93 +6,320 @@ namespace LanChat.WinForms.Forms;
 
 public sealed class GroupsForm : DpiForm
 {
-    private readonly ListBox _groups = new() { Dock = DockStyle.Fill, DisplayMember = "Name", AllowDrop = true };
-    private readonly CheckedListBox _users = new PersonNameCheckedListBox(item => ((SelectionItem)item).DisplayName) { Dock = DockStyle.Fill, CheckOnClick = true };
-    private readonly Label _status = Theme.Label("");
+    private readonly IChatStore _chat;
+    private readonly IDistributedStore _store;
+    private readonly IConsensusService _consensus;
     private readonly CancellationTokenSource _lifetime = new();
+    private readonly CancellationToken _stop;
+    private readonly SemaphoreSlim _refreshGate = new(1);
     private readonly System.Windows.Forms.Timer _timer = new() { Interval = 2000 };
-    private readonly List<Button> _ownerButtons = [];
-    private Guid _localUser;
-    private bool _loading;
-    private readonly Button _create = Theme.Button("Tạo nhóm");
+    private readonly ListBox _groups = new() { Dock = DockStyle.Fill, DisplayMember = nameof(GroupSummary.Name), AllowDrop = true, AccessibleName = "Nhóm chat" };
+    private readonly PromptTextBox _search = new() { Dock = DockStyle.Fill, PlaceholderText = "Tìm nhóm…" };
+    private readonly GroupMembersControl _members = new(showAllContacts: true);
+    private readonly Label _status = Theme.Label("");
+    private readonly Label _membersTitle = Theme.Label("Thành viên nhóm", 11, true);
+    private readonly Button _newGroup = Theme.Secondary("Nhóm mới");
+    private readonly Button _open = Theme.Button("Mở chat");
+    private readonly Button _rename = Theme.Secondary("Đổi tên");
+    private readonly Button _transfer = Theme.Secondary("Chuyển chủ nhóm");
+    private readonly Button _delete = Theme.Secondary("Xóa nhóm");
+    private Dictionary<Guid, GroupSummary> _summaries = [];
+    private Dictionary<Guid, UserSummary> _contacts = [];
+    private LocalUserProfile? _profile;
+    private ConsensusStatus? _network;
+    private bool _creating, _saving, _bindingGroups;
+    private Guid? _createdGroup;
+    private long _confirmedIndex;
+    private string? _error;
+    private string? _refreshError;
+
     public Guid? SelectedGroup { get; private set; }
+    private Guid? SelectedId => (_groups.SelectedItem as GroupSummary)?.Id;
+    private GroupSummary? CurrentGroup => SelectedId is Guid id && _summaries.TryGetValue(id, out var group) ? group : null;
+    private bool WaitingForCommit => _confirmedIndex > (_network?.CommitIndex ?? 0);
+    private bool CanSubmit => !_saving && !WaitingForCommit && _network?.LeaderReady == true;
+    private bool IsOwner(GroupSummary? group) => _profile is not null && group?.OwnerUserId == _profile.Id;
+
     public GroupsForm(IChatStore chat, IDistributedStore store, IConsensusService consensus)
     {
+        _chat = chat;
+        _store = store;
+        _consensus = consensus;
+        _stop = _lifetime.Token;
         Icon = AppIcon.Value;
-        Text = "Nhóm chat"; ClientSize = new Size(850, 610); MinimumSize = new Size(780, 540); StartPosition = FormStartPosition.CenterParent;
-        var layout = Theme.Stack(3); layout.Padding = new Padding(12); layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 55)); layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100)); layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        Text = "Quản lý nhóm";
+        ClientSize = new Size(850, 610);
+        MinimumSize = new Size(620, 460);
+        StartPosition = FormStartPosition.CenterParent;
+
+        var layout = Theme.Stack(3);
+        layout.Padding = new Padding(12);
+        layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         var columns = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1 };
-        columns.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 45)); columns.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 55));
-        var search = new PromptTextBox { Dock = DockStyle.Fill, PlaceholderText = "Tìm nhóm…" };
-        var left = Theme.Stack(2); left.RowStyles.Add(new RowStyle(SizeType.Absolute, 36)); left.RowStyles.Add(new RowStyle(SizeType.Percent, 100)); left.Controls.Add(search, 0, 0); left.Controls.Add(_groups, 0, 1);
-        var right = Theme.Stack(2); right.RowStyles.Add(new RowStyle(SizeType.Absolute, 48)); right.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        right.Controls.Add(Theme.Label("Chọn thành viên để tạo/thêm vào nhóm.\nCó thể kéo tên người dùng sang nhóm."), 0, 0); right.Controls.Add(_users, 0, 1);
-        columns.Controls.Add(left, 0, 0); columns.Controls.Add(right, 1, 0);
-        var buttons = Theme.Toolbar(); buttons.Controls.Add(_create);
-        var open = Theme.Button("Mở chat"); buttons.Controls.Add(open);
-        var rename = AddOwner("Đổi tên"); var add = AddOwner("Thêm người"); var remove = AddOwner("Xóa người"); var owner = AddOwner("Chuyển chủ nhóm"); var delete = AddOwner("Xóa nhóm");
-        Button AddOwner(string title) { var b = Theme.Button(title); _ownerButtons.Add(b); buttons.Controls.Add(b); return b; }
-        layout.Controls.Add(_status, 0, 0); layout.Controls.Add(columns, 0, 1); layout.Controls.Add(buttons, 0, 2); Controls.Add(layout);
-        async Task RunAsync(Func<Task> action)
+        columns.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 40));
+        columns.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 60));
+        var left = Theme.Stack(2);
+        left.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));
+        left.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        left.Controls.Add(_search, 0, 0);
+        left.Controls.Add(_groups, 0, 1);
+        var right = Theme.Stack(2);
+        right.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        right.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        right.Controls.Add(_membersTitle, 0, 0);
+        right.Controls.Add(_members, 0, 1);
+        columns.Controls.Add(left, 0, 0);
+        columns.Controls.Add(right, 1, 0);
+
+        var actions = Theme.Toolbar();
+        foreach (var button in new[] { _newGroup, _open, _rename, _transfer, _delete })
         {
-            try { buttons.Enabled = false; await action(); await LoadAsync(); }
-            catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { }
-            catch (Exception ex) { if (!IsDisposed) MessageBox.Show(this, UiText.HideIpAddresses(ex.Message), "Nhóm chat"); }
-            finally { if (!IsDisposed) buttons.Enabled = true; }
+            button.Margin = new Padding(3, 5, 3, 5);
+            actions.Controls.Add(button);
         }
-        async Task SubmitAsync(ControlCommand command)
+        layout.Controls.Add(_status, 0, 0);
+        layout.Controls.Add(columns, 0, 1);
+        layout.Controls.Add(actions, 0, 2);
+        Controls.Add(layout);
+
+        _members.SaveRequested += async changes => await RunAsync(() => changes.ApplyAsync(_store, SubmitAsync, _stop));
+        _members.CreateRequested += async members => await CreateGroupAsync(members);
+        _newGroup.Click += (_, _) =>
         {
-            var result = await consensus.ProposeAsync(command, _lifetime.Token); if (!result.Success) throw new InvalidOperationException(result.Error);
+            _error = null;
+            _creating = true;
+            _members.ResetNewGroup();
+            BindGroups();
+            _members.List.Focus();
+        };
+        _open.Click += (_, _) =>
+        {
+            if (CurrentGroup is not { } group) return;
+            SelectedGroup = group.Id;
+            DialogResult = DialogResult.OK;
+            Close();
+        };
+        _groups.DoubleClick += (_, _) => _open.PerformClick();
+        _rename.Click += async (_, _) =>
+        {
+            if (CurrentGroup is not { } group) return;
+            await RunAsync(async () =>
+            {
+                var name = SelectionForm.Prompt(this, "Đổi tên nhóm", group.Name);
+                if (name is not null) await SubmitAsync(Command(ControlCommandType.GroupRenamed, group.Id, name: name));
+            });
+        };
+        _transfer.Click += async (_, _) =>
+        {
+            if (CurrentGroup is not { } group) return;
+            await RunAsync(async () =>
+            {
+                using var choose = new SelectionForm("Chọn chủ nhóm mới", group.Members.Where(id => id != _profile!.Id).Select(_members.MemberName));
+                if (choose.ShowDialog(this) == DialogResult.OK && choose.SelectedId is { } id)
+                    await SubmitAsync(Command(ControlCommandType.GroupOwnerChanged, group.Id, id));
+            });
+        };
+        _delete.Click += async (_, _) =>
+        {
+            if (CurrentGroup is not { } group) return;
+            await RunAsync(async () =>
+            {
+                if (MessageBox.Show(this, $"Xóa nhóm {group.Name}? Lịch sử vẫn được giữ trong dữ liệu nội bộ.", "Xóa nhóm",
+                    MessageBoxButtons.YesNo) == DialogResult.Yes)
+                    await SubmitAsync(Command(ControlCommandType.GroupDeleted, group.Id));
+            });
+        };
+        _groups.SelectedIndexChanged += (_, _) =>
+        {
+            if (_bindingGroups) return;
+            _creating = false;
+            _error = null;
+            BindMembers();
+        };
+        _search.TextChanged += (_, _) => BindGroups();
+        WireDragAndDrop();
+
+        Shown += async (_, _) =>
+        {
+            await RefreshAsync();
+            if (!_stop.IsCancellationRequested) _timer.Start();
+        };
+        _timer.Tick += async (_, _) => { if (!_saving) await RefreshAsync(); };
+        FormClosed += (_, _) => Stop();
+        Disposed += (_, _) => Stop();
+        UpdateActions();
+    }
+
+    private void Stop()
+    {
+        if (_stop.IsCancellationRequested) return;
+        _timer.Dispose();
+        _lifetime.Cancel();
+        _lifetime.Dispose();
+    }
+
+    private async Task RefreshAsync()
+    {
+        if (_stop.IsCancellationRequested || !_refreshGate.Wait(0)) return;
+        try
+        {
+            var knownProfile = _profile;
+            var snapshot = await Task.Run(async () =>
+            {
+                var profile = knownProfile ?? await _chat.GetProfileAsync(_stop);
+                // Read the commit index before the groups it describes.
+                var state = await _consensus.GetStatusAsync(_stop);
+                var groups = await _store.GetGroupsAsync(_stop);
+                var contacts = await _chat.GetUsersAsync(ct: _stop);
+                return (profile, state, groups, contacts);
+            }, _stop);
+            if (_stop.IsCancellationRequested) return;
+            if (_profile is null) _creating = snapshot.groups.Length == 0;
+            _profile = snapshot.profile;
+            _network = snapshot.state;
+            _summaries = snapshot.groups.ToDictionary(group => group.Id);
+            _contacts = snapshot.contacts.ToDictionary(person => person.UserId);
+            _refreshError = null;
+            _members.ReconcileDrafts(snapshot.groups, snapshot.profile.Id);
+            var created = _createdGroup is Guid id && _summaries.ContainsKey(id) ? _createdGroup : null;
+            if (created.HasValue)
+            {
+                _createdGroup = null;
+                _creating = false;
+                _members.ResetNewGroup();
+            }
+            BindGroups(created);
         }
-        ControlCommand Command(ControlCommandType type, GroupSummary g, string? name = null, Guid? target = null) => new(LanChat.Domain.AppIdentity.NewId(), type, _localUser, g.Id, Name: name, TargetUserId: target);
-        async Task LoadAsync()
+        catch (OperationCanceledException) when (_stop.IsCancellationRequested) { }
+        catch (Exception ex)
         {
-            if (_loading || IsDisposed) return; _loading = true;
+            if (_stop.IsCancellationRequested) return;
+            _refreshError = UiText.HideIpAddresses(ex.Message);
+            UpdateActions();
+        }
+        finally { _refreshGate.Release(); }
+    }
+
+    private void BindGroups(Guid? preferred = null)
+    {
+        var selected = preferred ?? SelectedId;
+        var search = _search.Text.Trim();
+        var visible = _summaries.Values.Where(g => g.Name.IndexOf(search, StringComparison.CurrentCultureIgnoreCase) >= 0).ToArray();
+        var index = Array.FindIndex(visible, group => group.Id == selected);
+        var selection = _creating || visible.Length == 0 ? -1 : Math.Max(0, index);
+        var needsRebuild = !_groups.Items.Cast<GroupSummary>().Select(g => (g.Id, g.Name)).SequenceEqual(visible.Select(g => (g.Id, g.Name)));
+        if (needsRebuild || _groups.SelectedIndex != selection)
+        {
+            _bindingGroups = true;
+            _groups.BeginUpdate();
             try
             {
-                _localUser = (await chat.GetIdentityAsync(_lifetime.Token)).UserId;
-                var selected = (_groups.SelectedItem as GroupSummary)?.Id;
-                var all = (await store.GetGroupsAsync(_lifetime.Token)).Where(x => x.Name.IndexOf(search.Text.Trim(), StringComparison.CurrentCultureIgnoreCase) >= 0).ToArray(); _groups.Items.Clear(); _groups.Items.AddRange(all); if (selected.HasValue) _groups.SelectedItem = all.FirstOrDefault(x => x.Id == selected); if (_groups.SelectedIndex < 0 && all.Length > 0) _groups.SelectedIndex = 0;
-                var known = await chat.GetUsersAsync(ct: _lifetime.Token); var checkedIds = _users.CheckedItems.Cast<SelectionItem>().Select(x => x.Id).ToHashSet();
-                _users.Items.Clear(); foreach (var user in known) _users.Items.Add(new SelectionItem(user.UserId, user.DisplayName, user.Department), checkedIds.Contains(user.UserId));
-                await UpdateStatusAsync();
+                if (needsRebuild)
+                {
+                    _groups.Items.Clear();
+                    _groups.Items.AddRange(visible);
+                }
+                _groups.SelectedIndex = selection;
             }
-            finally { _loading = false; }
+            finally { _groups.EndUpdate(); _bindingGroups = false; }
         }
-        async Task UpdateStatusAsync()
+        BindMembers();
+    }
+
+    private void BindMembers()
+    {
+        var name = _profile is { } profile ? new PersonName(profile.DisplayName, profile.Department) : default;
+        _members.Bind(CurrentGroup, _contacts, _profile?.Id ?? Guid.Empty, name, _creating);
+        UpdateActions();
+    }
+
+    private void UpdateActions()
+    {
+        var group = CurrentGroup;
+        var owner = IsOwner(group);
+        _groups.Enabled = _search.Enabled = !_saving;
+        _newGroup.Enabled = !_saving && !WaitingForCommit && _profile is not null;
+        _open.Enabled = !_saving && group is not null;
+        _rename.Enabled = _delete.Enabled = CanSubmit && owner;
+        _transfer.Enabled = CanSubmit && owner && group!.Members.Length > 1;
+        _members.SetActions(allowChecks: !_saving && !WaitingForCommit, allowSave: CanSubmit);
+        _membersTitle.Text = _creating ? "Thành viên nhóm mới" : "Thành viên nhóm";
+        var details = group is null ? "Chọn nhóm hoặc tạo nhóm mới." :
+            $"{group.Members.Length} thành viên · {(owner ? "Bạn là chủ nhóm" : "Bạn là thành viên")}";
+        _status.Text = (_network is null ? "Đang tải danh sách nhóm…" : UiText.HideIpAddresses(_network.StatusText)) + "\n" +
+            (_error ?? _refreshError ?? (WaitingForCommit ? "Đang đồng bộ thay đổi nhóm…" : details));
+    }
+
+    private Task CreateGroupAsync(Guid[] members) => RunAsync(async () =>
+    {
+        var name = SelectionForm.Prompt(this, "Tên nhóm mới");
+        if (name is null) return;
+        var id = AppIdentity.NewId();
+        await SubmitAsync(new ControlCommand(AppIdentity.NewId(), ControlCommandType.GroupCreated, _profile!.Id, id, Name: name, Members: members));
+        _createdGroup = id;
+        _search.Clear();
+    });
+
+    private ControlCommand Command(ControlCommandType type, Guid group, Guid? target = null, string? name = null) =>
+        new(AppIdentity.NewId(), type, _profile!.Id, group, Name: name, TargetUserId: target);
+
+    private async Task SubmitAsync(ControlCommand command)
+    {
+        var result = await _consensus.ProposeAsync(command, _stop);
+        if (!result.Success) throw new InvalidOperationException(result.Error ?? "Chưa xác nhận được thay đổi nhóm.");
+        _confirmedIndex = Math.Max(_confirmedIndex, result.Index);
+    }
+
+    private async Task RunAsync(Func<Task> action)
+    {
+        if (!CanSubmit || _stop.IsCancellationRequested) return;
+        _saving = true;
+        _error = null;
+        UpdateActions();
+        try
         {
-            var state = await consensus.GetStatusAsync(_lifetime.Token); if (IsDisposed) return;
-            var canPropose = state.LeaderReady;
-            _status.Text = UiText.HideIpAddresses(state.StatusText) + "\n" + ((_groups.SelectedItem as GroupSummary) is { } g ? $"{g.Members.Length} thành viên · { (g.OwnerUserId == _localUser ? "Bạn là chủ nhóm" : "Bạn là thành viên")}" : "Chọn nhóm hoặc tạo nhóm mới.");
-            _create.Enabled = canPropose; foreach (var b in _ownerButtons) b.Enabled = canPropose && (_groups.SelectedItem as GroupSummary)?.OwnerUserId == _localUser;
+            await _refreshGate.WaitAsync(_stop);
+            _refreshGate.Release();
+            await action();
         }
-        _create.Click += async (_, _) => await RunAsync(async () => { var name = SelectionForm.Prompt(this, "Tên nhóm mới"); if (name is null) return; var members = _users.CheckedItems.Cast<SelectionItem>().Select(x => x.Id).Append(_localUser).Distinct().ToArray(); await SubmitAsync(new(LanChat.Domain.AppIdentity.NewId(), ControlCommandType.GroupCreated, _localUser, LanChat.Domain.AppIdentity.NewId(), name, Members: members)); });
-        open.Click += (_, _) => { if (_groups.SelectedItem is GroupSummary group) { SelectedGroup = group.Id; DialogResult = DialogResult.OK; Close(); } }; _groups.DoubleClick += (_, _) => open.PerformClick();
-        rename.Click += async (_, _) => await RunAsync(async () => { if (_groups.SelectedItem is not GroupSummary g) return; var name = SelectionForm.Prompt(this, "Đổi tên nhóm", g.Name); if (name is not null) await SubmitAsync(Command(ControlCommandType.GroupRenamed, g, name)); });
-        add.Click += async (_, _) => await RunAsync(async () => { if (_groups.SelectedItem is not GroupSummary g) return; foreach (var user in _users.CheckedItems.Cast<SelectionItem>().Where(x => !g.Members.Contains(x.Id)).ToArray()) await SubmitAsync(Command(ControlCommandType.GroupMemberAdded, g, target: user.Id)); });
-        async Task ChooseMemberAsync(ControlCommandType type)
+        catch (OperationCanceledException) when (_stop.IsCancellationRequested) { }
+        catch (Exception ex) { _error = UiText.HideIpAddresses(ex.Message); }
+        finally
         {
-            if (_groups.SelectedItem is not GroupSummary g) return;
-            var known = await chat.GetUsersAsync(ct: _lifetime.Token);
-            using var choose = new SelectionForm(type == ControlCommandType.GroupOwnerChanged ? "Chọn chủ nhóm mới" : "Xóa thành viên",
-                g.Members.Where(x => x != _localUser).Select(x => known.FirstOrDefault(u => u.UserId == x) is { } user
-                    ? new SelectionItem(x, user.DisplayName, user.Department) : new SelectionItem(x, x.ToString())));
-            if (choose.ShowDialog(this) == DialogResult.OK && choose.SelectedId is { } id) await SubmitAsync(Command(type, g, target: id));
+            await RefreshAsync();
+            _saving = false;
+            if (!_stop.IsCancellationRequested) UpdateActions();
         }
-        remove.Click += async (_, _) => await RunAsync(() => ChooseMemberAsync(ControlCommandType.GroupMemberRemoved)); owner.Click += async (_, _) => await RunAsync(() => ChooseMemberAsync(ControlCommandType.GroupOwnerChanged));
-        delete.Click += async (_, _) => await RunAsync(async () => { if (_groups.SelectedItem is GroupSummary g && MessageBox.Show(this, $"Xóa nhóm {g.Name}? Lịch sử vẫn được giữ trong dữ liệu nội bộ.", "Xóa nhóm", MessageBoxButtons.YesNo) == DialogResult.Yes) await SubmitAsync(Command(ControlCommandType.GroupDeleted, g)); });
-        _groups.SelectedIndexChanged += async (_, _) =>
+    }
+
+    private void WireDragAndDrop()
+    {
+        var dragStart = Point.Empty;
+        _members.List.MouseDown += (_, e) => dragStart = e.Location;
+        _members.List.MouseMove += (_, e) =>
         {
-            try { await UpdateStatusAsync(); }
-            catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { }
+            if (!CanSubmit || e.Button != MouseButtons.Left || Math.Abs(e.X - dragStart.X) + Math.Abs(e.Y - dragStart.Y) <= 10 ||
+                _members.List.SelectedItem is not SelectionItem item || !_contacts.ContainsKey(item.Id)) return;
+            _members.List.DoDragDrop(new DataObject("LanChat.UserId", item.Id.ToString()), DragDropEffects.Copy);
         };
-        Point dragStart = Point.Empty;
-        _users.MouseDown += (_, e) => dragStart = e.Location;
-        _users.MouseMove += (_, e) => { if (e.Button == MouseButtons.Left && Math.Abs(e.X - dragStart.X) + Math.Abs(e.Y - dragStart.Y) > 10 && _users.SelectedItem is SelectionItem item) { var data = new DataObject("LanChat.UserId", item.Id.ToString()); _users.DoDragDrop(data, DragDropEffects.Copy); } };
-        _groups.DragEnter += (_, e) => e.Effect = e.Data?.GetDataPresent("LanChat.UserId") == true ? DragDropEffects.Copy : DragDropEffects.None;
-        _groups.DragDrop += async (_, e) => await RunAsync(async () => { var index = _groups.IndexFromPoint(_groups.PointToClient(new Point(e.X, e.Y))); if (index >= 0 && _groups.Items[index] is GroupSummary g && Guid.TryParse(e.Data?.GetData("LanChat.UserId")?.ToString(), out var id)) await SubmitAsync(Command(ControlCommandType.GroupMemberAdded, g, target: id)); });
-        search.TextChanged += async (_, _) => await RunAsync(LoadAsync);
-        Shown += async (_, _) => { await RunAsync(LoadAsync); _timer.Start(); }; _timer.Tick += async (_, _) => { try { await UpdateStatusAsync(); } catch (Exception ex) { if (!IsDisposed) _status.Text = UiText.HideIpAddresses(ex.Message); } };
-        FormClosed += (_, _) => { _timer.Stop(); _timer.Dispose(); _lifetime.Cancel(); };
+        (GroupSummary Group, Guid User)? DragTarget(DragEventArgs e)
+        {
+            if (!CanSubmit || !Guid.TryParse(e.Data?.GetData("LanChat.UserId")?.ToString(), out var user) ||
+                !_contacts.ContainsKey(user)) return null;
+            var index = _groups.IndexFromPoint(_groups.PointToClient(new Point(e.X, e.Y)));
+            if (index < 0 || _groups.Items[index] is not GroupSummary row ||
+                !_summaries.TryGetValue(row.Id, out var group) || !IsOwner(group) || group.Members.Contains(user)) return null;
+            return (group, user);
+        }
+        void PreviewDrop(object? sender, DragEventArgs e) => e.Effect = DragTarget(e).HasValue ? DragDropEffects.Copy : DragDropEffects.None;
+        _groups.DragEnter += PreviewDrop;
+        _groups.DragOver += PreviewDrop;
+        _groups.DragDrop += async (_, e) =>
+        {
+            if (DragTarget(e) is { } target)
+                await RunAsync(() => SubmitAsync(Command(ControlCommandType.GroupMemberAdded, target.Group.Id, target.User)));
+        };
     }
 }

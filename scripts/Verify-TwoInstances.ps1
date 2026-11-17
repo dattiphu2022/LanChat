@@ -53,4 +53,5 @@ $idsB = ($reports[1].Messages.Id | Sort-Object) -join ','
 if ($idsA -ne $idsB) { throw 'Hai instance chưa có cùng tin nhắn.' }
 if ($reports[0].GroupId -ne $reports[1].GroupId -or $reports.Where({$_.VerifiedFiles -ne 6 -or $_.VerifiedOpenRequests -ne 3 -or $_.VerifiedGalleries -ne 4 -or $_.InlineImagesLoaded -lt 2 -or $_.VerifiedSourceChanges -ne 3}).Count -gt 0) { throw 'Kiểm tra nhóm/tệp/ảnh hoặc sửa/xóa nguồn sau gửi chưa đạt.' }
 if ($reports.Where({-not $_.VerifiedReplies -or -not $_.VerifiedClipboard}).Count -gt 0) { throw 'Kiểm tra điều hướng trích dẫn hoặc gửi ảnh từ bảng nhớ tạm chưa đạt.' }
-Write-Output "PASS: hai tiến trình WinForms, chat trực tiếp và nhóm, đính kèm và ảnh, điều hướng trích dẫn, gửi ảnh từ bảng nhớ tạm. Kết quả: $OutputDirectory"
+if ($reports.Where({-not $_.VerifiedGroupMembers}).Count -gt 0) { throw 'Kiểm tra thêm và bớt thành viên từ thông tin hội thoại chưa đạt.' }
+Write-Output "PASS: hai tiến trình WinForms, chat trực tiếp và nhóm, tệp và ảnh, trích dẫn, ảnh từ bảng nhớ tạm, quản lý thành viên từ hội thoại. Kết quả: $OutputDirectory"

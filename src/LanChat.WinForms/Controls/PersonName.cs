@@ -16,6 +16,12 @@ internal readonly record struct PersonName
     public override string ToString() => string.IsNullOrEmpty(Department) ? Name ?? "" : $"{Department} {Name}";
 }
 
+internal sealed record SelectionItem(Guid Id, PersonName DisplayName)
+{
+    public SelectionItem(Guid id, string name, string? department = null) : this(id, new PersonName(name, department)) { }
+    public override string ToString() => DisplayName.ToString();
+}
+
 internal sealed class PersonNameLabel : Label
 {
     private PersonName _name = new("");
@@ -130,6 +136,8 @@ internal sealed class PersonNameListBox : ListBox
 
 internal sealed class PersonNameCheckedListBox(Func<object, PersonName> getName) : CheckedListBox
 {
+    public Func<object, bool>? IsCheckEnabled { get; set; }
+
     protected override void OnDrawItem(DrawItemEventArgs e)
     {
         if (e.Index < 0 || e.Index >= Items.Count)
@@ -139,18 +147,20 @@ internal sealed class PersonNameCheckedListBox(Func<object, PersonName> getName)
         }
 
         e.DrawBackground();
+        var item = Items[e.Index];
+        var canCheck = Enabled && IsCheckEnabled?.Invoke(item) != false;
         var state = GetItemCheckState(e.Index) switch
         {
-            CheckState.Checked => Enabled ? CheckBoxState.CheckedNormal : CheckBoxState.CheckedDisabled,
-            CheckState.Indeterminate => Enabled ? CheckBoxState.MixedNormal : CheckBoxState.MixedDisabled,
-            _ => Enabled ? CheckBoxState.UncheckedNormal : CheckBoxState.UncheckedDisabled
+            CheckState.Checked => canCheck ? CheckBoxState.CheckedNormal : CheckBoxState.CheckedDisabled,
+            CheckState.Indeterminate => canCheck ? CheckBoxState.MixedNormal : CheckBoxState.MixedDisabled,
+            _ => canCheck ? CheckBoxState.UncheckedNormal : CheckBoxState.UncheckedDisabled
         };
         var glyph = CheckBoxRenderer.GetGlyphSize(e.Graphics, state);
         var inset = this.ScalePixels(3);
         CheckBoxRenderer.DrawCheckBox(e.Graphics,
             new Point(e.Bounds.Left + inset, e.Bounds.Top + Math.Max(0, (e.Bounds.Height - glyph.Height) / 2)), state);
         var area = Rectangle.FromLTRB(e.Bounds.Left + glyph.Width + inset * 2, e.Bounds.Top, e.Bounds.Right - inset, e.Bounds.Bottom);
-        PersonNameDrawing.Draw(e.Graphics, area, getName(Items[e.Index]), e.Font, e.ForeColor);
+        PersonNameDrawing.Draw(e.Graphics, area, getName(item), e.Font, e.ForeColor);
         e.DrawFocusRectangle();
     }
 }

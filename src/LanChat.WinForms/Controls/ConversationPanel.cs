@@ -9,18 +9,18 @@ internal sealed class ConversationPanel : UserControl
     private readonly ListBox _results = List("Kết quả tìm tin");
     private readonly ListBox _images = List("Ảnh");
     private readonly ListBox _files = List("Tệp");
-    private readonly ListBox _members = new PersonNameListBox(item => (PersonName)item)
-        { Dock = DockStyle.Fill, AccessibleName = "Thành viên", BorderStyle = BorderStyle.None };
+    private readonly GroupMembersControl _members = new();
     private readonly TabControl _tabs = new() { Dock = DockStyle.Fill };
     private readonly TabPage _searchTab = new("Tìm tin");
     private readonly TabPage _membersTab = new("Thành viên");
     private AttachmentDto[] _attachments = [];
-    private PersonName[] _memberNames = [];
+    private static readonly Dictionary<Guid, UserSummary> NoContacts = [];
 
     public event Action? CloseRequested;
     public event Action<string>? SearchRequested;
     public event Action<SearchResult>? ResultSelected;
     public event Action<AttachmentDto>? FileRequested;
+    public event Action<GroupMemberChanges>? MemberSaveRequested;
 
     public ConversationPanel()
     {
@@ -49,12 +49,23 @@ internal sealed class ConversationPanel : UserControl
         var photos = new TabPage("Ảnh"); photos.Controls.Add(_images);
         var files = new TabPage("Tệp"); files.Controls.Add(_files);
         _membersTab.Controls.Add(_members);
+        _members.SaveRequested += changes => MemberSaveRequested?.Invoke(changes);
         _tabs.TabPages.AddRange([photos, files, _searchTab]);
         Wire(_results, () => { if (_results.SelectedItem is SearchRow row) ResultSelected?.Invoke(row.Item); });
         Wire(_images, () => Open(_images)); Wire(_files, () => Open(_files));
     }
 
-    public void Bind(AttachmentDto[] attachments, GroupSummary? group, IReadOnlyList<UserSummary> contacts, Guid localUser, PersonName localName)
+    public void Bind(AttachmentDto[] attachments, GroupSummary[]? groups, Guid conversationId,
+        IReadOnlyList<UserSummary> contacts, Guid localUser, PersonName localName)
+    {
+        BindFiles(attachments);
+        var group = groups?.FirstOrDefault(item => item.Id == conversationId);
+        if (groups is not null) _members.ReconcileDrafts(groups, localUser);
+        _members.Bind(group, group is null ? NoContacts : contacts.ToDictionary(person => person.UserId), localUser, localName);
+        ShowMembersTab(group is not null);
+    }
+
+    private void BindFiles(AttachmentDto[] attachments)
     {
         var ordered = attachments.OrderByDescending(f => f.Id).ToArray();
         if (!_attachments.SequenceEqual(ordered))
@@ -63,20 +74,34 @@ internal sealed class ConversationPanel : UserControl
             SetFiles(_images, ordered.Where(ChatImageService.IsImage));
             SetFiles(_files, ordered.Where(f => !ChatImageService.IsImage(f)));
         }
-        if (group is null) { if (_tabs.TabPages.Contains(_membersTab)) _tabs.TabPages.Remove(_membersTab); }
-        else if (!_tabs.TabPages.Contains(_membersTab)) _tabs.TabPages.Add(_membersTab);
-        var names = group?.Members.Select(id =>
-        {
-            var contact = contacts.FirstOrDefault(u => u.UserId == id);
-            var name = id == localUser ? new PersonName(localName.Name + " · Bạn", localName.Department) :
-                new PersonName(contact?.DisplayName ?? "Thành viên LAN", contact?.Department);
-            return id == group.OwnerUserId ? new PersonName(name.Name + " · Chủ nhóm", name.Department) : name;
-        }).OrderBy(n => n.Name).ToArray() ?? [];
-        if (_memberNames.SequenceEqual(names)) return;
-        _memberNames = names; _members.Items.Clear(); _members.Items.AddRange(names.Cast<object>().ToArray());
     }
 
-    public void ResetSearch() { _search.Clear(); _results.Items.Clear(); }
+    private void ShowMembersTab(bool visible)
+    {
+        var shown = _tabs.TabPages.Contains(_membersTab);
+        if (visible && !shown) _tabs.TabPages.Add(_membersTab);
+        if (!visible && shown) _tabs.TabPages.Remove(_membersTab);
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing && _membersTab.Parent is null) _membersTab.Dispose();
+        base.Dispose(disposing);
+    }
+
+    public void ResetConversation(bool isGroup)
+    {
+        _search.Clear();
+        _results.Items.Clear();
+        BindFiles([]);
+        _members.Bind(null, NoContacts, Guid.Empty, default);
+        _members.SetActions(false, false, isGroup ? "Đang tải thành viên…" : null);
+        ShowMembersTab(isGroup);
+    }
+
+    public void SetMemberActions(bool allowChecks, bool allowSave, string? status) =>
+        _members.SetActions(allowChecks, allowSave, status);
+
     public void FocusSearch() { _tabs.SelectedTab = _searchTab; _search.Focus(); _search.SelectAll(); }
     public void SetResults(string query, SearchResult[] rows)
     {

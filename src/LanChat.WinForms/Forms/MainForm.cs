@@ -38,6 +38,12 @@ public sealed partial class MainForm : DpiForm
     private bool _jumpedInLatest;
     private long _historyRequest;
     private bool _panelOpen;
+    private long _panelRequest;
+    private long _panelCommitIndex;
+    private long _memberSaveIndex;
+    private bool _savingMembers;
+    private bool _groupLeaderReady;
+    private string? _memberSaveError;
     private bool _showPeople;
     private bool _layoutQueued;
     private bool _ticking;
@@ -182,6 +188,7 @@ public sealed partial class MainForm : DpiForm
         _info.FileRequested += async file => await RunUiAsync(() => OpenAttachmentAsync(file), userOperation: true);
         _info.SearchRequested += async query => await RunUiAsync(() => SearchInPanelAsync(query));
         _info.ResultSelected += async result => await RunUiAsync(() => JumpAsync(result));
+        _info.MemberSaveRequested += async changes => await RunUiAsync(() => SavePanelMembersAsync(changes), userOperation: true);
         _chatArea.SizeChanged += (_, _) => QueueWorkspaceLayout();
         _workspace.SizeChanged += (_, _) => QueueWorkspaceLayout();
         Load += (_, _) => QueueWorkspaceLayout();
@@ -269,7 +276,7 @@ public sealed partial class MainForm : DpiForm
             _boundConversation = null;
             _olderMessages = _visibleMessages = []; _searchAnchor = null; _jumpedInLatest = false; _hasOlder = true;
             _historyRequest++;
-            _info.ResetSearch();
+            ResetConversationPanel(_summaries.Any(conversation => conversation.Id == id && conversation.Kind == ConversationKind.Group));
         }
         _activeConversation = id; ShowPeople(false);
         await RefreshAsync();
@@ -282,7 +289,7 @@ public sealed partial class MainForm : DpiForm
         _jumpedInLatest = false;
         _olderMessages = _visibleMessages = [];
         _hasOlder = true;
-        _info.ResetSearch();
+        ResetConversationPanel(isGroup: false);
         _chat.ClearConversation();
         SetPanel(false);
     }
@@ -330,10 +337,11 @@ public sealed partial class MainForm : DpiForm
             var previous = _olderMessages;
             var changed = _revision != revision;
             var presenceDue = DateTime.UtcNow - _lastPresence > TimeSpan.FromSeconds(4);
+            var refreshContacts = changed || _presenceRevision != presenceRevision || presenceDue;
             IncomingMessageBatch? incoming = null;
             if (changed)
                 incoming = await Task.Run(() => _store.GetIncomingMessagesAsync(_incomingPosition, ct), ct);
-            if (changed || _presenceRevision != presenceRevision || presenceDue)
+            if (refreshContacts)
             {
                 var contacts = await Task.Run(() => _store.GetUsersAsync(ct: ct), ct);
                 var summaries = changed || _presenceRevision != presenceRevision
@@ -360,17 +368,20 @@ public sealed partial class MainForm : DpiForm
                 else
                 {
                     _chat.SelectConversation(new PersonName(current.DisplayName, current.Department), current.Presence == PresenceStatus.Online, current.Kind == ConversationKind.Group);
-                    if (changed || _boundConversation != id || _boundSearch != anchor || _boundOlder != previous)
+                    var refreshHistory = changed || _boundConversation != id || _boundSearch != anchor || _boundOlder != previous;
+                    if (refreshHistory)
                     {
                         var data = await ReadHistoryAsync(id.Value, anchor, previous, ct);
                         if (IsDisposed) return;
                         if (id == _activeConversation && anchor == _searchAnchor && previous == _olderMessages)
                         {
                             BindHistory(id.Value, anchor, previous, data);
-                            if (_panelOpen) await LoadPanelAsync(id.Value);
                             await MarkActiveReadAsync();
                         }
                     }
+                    if (_panelOpen && id == _activeConversation &&
+                        (refreshHistory || (refreshContacts && current.Kind == ConversationKind.Group)))
+                        await LoadPanelAsync(id.Value);
                 }
             }
             _revision = revision; _presenceRevision = presenceRevision;
@@ -453,6 +464,11 @@ public sealed partial class MainForm : DpiForm
         var state = await Task.Run(async () => (await Consensus.GetStatusAsync(ct), await _store.GetPendingCountAsync(ct)), ct);
         if (!IsDisposed)
         {
+            if (_groupLeaderReady != state.Item1.LeaderReady)
+            {
+                _groupLeaderReady = state.Item1.LeaderReady;
+                if (_panelOpen) UpdatePanelMemberActions();
+            }
             var online = _contacts.Count(x => x.Presence == PresenceStatus.Online);
             _status.Text = UiText.HideIpAddresses(_health.Error ?? (online == 0 ? _health.DiscoveryIssue : null)
                 ?? $"{state.Item1.StatusText}   ·   {online} máy trực tuyến   ·   {state.Item2} tin chờ");
@@ -541,9 +557,17 @@ public sealed partial class MainForm : DpiForm
 
     private void SetPanel(bool visible)
     {
+        if (!visible) _panelRequest++;
         _panelOpen = visible;
         _info.Visible = visible;
         LayoutPanel();
+    }
+
+    private void ResetConversationPanel(bool isGroup)
+    {
+        _panelRequest++;
+        _memberSaveError = null;
+        _info.ResetConversation(isGroup);
     }
     private bool IsCompactChat => _chatArea.ClientSize.Width < this.ScalePixels(660);
 
@@ -587,9 +611,74 @@ public sealed partial class MainForm : DpiForm
     private async Task LoadPanelAsync(Guid id)
     {
         var ct = _lifetime.Token;
-        var data = await Task.Run(async () => (await Distributed.GetAttachmentsAsync(id, ct), (await Distributed.GetGroupsAsync(ct)).FirstOrDefault(g => g.Id == id)), ct);
-        if (id == _activeConversation && !IsDisposed) _info.Bind(data.Item1, data.Item2, _contacts, _localUser, _profile.Person);
+        var request = ++_panelRequest;
+        var isGroup = _summaries.Any(conversation => conversation.Id == id && conversation.Kind == ConversationKind.Group);
+        var data = await Task.Run(async () =>
+        {
+            var attachments = await Distributed.GetAttachmentsAsync(id, ct);
+            if (!isGroup) return (attachments, status: (ConsensusStatus?)null, groups: (GroupSummary[]?)null);
+            // Read the local commit index before the membership it describes.
+            var status = await Consensus.GetStatusAsync(ct);
+            var groups = await Distributed.GetGroupsAsync(ct);
+            return (attachments, status, groups);
+        }, ct);
+        if (IsDisposed || !_panelOpen || id != _activeConversation || request != _panelRequest) return;
+        if (data.status is { } state)
+        {
+            _panelCommitIndex = state.CommitIndex;
+            _groupLeaderReady = state.LeaderReady;
+        }
+        _info.Bind(data.attachments, data.groups, id, _contacts, _localUser, _profile.Person);
+        UpdatePanelMemberActions();
     }
+
+    private bool WaitingForMemberCommit => _memberSaveIndex > _panelCommitIndex;
+
+    private void UpdatePanelMemberActions()
+    {
+        var allowChecks = !_savingMembers && !WaitingForMemberCommit;
+        var status = _savingMembers ? "Đang lưu thành viên…" :
+            WaitingForMemberCommit ? "Đang đồng bộ thay đổi nhóm…" : _memberSaveError;
+        _info.SetMemberActions(allowChecks, allowChecks && _groupLeaderReady, status);
+    }
+
+    private async Task SavePanelMembersAsync(GroupMemberChanges changes)
+    {
+        if (!_panelOpen || changes.GroupId != _activeConversation || changes.ActorUserId != _localUser ||
+            _savingMembers || WaitingForMemberCommit || !_groupLeaderReady) return;
+        var ct = _lifetime.Token;
+        _savingMembers = true;
+        _memberSaveError = null;
+        UpdatePanelMemberActions();
+        try
+        {
+            await changes.ApplyAsync(Distributed, async command =>
+            {
+                var result = await Consensus.ProposeAsync(command, ct);
+                if (!result.Success)
+                    throw new InvalidOperationException(result.Error ?? "Chưa xác nhận được thay đổi nhóm.");
+                _memberSaveIndex = Math.Max(_memberSaveIndex, result.Index);
+            }, ct);
+        }
+        catch (Exception ex) when (!ct.IsCancellationRequested)
+        {
+            if (changes.GroupId == _activeConversation) _memberSaveError = UiText.HideIpAddresses(ex.Message);
+        }
+        finally
+        {
+            try
+            {
+                if (!ct.IsCancellationRequested && !IsDisposed && _panelOpen && _activeConversation is Guid current)
+                    await LoadPanelAsync(current);
+            }
+            finally
+            {
+                _savingMembers = false;
+                if (!IsDisposed) UpdatePanelMemberActions();
+            }
+        }
+    }
+
     private async Task SearchInPanelAsync(string query)
     {
         if (_activeConversation is not Guid id) return;

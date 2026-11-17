@@ -2,12 +2,6 @@ using LanChat.WinForms.Controls;
 
 namespace LanChat.WinForms.Forms;
 
-internal sealed record SelectionItem(Guid Id, PersonName DisplayName)
-{
-    public SelectionItem(Guid id, string name, string? department = null) : this(id, new PersonName(name, department)) { }
-    public override string ToString() => DisplayName.ToString();
-}
-
 internal sealed class SelectionForm : DpiForm
 {
     private readonly ListBox _list = new PersonNameListBox(item => ((SelectionItem)item).DisplayName) { Dock = DockStyle.Fill };
