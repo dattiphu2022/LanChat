@@ -76,7 +76,13 @@ internal sealed class AboutForm : DpiForm
         };
         var project = ResourceLink("Dự án trên GitHub", UiIcon.Open);
         project.AccessibleDescription = ProjectUrl;
-        resources.Controls.AddRange([guide, project]);
+        var license = ResourceLink("Giấy phép MIT", UiIcon.File);
+        license.LinkClicked += (_, _) =>
+        {
+            using var dialog = new LicenseForm();
+            dialog.ShowDialog(this);
+        };
+        resources.Controls.AddRange([guide, project, license]);
         var links = new ToolTip();
         links.SetToolTip(project, ProjectUrl);
         Disposed += (_, _) => links.Dispose();

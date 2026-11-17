@@ -1,6 +1,6 @@
 # Nghiệm thu LanChat trên mạng thật
 
-Danh sách dưới đây dùng để nghiệm thu v1.2.1 trên các PC tại nơi sử dụng. Xem thao tác của người dùng và kết quả đã ghi nhận trong [Hướng dẫn sử dụng](HUONG_DAN_SU_DUNG.md) và [Kết quả kiểm chứng](VERIFICATION.md).
+Danh sách dưới đây dùng để nghiệm thu v1.2.2 trên các PC tại nơi sử dụng. Xem thao tác của người dùng và kết quả đã ghi nhận trong [Hướng dẫn sử dụng](HUONG_DAN_SU_DUNG.md) và [Kết quả kiểm chứng](VERIFICATION.md).
 
 ## Chuẩn bị
 

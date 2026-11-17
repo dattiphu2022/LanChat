@@ -1,4 +1,4 @@
-# LanChat v1.2.1 — Chat nội bộ cho Windows
+# LanChat v1.2.2 — Chat nội bộ cho Windows
 
 LanChat hỗ trợ chat riêng, chat nhóm và truyền ảnh, tệp, thư mục giữa các máy Windows trên mạng LAN. Mỗi máy lưu dữ liệu trong SQLite. Tin nhắn và tệp được mã hóa đầu cuối. Kiểm tra và tải bản cập nhật từ GitHub cần Internet.
 
