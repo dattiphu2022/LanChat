@@ -50,7 +50,9 @@ Outbox retry theo backoff, tối đa 30 giây. Reconciliation tự chạy mỗi 
 5. Trao đổi Digest, lấy các khoảng thiếu theo từng origin, tối đa 100 event và giới hạn byte mỗi lô.
 6. Receipt và event mới sinh trong lúc tiếp nhận được phát tiếp như event bình thường.
 
-Peer có thể chuyển tiếp lịch sử dạng mã hóa khi người gửi gốc offline. Thiết bị chỉ chiếu nội dung vào bảng Messages và FTS khi event có khóa gửi riêng cho thiết bị đó. Máy mới hoặc thành viên mới chỉ đọc được các tin được mã hóa cho khóa của mình. Control log vẫn được truyền riêng cho learner trước khi thêm nó thành voter.
+Peer có thể chuyển tiếp lịch sử dạng mã hóa khi người gửi gốc offline. Từ v1.2.5, thành viên đang đọc được lịch sử có thể mã hóa lại khóa nội dung cho thành viên hiện tại khác. Khóa bổ sung được ký bởi thiết bị chia sẻ, gửi kèm EventBatch và lưu trong GroupHistoryKeys sau khi kiểm tra chữ ký, quyền thành viên và bản mã. Chữ ký cùng payload của event gốc được giữ nguyên. Control log tiếp tục cung cấp danh sách thành viên và thứ tự thay đổi nhóm.
+
+Digest công bố khả năng chia sẻ lịch sử và dấu thay đổi quyền truy cập nhóm. Khi dấu này đổi, hai phía đọc lại lịch sử theo trang 100 sự kiện để bổ sung khóa còn thiếu, kể cả khi cursor bản mã đã đầy đủ. Lúc khởi động, ứng dụng tính lại projection nhóm từ các event đã lưu để khôi phục các tin chưa hiển thị. Xóa phía tôi được giữ theo trạng thái cục bộ. Peer phiên bản cũ tiếp tục dùng đồng bộ event của giao thức v4.
 
 Recall là trạng thái cuối, thắng các edit đến muộn. Edit chỉ của người gửi; cảm xúc là trạng thái cuối theo user/emoji. Read receipt tăng một chiều. Xóa phía tôi không phát event. HLC xác định thứ tự tin; local read state theo từng tin tránh bỏ sót tin đến muộn có thời gian cũ.
 

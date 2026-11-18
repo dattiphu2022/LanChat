@@ -10,7 +10,7 @@ public sealed class ChatDatabase
     {
         "20260921071741_InitialPhase1", "20260921072743_LocalReadState", "20260921081251_DistributedPhases",
         "20261113093000_LocalConversationVisibility", "20261116100000_PeerAddresses", "20261116130000_EndToEndEncryption",
-        "20261117150000_PendingPairGroups"
+        "20261117150000_PendingPairGroups", "20261118100000_GroupHistoryKeys"
     });
     private readonly string _connectionString;
     public ChatDatabase(string dataDirectory)

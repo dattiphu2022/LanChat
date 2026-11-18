@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Collections.Concurrent;
 using LanChat.Application;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -15,6 +16,7 @@ public sealed class ReplicationBackgroundService(IDistributedStore store, ChatSt
     private Guid? _newLeader;
     private CancellationTokenSource? _normalRound;
     private long _lastPeerRevision;
+    private readonly ConcurrentDictionary<Guid, (string? Local, string? Remote)> _groupHistoryRevisions = new();
     private void OnLeaderReady(Guid node, long term)
     {
         lock (_leaderGate)
@@ -79,33 +81,42 @@ public sealed class ReplicationBackgroundService(IDistributedStore store, ChatSt
     private async Task ReconcilePeerAsync(PeerEndpoint peer, NodeInfoDto self, CancellationToken ct)
     {
         var remote = await transport.CallAsync<ReplicationDigest>(peer, "Digest", self, ct);
-        var local = (await store.GetDigestAsync(ct)).Cursors.ToDictionary(x => x.OriginNodeId, x => x.LastOriginSequence);
+        var localDigest = await store.GetDigestAsync(ct);
+        var revision = (Local: localDigest.GroupHistoryRevision, Remote: remote.GroupHistoryRevision);
+        var replayHistory = remote.SupportsGroupHistory &&
+            (!_groupHistoryRevisions.TryGetValue(peer.NodeId, out var previous) || previous != revision);
+        var local = localDigest.Cursors.ToDictionary(x => x.OriginNodeId, x => x.LastOriginSequence);
         foreach (var origin in remote.Cursors)
         {
-            var cursor = local.GetValueOrDefault(origin.OriginNodeId);
+            var cursor = replayHistory ? 0 : local.GetValueOrDefault(origin.OriginNodeId);
             while (cursor < origin.LastOriginSequence)
             {
-                var batch = await transport.CallAsync<EventBatch>(peer, "EventRange", new EventRangeRequest(origin.OriginNodeId, cursor), ct);
+                var batch = await transport.CallAsync<EventBatch>(peer, "EventRange",
+                    new EventRangeRequest(origin.OriginNodeId, cursor) { IncludeGroupHistory = remote.SupportsGroupHistory }, ct);
                 if (batch.Events.Length == 0) break;
+                if (batch.Events.Any(item => item.OriginNodeId != origin.OriginNodeId || item.OriginSequence <= cursor))
+                    throw new InvalidDataException("Trang lịch sử không khớp vị trí đồng bộ.");
                 await store.ImportEventsAsync(batch, ct);
-                var next = (await store.GetDigestAsync(ct)).Cursors.FirstOrDefault(x => x.OriginNodeId == origin.OriginNodeId)?.LastOriginSequence ?? 0;
+                var next = batch.Events.Last().OriginSequence;
                 if (next <= cursor) break; cursor = next;
             }
         }
         var ours = (await store.GetDigestAsync(ct)).Cursors;
         foreach (var origin in ours)
         {
-            var after = remote.Cursors.FirstOrDefault(x => x.OriginNodeId == origin.OriginNodeId)?.LastOriginSequence ?? 0;
+            var after = replayHistory ? 0 : remote.Cursors.FirstOrDefault(x => x.OriginNodeId == origin.OriginNodeId)?.LastOriginSequence ?? 0;
             while (after < origin.LastOriginSequence)
             {
                 var batch = await store.GetEventRangeAsync(new(origin.OriginNodeId, after), ct);
                 if (batch.Events.Length == 0) break;
+                if (remote.SupportsGroupHistory) batch = await chat.AddGroupHistoryAsync(batch, peer.NodeId, ct);
                 var ack = await transport.CallAsync<EventAck>(peer, "EventPush", batch, ct);
                 if (ack.EventIds.Length != batch.Events.Length) break;
                 after = batch.Events[batch.Events.Length - 1].OriginSequence;
                 await store.RecordOutboxResultAsync(ack.EventIds, true, ct);
             }
         }
+        if (remote.SupportsGroupHistory) _groupHistoryRevisions[peer.NodeId] = revision;
     }
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -114,6 +125,7 @@ public sealed class ReplicationBackgroundService(IDistributedStore store, ChatSt
         runtime.LeaderReady += OnLeaderReady;
         try
         {
+            await chat.RepairGroupHistoryAsync(stoppingToken).ConfigureAwait(false);
             while (!stoppingToken.IsCancellationRequested)
             {
                 try

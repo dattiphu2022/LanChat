@@ -38,7 +38,7 @@ public sealed record NodeInfoDto(Guid NodeId, string DeviceName, int ServicePort
     DevicePublicKeys? DeviceKeys = null, string? KeyProof = null)
 {
     public const int CurrentProtocol = 4;
-    public const string CurrentApplicationVersion = "1.2.4";
+    public const string CurrentApplicationVersion = "1.2.5";
 }
 public sealed record ChatMessageDto(Guid Id, Guid ClientMessageId, Guid ConversationId, Guid SenderUserId,
     Guid RecipientUserId, Guid OriginNodeId, long OriginSequence, MessageKind Kind, string Text,

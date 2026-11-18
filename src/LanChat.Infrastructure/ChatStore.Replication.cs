@@ -58,7 +58,8 @@ public sealed partial class ChatStore
     public async Task<ReplicationDigest> GetDigestAsync(CancellationToken ct = default)
     {
         using var db = database.Open(ct);
-        return new(db.Rows<ReplicationCursor>().Select(x => new CursorDto(x.OriginNodeId, x.LastOriginSequence)).ToArray());
+        return new(db.Rows<ReplicationCursor>().Select(x => new CursorDto(x.OriginNodeId, x.LastOriginSequence)).ToArray())
+        { SupportsGroupHistory = true, GroupHistoryRevision = GroupHistoryRevision(db) };
     }
     public async Task<EventBatch> GetEventRangeAsync(EventRangeRequest request, CancellationToken ct = default)
     {
@@ -76,7 +77,8 @@ public sealed partial class ChatStore
     }
     public Task<EventAck> ImportEventsAsync(EventBatch batch, CancellationToken ct = default) => WriteAsync(async db =>
     {
-        if (batch.Events.Length > 100) throw new InvalidDataException("Lô sự kiện quá lớn.");
+        if (batch.Events.Length > 100 || batch.GroupHistoryKeys is null || batch.GroupHistoryKeys.Length > 100)
+            throw new InvalidDataException("Lô sự kiện quá lớn.");
         var s = db.Required<LocalSettings>();
         var changed = new HashSet<Guid>(); var origins = new HashSet<Guid>();
         foreach (var e in batch.Events)
@@ -85,6 +87,7 @@ public sealed partial class ChatStore
             if (old is not null)
             {
                 if (ToEvent(old) != e) throw new InvalidDataException("Xung đột sự kiện bất biến.");
+                if (e.ConversationId.HasValue && db.Exists<Group>("Id=$0", e.ConversationId)) changed.Add(e.EntityId);
                 continue;
             }
             if (e.OriginNodeId == s.NodeId) throw new InvalidDataException("Không nhận sự kiện mới giả danh node cục bộ.");
@@ -110,6 +113,7 @@ public sealed partial class ChatStore
                 if (sequences.Length < 500 || cursor.LastOriginSequence == start || cursor.LastOriginSequence != sequences[sequences.Length - 1]) break;
             }
         }
+        ImportGroupHistoryKeys(db, batch.GroupHistoryKeys, changed);
         foreach (var id in changed) await ProjectEntityAsync(db, id, ct);
         db.SaveChanges();
         foreach (var id in changed)

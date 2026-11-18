@@ -19,7 +19,9 @@ Mỗi tab tương ứng với một mạng. Khi gỡ mạng rồi nhập lại �
 3. Để tạo nhóm chat, mở **Nhóm → Nhóm mới**, tích chọn thành viên rồi bấm **Tạo nhóm**.
 4. Trong **Nhóm**, chọn nhóm để xem dấu tích cạnh từng thành viên ở cột **Thành viên nhóm**. Bạn cũng có thể mở **Tin nhắn → chọn nhóm → Thông tin → Thành viên**. Ở cả hai nơi, chủ nhóm có thể tích để thêm, bỏ tích để bớt rồi bấm **Lưu thành viên**. Thay đổi thành viên cần đủ số máy điều phối của mạng.
 
-Khi mạng thiếu phiếu và chỉ hai máy kết nối được với nhau, LanChat chọn một máy điều phối. Nếu cả hai máy chạy v1.2.3, bạn có thể tạo nhóm mới cho hai người và chat ngay. Việc sửa nhóm đã có vẫn cần đủ phiếu. Khi đủ phiếu và máy tạo nhóm đang kết nối, nhóm mới được ghi vào nhật ký chung để các máy v1.2.2 nhận được.
+Khi mạng thiếu phiếu và chỉ hai máy kết nối được với nhau, LanChat chọn một máy điều phối. Nếu cả hai máy chạy v1.2.3 trở lên, bạn có thể tạo nhóm mới cho hai người và chat ngay. Việc sửa nhóm đã có vẫn cần đủ phiếu. Khi đủ phiếu và máy tạo nhóm đang kết nối, nhóm mới được ghi vào nhật ký chung để các máy v1.2.2 nhận được.
+
+Từ v1.2.5, các máy thành viên tự đồng bộ lịch sử nhóm sau khi kết nối. Chỉ cần một máy thành viên còn giữ và đọc được lịch sử đang trực tuyến, các thành viên hiện tại có thể nhận lại tin cũ, kể cả khi người gửi gốc đã tắt máy. Danh sách thành viên cần được đồng bộ trước. Hãy cập nhật các máy trong nhóm lên v1.2.5 để nhận đầy đủ lịch sử. Tệp và thư mục đính kèm tự tải về khi còn máy giữ bản gốc đang trực tuyến.
 
 Nhấp phải hội thoại để ghim, tắt thông báo hoặc **Xóa hội thoại phía tôi**. Thay đổi này áp dụng trên máy của bạn. Bấm thông báo Windows để mở hội thoại tương ứng.
 

@@ -1,6 +1,6 @@
 # Nghiệm thu LanChat trên mạng thật
 
-Danh sách dưới đây dùng để nghiệm thu v1.2.4 trên các PC tại nơi sử dụng. Xem thao tác của người dùng và kết quả đã ghi nhận trong [Hướng dẫn sử dụng](HUONG_DAN_SU_DUNG.md) và [Kết quả kiểm chứng](VERIFICATION.md).
+Danh sách dưới đây dùng để nghiệm thu v1.2.5 trên các PC tại nơi sử dụng. Xem thao tác của người dùng và kết quả đã ghi nhận trong [Hướng dẫn sử dụng](HUONG_DAN_SU_DUNG.md) và [Kết quả kiểm chứng](VERIFICATION.md).
 
 ## Chuẩn bị
 
@@ -21,6 +21,7 @@ Danh sách dưới đây dùng để nghiệm thu v1.2.4 trên các PC tại nơ
 - [ ] Bấm khung trích dẫn của tin đang hiển thị và tin ngoài trang hiện tại. Thử tin gốc đã thu hồi hoặc xóa phía tôi. Bấm **Quay về tin nhắn mới** và đối chiếu bản nháp.
 - [ ] Ghim, im lặng và thông báo khi cửa sổ không có focus hoạt động theo cài đặt.
 - [ ] Tắt một node, gửi nhiều tin trên các node khác rồi bật lại; lịch sử hội tụ, không trùng.
+- [ ] Chỉ giữ một máy thành viên có đủ lịch sử nhóm, tắt máy gửi gốc rồi cho các máy thành viên v1.2.5 kết nối. Đối chiếu trên 100 tin, nội dung đã sửa, thu hồi, cảm xúc và tệp đính kèm. Thêm thành viên mới rồi xác nhận nhận được tin cũ. Người ngoài nhóm và thành viên đã bị gỡ được kiểm tra quyền truy cập.
 - [ ] Node mới tải được lịch sử A/B trong database nhưng giao diện không lộ hội thoại không thuộc nó.
 
 ## Nhóm, failover và partition

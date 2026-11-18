@@ -145,20 +145,36 @@ internal sealed class DeviceIdentity : IDisposable
         return e;
     }
 
-    internal byte[]? Open(EncryptedContent encrypted, Guid user, byte[] context)
+    internal byte[]? Open(EncryptedContent encrypted, Guid user, byte[] context, string? sharedKey = null)
     {
-        var slot = encrypted.Recipients.FirstOrDefault(x => x.UserId == user);
-        if (slot is null) return null;
+        var wrapped = encrypted.Recipients.FirstOrDefault(x => x.UserId == user)?.Ciphertext ?? sharedKey;
+        if (wrapped is null) return null;
         byte[]? key = null;
         try
         {
-            lock (_keyGate) key = _encryption.Decrypt(Decode(slot.Ciphertext, RsaBytes), RSAEncryptionPadding.OaepSHA256);
+            lock (_keyGate) key = _encryption.Decrypt(Decode(wrapped, RsaBytes), RSAEncryptionPadding.OaepSHA256);
             if (key.Length != KeyBytes) throw new InvalidDataException("Khóa nội dung không hợp lệ.");
             var ciphertext = Convert.FromBase64String(encrypted.Ciphertext);
             return Transform(false, key, Decode(encrypted.Nonce, NonceBytes), context, ciphertext, ciphertext.Length);
         }
         catch (Exception ex) when (ex is CryptographicException or FormatException)
         { throw new InvalidDataException("Không thể xác thực hoặc giải mã nội dung.", ex); }
+        finally { if (key is not null) Array.Clear(key, 0, key.Length); }
+    }
+
+    internal string RewrapContentKey(EncryptedContent encrypted, Guid user, string? sharedKey, DevicePublicKeys recipient)
+    {
+        var wrapped = encrypted.Recipients.FirstOrDefault(x => x.UserId == user)?.Ciphertext ?? sharedKey;
+        if (wrapped is null) throw new InvalidDataException("Máy này chưa có khóa đọc lịch sử.");
+        byte[]? key = null;
+        try
+        {
+            lock (_keyGate) key = _encryption.Decrypt(Decode(wrapped, RsaBytes), RSAEncryptionPadding.OaepSHA256);
+            if (key.Length != KeyBytes) throw new InvalidDataException("Khóa nội dung không hợp lệ.");
+            using var rsa = ImportPublicEncryptionKey(recipient.EncryptionKey);
+            return Convert.ToBase64String(rsa.Encrypt(key, RSAEncryptionPadding.OaepSHA256));
+        }
+        catch (CryptographicException ex) { throw new InvalidDataException("Không thể chia sẻ khóa lịch sử.", ex); }
         finally { if (key is not null) Array.Clear(key, 0, key.Length); }
     }
 

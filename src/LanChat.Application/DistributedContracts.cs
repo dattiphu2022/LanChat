@@ -19,9 +19,21 @@ public static class FolderAttachment
 }
 public sealed record PeerEndpoint(Guid NodeId, string Address, int Port);
 public sealed record CursorDto(Guid OriginNodeId, long LastOriginSequence);
-public sealed record ReplicationDigest(CursorDto[] Cursors);
-public sealed record EventRangeRequest(Guid OriginNodeId, long AfterSequence, int Limit = 100);
-public sealed record EventBatch(EventDto[] Events);
+public sealed record ReplicationDigest(CursorDto[] Cursors)
+{
+    public bool SupportsGroupHistory { get; init; }
+    public string? GroupHistoryRevision { get; init; }
+}
+public sealed record EventRangeRequest(Guid OriginNodeId, long AfterSequence, int Limit = 100)
+{
+    public bool IncludeGroupHistory { get; init; }
+}
+public sealed record EventBatch(EventDto[] Events)
+{
+    public GroupHistoryKey[] GroupHistoryKeys { get; init; } = [];
+}
+public sealed record GroupHistoryKey(Guid EventId, Guid GroupId, Guid GrantorNodeId, Guid GrantorUserId,
+    Guid RecipientUserId, string WrappedKey, DevicePublicKeys DeviceKeys, string? Signature = null);
 public sealed record EventAck(Guid[] EventIds);
 public sealed record GroupSummary(Guid Id, string Name, Guid OwnerUserId, Guid[] Members, bool IsDeleted, string? AvatarBase64)
 {

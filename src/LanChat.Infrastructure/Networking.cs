@@ -414,7 +414,11 @@ public sealed class PeerConnectionManager(NodeOptions options, WireProtocol wire
                         response = request.MessageType == "NodeInfo" ? await store.GetNodeInfoAsync(timeout.Token) :
                             await services.GetRequiredService<IDistributedStore>().GetDigestAsync(timeout.Token);
                         break;
-                    case "EventRange": response = await services.GetRequiredService<IDistributedStore>().GetEventRangeAsync(WireProtocol.Payload<EventRangeRequest>(request), timeout.Token); break;
+                    case "EventRange":
+                        var range = WireProtocol.Payload<EventRangeRequest>(request);
+                        var batch = await services.GetRequiredService<IDistributedStore>().GetEventRangeAsync(range, timeout.Token);
+                        response = range.IncludeGroupHistory ? await store.AddGroupHistoryAsync(batch, request.SourceNodeId, timeout.Token) : batch;
+                        break;
                     case "EventPush":
                         if (faults.PauseReplication) throw new IOException("Replication paused.");
                         response = await services.GetRequiredService<IDistributedStore>().ImportEventsAsync(WireProtocol.Payload<EventBatch>(request), timeout.Token); break;

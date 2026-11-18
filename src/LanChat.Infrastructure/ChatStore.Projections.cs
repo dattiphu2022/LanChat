@@ -20,8 +20,8 @@ public sealed partial class ChatStore
         if (created is null) return;
         var local = db.Required<LocalSettings>();
         var envelope = DeviceIdentity.ParseEnvelope(created.PayloadJson);
-        if (!envelope.Recipients.Any(x => x.UserId == local.UserId)) return;
-        var content = ReadEncryptedEvent<MessageContent>(created, local.UserId)!;
+        var content = ReadEncryptedEvent<MessageContent>(db, created, local.UserId);
+        if (content is null) return;
         var source = content.Message;
         var audience = envelope.Recipients.Select(x => x.UserId).ToArray();
         if (source.Id != entityId || source.SenderUserId != created.ActorUserId || content.Sender.Id != source.SenderUserId ||
@@ -31,6 +31,10 @@ public sealed partial class ChatStore
             (source.RecipientUserId != Guid.Empty && (audience.Length != 2 || !audience.Contains(source.RecipientUserId) ||
                 source.ConversationId != DirectConversation.GetId(options.ClusterId, source.SenderUserId, source.RecipientUserId))))
             throw new InvalidDataException("Nội dung MessageCreated không hợp lệ.");
+        if (!audience.Contains(local.UserId) && source.RecipientUserId != Guid.Empty)
+            throw new InvalidDataException("Khóa lịch sử chỉ áp dụng cho tin nhắn nhóm.");
+        if (source.RecipientUserId == Guid.Empty && db.Exists<Group>("Id=$0", source.ConversationId))
+            audience = audience.Concat(db.Rows<GroupMember>("GroupId=$0", source.ConversationId).Select(x => x.UserId)).Distinct().ToArray();
         await ProjectProfileAsync(db, content.Sender, ct, false);
         if (content.Recipient is not null) await ProjectProfileAsync(db, content.Recipient, ct, false);
         var conversation = db.One<Conversation>("Id=$0", source.ConversationId);
@@ -59,7 +63,7 @@ public sealed partial class ChatStore
             throw new InvalidDataException("Xung đột MessageCreated.");
         m.Text = source.Text; m.Kind = source.Kind; m.ReplyToMessageId = content.ReplyToMessageId; m.ForwardedFromMessageId = content.ForwardedFromMessageId;
         var edits = events.Where(x => x.Type == ReplicationEventType.MessageEdited && x.ActorUserId == m.SenderUserId && x.ConversationId == m.ConversationId);
-        var edit = edits.Reverse().Select(x => ReadEncryptedEvent<MessageEdit>(x, local.UserId)).FirstOrDefault(x => x is not null);
+        var edit = edits.Reverse().Select(x => ReadEncryptedEvent<MessageEdit>(db, x, local.UserId)).FirstOrDefault(x => x is not null);
         if (edit is not null)
         {
             var text = edit.Text;
@@ -67,10 +71,10 @@ public sealed partial class ChatStore
             m.Text = text; m.IsEdited = true;
         }
         m.IsRecalled = events.Any(x => x.Type == ReplicationEventType.MessageRecalled && x.ActorUserId == m.SenderUserId &&
-            x.ConversationId == m.ConversationId && ReadEncryptedEvent<object>(x, local.UserId) is not null);
+            x.ConversationId == m.ConversationId && ReadEncryptedEvent<object>(db, x, local.UserId) is not null);
         if (m.IsRecalled) m.Text = "Tin nhắn đã được thu hồi";
         var reactions = events.Where(x => x.Type == ReplicationEventType.ReactionChanged && x.ConversationId == m.ConversationId && audience.Contains(x.ActorUserId))
-            .Select(x => (Event: x, Change: ReadEncryptedEvent<ReactionChange>(x, local.UserId))).Where(x => x.Change is not null)
+            .Select(x => (Event: x, Change: ReadEncryptedEvent<ReactionChange>(db, x, local.UserId))).Where(x => x.Change is not null)
             .Select(x => (x.Event, Change: x.Change!)).GroupBy(x => (x.Event.ActorUserId, x.Change.Emoji)).Select(x => x.Last())
             .Where(x => x.Change.Active && !m.IsRecalled).ToArray();
         var existingReactions = db.Rows<MessageReaction>("MessageId=$0", m.Id);
@@ -84,7 +88,7 @@ public sealed partial class ChatStore
         }
         foreach (var receipt in events.Where(x => x.Type == ReplicationEventType.ReceiptUpdated && x.ConversationId == m.ConversationId && audience.Contains(x.ActorUserId)).GroupBy(x => x.ActorUserId))
         {
-            var values = receipt.Select(x => ReadEncryptedEvent<ReceiptChange>(x, local.UserId)).OfType<ReceiptChange>().ToArray();
+            var values = receipt.Select(x => ReadEncryptedEvent<ReceiptChange>(db, x, local.UserId)).OfType<ReceiptChange>().ToArray();
             if (values.Length == 0) continue;
             var row = db.One<MessageReceipt>("MessageId=$0 AND UserId=$1", m.Id, receipt.Key);
             if (row is null) { row = new MessageReceipt { Id = LanChat.Domain.AppIdentity.NewId(), MessageId = m.Id, UserId = receipt.Key }; db.Insert(row); }

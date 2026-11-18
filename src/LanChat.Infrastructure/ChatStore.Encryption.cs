@@ -96,9 +96,9 @@ public sealed partial class ChatStore
         return DeviceIdentity.Seal(JsonSerializer.SerializeToUtf8Bytes(payload), keys, EventEncryptionContext(eventId));
     }
 
-    private T? ReadEncryptedEvent<T>(ReplicationEvent item, Guid userId) where T : class
+    private T? ReadEncryptedEvent<T>(ChatDbContext db, ReplicationEvent item, Guid userId) where T : class
     {
-        var opened = Device.Open(DeviceIdentity.ParseEnvelope(item.PayloadJson), userId, EventEncryptionContext(item.Id));
+        var opened = Device.Open(DeviceIdentity.ParseEnvelope(item.PayloadJson), userId, EventEncryptionContext(item.Id), SharedHistoryKey(db, item));
         if (opened is null) return null;
         try { return JsonSerializer.Deserialize<T>(opened) ?? throw new InvalidDataException("Thiếu nội dung đã mã hóa."); }
         finally { Array.Clear(opened, 0, opened.Length); }
@@ -109,6 +109,9 @@ public sealed partial class ChatStore
         var created = db.One<ReplicationEvent>("EntityId=$0 AND Type=$1 ORDER BY PhysicalTicks,LogicalCounter,OriginNodeId,Id LIMIT 1",
             messageId, ReplicationEventType.MessageCreated) ?? throw new InvalidOperationException("Không tìm thấy bản mã gốc của tin nhắn.");
         var audience = new HashSet<Guid>(DeviceIdentity.ParseEnvelope(created.PayloadJson).Recipients.Select(x => x.UserId));
+        if (db.Exists<Group>("Id=$0", conversationId) && db.Exists<Message>("Id=$0 AND RecipientUserId=$1", messageId, Guid.Empty))
+            return db.Rows<ConversationMember>("ConversationId=$0", conversationId).Select(x => x.UserId)
+                .Where(user => FindDeviceKeys(db, user) is not null).ToArray();
         return db.Rows<ConversationMember>("ConversationId=$0", conversationId).Select(x => x.UserId).Where(audience.Contains).ToArray();
     }
 
