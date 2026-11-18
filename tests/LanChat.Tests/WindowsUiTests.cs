@@ -505,6 +505,71 @@ public sealed class WindowsUiTests
     });
 
     [Fact]
+    public Task DenseChatShowsEveryFileNameAndKeepsActionsOnTheFooterLine() => OnUi(host =>
+    {
+        using var list = new MessageListControl(); host.Controls.Add(list);
+        var conversation = Guid.NewGuid(); var sender = Guid.NewGuid(); var other = Guid.NewGuid();
+        ChatMessage Message(Guid author, string text) => new() { Id = Guid.NewGuid(), ConversationId = conversation,
+            SenderUserId = author, Text = text, CreatedAtTicks = DateTime.UtcNow.Ticks, IsRead = true };
+        var withFiles = Message(sender, "Tài liệu cuộc họp"); var shortText = Message(sender, "Đã nhận."); var reply = Message(other, "Cảm ơn bạn.");
+        var files = new[] { "Báo cáo tổng hợp tháng 11.xlsx", "Biên bản họp.docx", "Phụ lục.pdf" }
+            .Select(name => new AttachmentDto(Guid.NewGuid(), withFiles.Id, name, "application/octet-stream", 12500, new string('a', 64))).ToArray();
+        var details = new MessageDetails(withFiles, files, [], 0, 0, null, "Nguyễn Văn An");
+        list.Bind(conversation, [withFiles, shortText, reply], other, [details]);
+        var bubbles = Children(list).OfType<MessageBubbleControl>().ToDictionary(b => b.MessageId);
+        var items = Children(bubbles[withFiles.Id]).OfType<AttachmentItemControl>().OrderBy(i => i.Top).ToArray();
+        Assert.Equal(3, items.Length);
+        foreach (var item in items)
+        {
+            var link = Children(item).OfType<IconLinkLabel>().Single();
+            var metadata = Children(item).OfType<Label>().Single(label => label is not LinkLabel);
+            Assert.Contains(files, file => file.FileName == link.Text);
+            Assert.True(link.Visible); Assert.True(link.Height >= link.Font.Height);
+            Assert.True(link.Bottom <= metadata.Top, "Filename and size must occupy separate, visible lines.");
+            Assert.True(item.Height <= item.ScalePixels(52), "A file row must not reserve the old 100px tile height.");
+            Assert.All(Children(item).OfType<Button>(), button => Assert.True(link.Right <= button.Left || link.Bottom <= button.Top));
+        }
+        for (var i = 1; i < items.Length; i++) Assert.True(items[i].Top >= items[i - 1].Bottom);
+        var fileFlow = items[0].Parent as FlowLayoutPanel; Assert.NotNull(fileFlow); Assert.False(fileFlow!.AutoScroll);
+        var shortBubble = bubbles[shortText.Id]; var card = shortBubble.Controls.OfType<TableLayoutPanel>().Single();
+        Assert.True(card.Width <= shortBubble.ScalePixels(300), "Short messages should not fill the maximum bubble width.");
+        var state = Children(shortBubble).OfType<Label>().Single(label => label.Text.Contains(" · Đã lưu") || label.Text == DateTime.Now.ToString("HH:mm"));
+        var more = Children(shortBubble).OfType<IconButton>().Single(button => button.Icon == UiIcon.More);
+        var stateBounds = state.RectangleToScreen(state.ClientRectangle); var moreBounds = more.RectangleToScreen(more.ClientRectangle);
+        Assert.True(stateBounds.Top < moreBounds.Bottom && moreBounds.Top < stateBounds.Bottom);
+        using var bitmap = new System.Drawing.Bitmap(bubbles[reply.Id].Width, bubbles[reply.Id].Height);
+        bubbles[reply.Id].DrawToBitmap(bitmap, bubbles[reply.Id].ClientRectangle);
+        Assert.Equal(Theme.Border.ToArgb(), bitmap.GetPixel(bitmap.Width / 2, 0).ToArgb());
+        Assert.Equal(Theme.Canvas.ToArgb(), bitmap.GetPixel(bitmap.Width / 2, 1).ToArgb());
+        withFiles.IsRead = false;
+        list.Bind(conversation, [withFiles, shortText, reply], other, [details with { ReadCount = 1 }]);
+        Assert.Equal(items, Children(bubbles[withFiles.Id]).OfType<AttachmentItemControl>().OrderBy(i => i.Top).ToArray());
+        var captures = Environment.GetEnvironmentVariable("LANCHAT_UI_CAPTURE_DIR");
+        if (!string.IsNullOrWhiteSpace(captures))
+        {
+            Directory.CreateDirectory(captures); using var image = new System.Drawing.Bitmap(list.Width, list.Height);
+            list.DrawToBitmap(image, list.ClientRectangle); image.Save(Path.Combine(captures, "dense-conversation.png"));
+            File.WriteAllText(Path.Combine(captures, "density-metrics.json"), JsonSerializer.Serialize(new {
+                dpi = list.DeviceDpi, fileRow = items[0].Height, fileMessage = bubbles[withFiles.Id].Height,
+                shortMessage = shortBubble.Height, shortMessageWidth = card.Width }));
+        }
+        shortText.CreatedAtTicks = DateTime.UtcNow.AddDays(-2).Ticks;
+        list.Bind(conversation, [withFiles, shortText, reply], other, [details]);
+        Assert.Contains(new DateTime(shortText.CreatedAtTicks, DateTimeKind.Utc).ToLocalTime().ToString("dd/MM"), state.Text);
+        foreach (var item in items)
+        {
+            item.FitWidth(item.ScalePixels(220));
+            var name = Children(item).OfType<IconLinkLabel>().Single();
+            Assert.All(Children(item).OfType<Button>(), button =>
+            {
+                Assert.True(button.Bottom <= item.Height && button.Right <= item.Width);
+                Assert.True(button.Top >= name.Bottom, "At narrow widths the action row must move below the filename.");
+            });
+        }
+        return Task.CompletedTask;
+    });
+
+    [Fact]
     public Task GalleryBatchOnlyIncludesImagesFromSelectedMessage() => OnUi(async host =>
     {
         await using var node = new TestNode(Guid.NewGuid(), FrameworkIO.RandomBytes(32), "A"); await node.InitializeAsync();

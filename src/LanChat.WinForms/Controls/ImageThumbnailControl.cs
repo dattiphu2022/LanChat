@@ -13,11 +13,16 @@ public sealed class ImageThumbnailControl : UserControl
     private DateTime _retryAfter;
     public bool HasImage => _picture.Image is not null;
     public event Action<AttachmentDto>? Selected;
-    public ImageThumbnailControl(AttachmentDto file, ChatImageService images, bool compact = false)
+    public ImageThumbnailControl(AttachmentDto file, ChatImageService images, bool compact = false, bool dense = false)
     {
         _file = file; _images = images; Size = compact ? new Size(96, 66) : new Size(180, 165);
         if (compact) _label.Height = 22;
         Margin = new Padding(4); Padding = new Padding(2); BackColor = Color.White;
+        if (dense)
+        {
+            _label.Height = 20; _label.Font = Theme.GetFont(8, false);
+            _picture.BackColor = Color.FromArgb(240, 244, 249); Padding = new Padding(1);
+        }
         _label.Text = file.FileSize > ChatImageService.InlineLimit ? "Bấm để xem ảnh lớn" : file.FileName;
         Controls.Add(_picture); Controls.Add(_label);
         _picture.Click += (_, _) => Selected?.Invoke(_file); _label.Click += (_, _) => Selected?.Invoke(_file);

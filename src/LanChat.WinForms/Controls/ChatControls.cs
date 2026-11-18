@@ -17,15 +17,15 @@ public sealed class MessageBubbleControl : UserControl
         (Color.FromArgb(251, 232, 219), Color.FromArgb(144, 69, 35)),
         (Color.FromArgb(252, 226, 235), Color.FromArgb(143, 56, 88))
     ];
-    private static readonly Color SentBackground = Color.FromArgb(228, 239, 255);
+    private static readonly Color SentBackground = Color.FromArgb(237, 244, 255);
     private static readonly Color SentBorder = Color.FromArgb(201, 219, 245);
     private static readonly Color SystemBackground = Color.FromArgb(235, 240, 247);
-    private readonly TableLayoutPanel _card = new() { ColumnCount = 1, RowCount = 7, Margin = Padding.Empty };
+    private readonly TableLayoutPanel _card = new() { ColumnCount = 1, RowCount = 6, Margin = Padding.Empty };
     private readonly PersonNameLabel _sender = Theme.NameLabel("", 9, true);
     private readonly ReplyQuoteControl _quote = new();
     private readonly Label _body = Theme.Label("");
     private readonly Label _state = Theme.Label("", 8);
-    private readonly FlowLayoutPanel _files = new() { Dock = DockStyle.Fill, AutoScroll = true, WrapContents = false, Margin = Padding.Empty };
+    private readonly FlowLayoutPanel _files = new() { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, Margin = Padding.Empty };
     private readonly FlowLayoutPanel _pictures = new() { Dock = DockStyle.Fill, WrapContents = true, Margin = Padding.Empty };
     private ChatImageService? _images;
     private AttachmentActions? _attachmentActions;
@@ -36,12 +36,14 @@ public sealed class MessageBubbleControl : UserControl
     private Presentation? _presentation;
     private sealed record Presentation(Guid Id, Guid Sender, string Text, long CreatedAt, MessageKind Kind,
         bool Edited, bool Recalled, bool Forwarded, MessageStatus Status, int ReadCount, string Name,
-        string? Department, string Reactions, ReplyQuote? Quote, bool Own, bool StartsGroup, bool Unread);
+        string? Department, string Reactions, ReplyQuote? Quote, bool Own, bool StartsGroup, bool Unread, bool SeparateBefore, bool ShowDate);
     private readonly IconButton _reply = Theme.Icon(UiIcon.Reply, "Trả lời");
     private readonly IconButton _react = Theme.Icon(UiIcon.Heart, "Cảm xúc");
     private readonly IconButton _more = Theme.Icon(UiIcon.More, "Thao tác khác");
     private readonly FlowLayoutPanel _actions = new() { Dock = DockStyle.Fill, WrapContents = false, Margin = Padding.Empty };
-    private bool _own, _startsGroup, _unread;
+    private readonly Panel _footer = new() { Dock = DockStyle.Fill, Margin = Padding.Empty };
+    private ToolTip? _toolTips;
+    private bool _own, _startsGroup, _unread, _separateBefore;
     private AttachmentDto[] _attachments = [];
     private Rectangle _bubbleBounds, _avatarBounds;
     private Color _border;
@@ -59,7 +61,7 @@ public sealed class MessageBubbleControl : UserControl
         Size = new Size(400, 120); Margin = Padding.Empty;
         BackColor = Theme.Canvas; DoubleBuffered = true; ResizeRedraw = true;
         _card.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        foreach (var control in new Control[] { _sender, _quote, _body, _pictures, _files, _state, _actions })
+        foreach (var control in new Control[] { _sender, _quote, _body, _pictures, _files, _footer })
         {
             _card.RowStyles.Add(new RowStyle(SizeType.Absolute, 0));
             _card.Controls.Add(control, 0, _card.RowStyles.Count - 1);
@@ -70,6 +72,8 @@ public sealed class MessageBubbleControl : UserControl
         }
         _sender.AutoEllipsis = true;
         _state.AutoEllipsis = true;
+        _state.Dock = _actions.Dock = DockStyle.None;
+        _footer.Controls.AddRange([_state, _actions]);
         Controls.Add(_card);
         _quote.Click += (_, _) =>
         {
@@ -104,9 +108,11 @@ public sealed class MessageBubbleControl : UserControl
         _menu.Opening += (_, _) => saveAll.Visible = _attachments.Length > 1;
         foreach (var button in new[] { _reply, _react, _more })
         {
-            button.MinimumSize = new Size(36, 27);
+            button.MinimumSize = Size.Empty; button.AutoSize = false;
+            button.FlatAppearance.BorderSize = 0;
+            button.FlatAppearance.MouseOverBackColor = Theme.Selection;
             button.Padding = Padding.Empty;
-            button.Margin = new Padding(0, 0, 4, 0);
+            button.Margin = Padding.Empty;
             _actions.Controls.Add(button);
         }
         _reply.Click += (_, _) => { if (_message is { IsRecalled: false } m) ActionRequested?.Invoke(m, "reply"); };
@@ -132,11 +138,13 @@ public sealed class MessageBubbleControl : UserControl
 
     internal void AttachActionToolTips(ToolTip toolTips)
     {
+        _toolTips = toolTips;
         var buttons = new[] { _reply, _react, _more };
         foreach (var button in buttons) toolTips.SetToolTip(button, button.AccessibleName);
         Disposed += (_, _) =>
         {
             foreach (var button in buttons) toolTips.SetToolTip(button, "");
+            toolTips.SetToolTip(_state, "");
         };
     }
 
@@ -147,48 +155,75 @@ public sealed class MessageBubbleControl : UserControl
         try
         {
             var system = _message.Kind == MessageKind.System;
-            var gutter = Math.Min(this.ScalePixels(14), Width / 8);
-            var avatarSpace = !system && Width >= this.ScalePixels(130) ? this.ScalePixels(42) : 0;
-            var cardWidth = Math.Max(1, Math.Min(Width - gutter * 2 - avatarSpace,
-                Math.Min(this.ScalePixels(system ? 500 : 660), Math.Max(this.ScalePixels(340), Width * 4 / 5))));
-            var x = system ? (Width - cardWidth) / 2 : _own ? Width - gutter - avatarSpace - cardWidth : gutter + avatarSpace;
-            var y = this.ScalePixels(_startsGroup ? 12 : 3);
-            var insetX = Math.Min(this.ScalePixels(12), (cardWidth - 1) / 2);
-            var insetY = this.ScalePixels(7);
+            var gutter = Math.Min(this.ScalePixels(8), Width / 8);
+            var avatarSpace = !system && Width >= this.ScalePixels(130) ? this.ScalePixels(34) : 0;
+            var maximum = Math.Max(1, Math.Min(Width - gutter * 2 - avatarSpace, this.ScalePixels(system ? 480 : 620)));
+            var insetX = Math.Min(this.ScalePixels(10), (maximum - 1) / 2);
+            var insetY = this.ScalePixels(5);
+            var flags = TextFormatFlags.WordBreak | TextFormatFlags.TextBoxControl | TextFormatFlags.NoPrefix;
+            int TextWidth(string text, Font font) => text.Length == 0 ? 0 : TextRenderer.MeasureText(text, font,
+                new Size(Math.Max(1, maximum - insetX * 2), int.MaxValue), flags).Width;
+            var buttonSize = new Size(this.ScalePixels(26), this.ScalePixels(24));
+            foreach (Button button in _actions.Controls) button.Size = buttonSize;
+            var actionsWidth = system ? 0 : buttonSize.Width * 3;
+            var natural = Math.Max(this.ScalePixels(184), Math.Min(TextWidth(_state.Text, _state.Font), this.ScalePixels(220)) + actionsWidth + this.ScalePixels(12));
+            natural = Math.Max(natural, TextWidth(_body.Text, _body.Font));
+            if (_startsGroup) natural = Math.Max(natural, Math.Min(TextWidth(_sender.Text, _sender.Font), this.ScalePixels(240)));
+            if (_quote.Visible) natural = Math.Max(natural, this.ScalePixels(300));
+            var pictureWidth = this.ScalePixels(176);
+            if (_pictures.Controls.Count > 0)
+            {
+                pictureWidth = Math.Max(pictureWidth, _pictures.Controls.OfType<AttachmentItemControl>().Max(item => item.ActionWidth) + this.ScalePixels(6));
+                natural = Math.Max(natural, Math.Min(3, _pictures.Controls.Count) * (pictureWidth + this.ScalePixels(4)));
+            }
+            foreach (var item in _files.Controls.OfType<AttachmentItemControl>()) natural = Math.Max(natural, item.PreferredRowWidth);
+            var cardWidth = Math.Max(1, Math.Min(maximum, natural + insetX * 2));
             var contentWidth = Math.Max(1, cardWidth - insetX * 2);
+            var x = system ? (Width - cardWidth) / 2 : _own ? Width - gutter - avatarSpace - cardWidth : gutter + avatarSpace;
+            var y = this.ScalePixels(_startsGroup ? 8 : 2) + (_separateBefore ? 2 : 0);
 
             _card.SuspendLayout();
             var picturesHeight = 0;
             if (_pictures.Controls.Count > 0)
             {
-                var picture = _pictures.Controls[0];
-                var minimumWidth = Math.Max(this.ScalePixels(180), _pictures.Controls.OfType<AttachmentItemControl>().Max(item => item.ActionWidth));
-                var pictureWidth = Math.Max(1, Math.Min(minimumWidth, contentWidth - picture.Margin.Horizontal));
-                foreach (Control item in _pictures.Controls) item.Width = pictureWidth;
-                var columns = Math.Max(1, contentWidth / (pictureWidth + picture.Margin.Horizontal));
-                picturesHeight = (_pictures.Controls.Count + columns - 1) / columns * (picture.Height + picture.Margin.Vertical);
+                var tileWidth = Math.Max(1, Math.Min(pictureWidth, contentWidth));
+                var columns = Math.Max(1, (contentWidth + this.ScalePixels(4)) / (tileWidth + this.ScalePixels(4)));
+                tileWidth = Math.Max(1, Math.Min(tileWidth, (contentWidth - (columns - 1) * this.ScalePixels(4)) / columns));
+                foreach (var item in _pictures.Controls.OfType<AttachmentItemControl>())
+                {
+                    item.Margin = new Padding(0, 0, this.ScalePixels(4), this.ScalePixels(4)); item.FitWidth(tileWidth);
+                }
+                var rows = (_pictures.Controls.Count + columns - 1) / columns;
+                picturesHeight = rows * (_pictures.Controls[0].Height + this.ScalePixels(4));
+            }
+            var filesHeight = 0;
+            foreach (var item in _files.Controls.OfType<AttachmentItemControl>())
+            {
+                item.Margin = new Padding(0, 0, 0, this.ScalePixels(4)); item.FitWidth(contentWidth);
+                filesHeight += item.Height + item.Margin.Vertical;
             }
             var bodyHeight = _body.Text.Length == 0 ? 0 : TextRenderer.MeasureText(_body.Text, _body.Font,
-                new Size(contentWidth, int.MaxValue), TextFormatFlags.WordBreak | TextFormatFlags.TextBoxControl | TextFormatFlags.NoPrefix).Height;
-            var actionsWidth = _actions.Controls.Cast<Button>().Sum(button => button.GetPreferredSize(Size.Empty).Width + button.Margin.Horizontal);
-            _reply.Visible = _react.Visible = contentWidth >= actionsWidth;
-            var actionsHeight = _actions.Controls.Cast<Button>().Max(button => button.GetPreferredSize(Size.Empty).Height + button.Margin.Vertical);
-            _quote.Margin = new Padding(0, 0, 0, this.ScalePixels(5));
+                new Size(contentWidth, int.MaxValue), flags).Height;
+            _body.Margin = new Padding(0, 0, 0, bodyHeight > 0 && _attachments.Length > 0 ? this.ScalePixels(4) : 0);
+            var top = this.ScalePixels(2);
+            _reply.Visible = _react.Visible = !system && contentWidth >= this.ScalePixels(174);
+            actionsWidth = system ? 0 : buttonSize.Width * (_reply.Visible ? 3 : 1);
+            var footerHeight = Math.Max(_state.PreferredHeight, system ? 0 : buttonSize.Height) + top;
+            _actions.SetBounds(contentWidth - actionsWidth, top, actionsWidth, buttonSize.Height);
+            _state.SetBounds(0, top, Math.Max(1, contentWidth - actionsWidth - (system ? 0 : this.ScalePixels(6))), footerHeight - top);
+            _quote.Margin = new Padding(0, 0, 0, this.ScalePixels(4));
             var quoteHeight = _quote.HeightForWidth(contentWidth);
-            foreach (var item in _files.Controls.OfType<AttachmentItemControl>()) item.Width = Math.Max(this.ScalePixels(180), item.ActionWidth);
-            var rowHeights = new[] { !system && _startsGroup ? _sender.PreferredHeight + this.ScalePixels(4) : 0,
-                quoteHeight == 0 ? 0 : quoteHeight + _quote.Margin.Vertical, bodyHeight,
-                picturesHeight, _files.Controls.Count > 0 ? _files.Controls.Cast<Control>().Max(item => item.Height + item.Margin.Vertical) + this.ScalePixels(22) : 0,
-                _state.PreferredHeight + this.ScalePixels(5),
-                system ? 0 : actionsHeight };
+            var rowHeights = new[] { !system && _startsGroup ? _sender.PreferredHeight + this.ScalePixels(2) : 0,
+                quoteHeight == 0 ? 0 : quoteHeight + _quote.Margin.Vertical, bodyHeight + _body.Margin.Vertical,
+                picturesHeight, filesHeight, footerHeight };
             for (var i = 0; i < rowHeights.Length; i++) _card.RowStyles[i].Height = rowHeights[i];
             var height = rowHeights.Sum();
             _card.SetBounds(x + insetX, y + insetY, contentWidth, height);
             _card.ResumeLayout(true);
             _bubbleBounds = new Rectangle(x, y, cardWidth, height + insetY * 2);
-            _avatarBounds = avatarSpace == 0 || !_startsGroup ? Rectangle.Empty : new Rectangle(_own ? _bubbleBounds.Right + this.ScalePixels(8) : gutter,
-                y + this.ScalePixels(2), this.ScalePixels(32), this.ScalePixels(32));
-            var rowHeight = Math.Max(_bubbleBounds.Bottom, _avatarBounds.Bottom);
+            _avatarBounds = avatarSpace == 0 || !_startsGroup ? Rectangle.Empty : new Rectangle(_own ? _bubbleBounds.Right + this.ScalePixels(6) : gutter,
+                y + this.ScalePixels(2), this.ScalePixels(26), this.ScalePixels(26));
+            var rowHeight = Math.Max(_bubbleBounds.Bottom, _avatarBounds.Bottom) + this.ScalePixels(2);
             if (Height != rowHeight) Height = rowHeight;
             Invalidate();
         }
@@ -197,11 +232,16 @@ public sealed class MessageBubbleControl : UserControl
     protected override void OnPaint(PaintEventArgs e)
     {
         base.OnPaint(e);
+        if (_separateBefore)
+        {
+            using var divider = new SolidBrush(Theme.Border);
+            e.Graphics.FillRectangle(divider, this.ScalePixels(8), 0, Math.Max(0, Width - this.ScalePixels(16)), 1);
+        }
         if (_bubbleBounds.Width <= 1 || _bubbleBounds.Height <= 1) return;
         e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
         var bounds = _bubbleBounds;
         bounds.Width--; bounds.Height--;
-        var diameter = Math.Min(this.ScalePixels(20), Math.Min(bounds.Width, bounds.Height));
+        var diameter = Math.Min(this.ScalePixels(12), Math.Min(bounds.Width, bounds.Height));
         using var shape = new GraphicsPath();
         shape.AddArc(bounds.X, bounds.Y, diameter, diameter, 180, 90);
         shape.AddArc(bounds.Right - diameter, bounds.Y, diameter, diameter, 270, 90);
@@ -209,7 +249,7 @@ public sealed class MessageBubbleControl : UserControl
         shape.AddArc(bounds.X, bounds.Bottom - diameter, diameter, diameter, 90, 90);
         shape.CloseFigure();
         using var fill = new SolidBrush(_card.BackColor);
-        using var edge = new Pen(_highlighted || _unread ? Theme.Blue : _border, _highlighted ? 2 : 1);
+        using var edge = new Pen(_highlighted ? Theme.Blue : _unread ? Color.FromArgb(151, 183, 231) : _border, _highlighted ? 2 : 1);
         e.Graphics.FillPath(fill, shape);
         e.Graphics.DrawPath(edge, shape);
 
@@ -220,19 +260,21 @@ public sealed class MessageBubbleControl : UserControl
             TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix);
     }
 
-    internal void Bind(ChatMessage m, MessageDetails? details, bool own, bool startsGroup, bool unread)
+    internal void Bind(ChatMessage m, MessageDetails? details, bool own, bool startsGroup, bool unread, bool separateBefore = false)
     {
         var name = details?.SenderName?.Trim();
         if (string.IsNullOrWhiteSpace(name)) name = own ? "Bạn" : "Người dùng";
         var files = m.IsRecalled ? Array.Empty<AttachmentDto>() : details?.Attachments ?? [];
+        var sentAt = new DateTime(m.CreatedAtTicks, DateTimeKind.Utc).ToLocalTime();
+        var showDate = sentAt.Date != DateTime.Today;
         var presentation = new Presentation(m.Id, m.SenderUserId, m.Text, m.CreatedAtTicks, m.Kind, m.IsEdited, m.IsRecalled,
             m.ForwardedFromMessageId.HasValue, m.Status, details?.ReadCount ?? 0, name!, details?.SenderDepartment,
-            string.Join("  ", details?.Reactions ?? []), m.IsRecalled ? null : details?.Quote, own, startsGroup, unread);
+            string.Join("  ", details?.Reactions ?? []), m.IsRecalled ? null : details?.Quote, own, startsGroup, unread, separateBefore, showDate);
         if (_message?.Id != m.Id) { _menu.Close(); _reactionMenu.Close(); }
         _message = m;
         if (_presentation == presentation && _attachments.SequenceEqual(files)) return;
         _presentation = presentation;
-        _own = own; _startsGroup = startsGroup; _unread = unread;
+        _own = own; _startsGroup = startsGroup; _unread = unread; _separateBefore = separateBefore;
         var system = m.Kind == MessageKind.System;
         _card.SuspendLayout();
         try
@@ -248,19 +290,20 @@ public sealed class MessageBubbleControl : UserControl
             foreach (var button in _actions.Controls.OfType<Button>()) button.Enabled = !m.IsRecalled || button == _more;
             _quote.Bind(m.IsRecalled ? null : details?.Quote, own);
             _body.Text = (m.ForwardedFromMessageId.HasValue ? "↗ Đã chuyển tiếp\n" : "") + m.Text;
-            _state.Text = new DateTime(m.CreatedAtTicks, DateTimeKind.Utc).ToLocalTime().ToString("dd/MM HH:mm") +
+            var timestamp = sentAt.ToString(showDate ? "dd/MM HH:mm" : "HH:mm");
+            _state.Text = timestamp +
                 (m.IsEdited ? " · Đã sửa" : "") + (own && !system ? details?.ReadCount > 0 ? " · Đã đọc" : m.Status switch
-                { MessageStatus.Delivered => " · Đã nhận", MessageStatus.Synced => " · Đã đồng bộ", _ => " · Đã lưu trên máy" } : "") +
+                { MessageStatus.Delivered => " · Đã nhận", MessageStatus.Synced => " · Đã đồng bộ", _ => " · Đã lưu" } : "") +
                 (details is null ? "" : "  " + string.Join("  ", details.Reactions));
+            _toolTips?.SetToolTip(_state, sentAt.ToString("dd/MM/yyyy HH:mm") + _state.Text.Substring(timestamp.Length));
             _state.ForeColor = Theme.Muted;
             _card.BackColor = system ? SystemBackground : own ? SentBackground : Color.White;
             _border = own && !system ? SentBorder : Theme.Border;
+            foreach (Button button in _actions.Controls) { button.BackColor = _card.BackColor; button.ForeColor = Theme.Muted; }
             _body.ForeColor = system ? Theme.Muted : Theme.Ink;
             _body.TextAlign = system ? ContentAlignment.MiddleCenter : ContentAlignment.TopLeft;
             _state.TextAlign = system ? ContentAlignment.MiddleCenter : ContentAlignment.MiddleLeft;
-            _actions.FlowDirection = own ? FlowDirection.RightToLeft : FlowDirection.LeftToRight;
-            var actionIndex = own ? 0 : 2;
-            if (_actions.Controls.GetChildIndex(_more) != actionIndex) _actions.Controls.SetChildIndex(_more, actionIndex);
+            _actions.FlowDirection = FlowDirection.LeftToRight;
             BindAttachments(files);
             UpdateLayout();
         }
@@ -496,7 +539,8 @@ public sealed class MessageListControl : UserControl
                 byId.TryGetValue(m.Id, out var detail);
                 var startsGroup = hasDivider || previous is null || m.Kind == MessageKind.System || previous.Kind == MessageKind.System ||
                     previous.SenderUserId != m.SenderUserId || Math.Abs(m.CreatedAtTicks - previous.CreatedAtTicks) >= TimeSpan.FromMinutes(5).Ticks;
-                bubble.Bind(m, detail, m.SenderUserId == localUser, startsGroup, IsUnread(m, localUser));
+                bubble.Bind(m, detail, m.SenderUserId == localUser, startsGroup, IsUnread(m, localUser), separateBefore: previous is not null &&
+                    previous.Kind != MessageKind.System && m.Kind != MessageKind.System && previous.SenderUserId != m.SenderUserId);
                 bubble.Visible = true;
                 bubble.Highlighted = m.Id == _highlight;
                 SetPosition(bubble, index++);
@@ -565,9 +609,9 @@ internal sealed record ComposerDraft(string Text, string[] Files, Guid? Reply, G
 
 public sealed class ChatInputControl : UserControl
 {
-    internal const int BaseHeight = 104;
+    internal const int BaseHeight = 92;
     private const int ContextHeight = 26;
-    private const int EditorHeight = 88;
+    private const int EditorHeight = 80;
     private const int PreviewHeight = 84;
     private const int MaxFiles = 20;
     private readonly PromptTextBox _text = new() { Multiline = true, Dock = DockStyle.Fill, MaxLength = 16000, ScrollBars = ScrollBars.Vertical,
@@ -597,7 +641,7 @@ public sealed class ChatInputControl : UserControl
     internal int MinimumHeight => BaseHeight + (_context.Text.Length > 0 ? ContextHeight : 0) + (_feedback.Text.Length > 0 ? ContextHeight : 0);
     public ChatInputControl()
     {
-        Dock = DockStyle.Fill; Padding = new Padding(12, 8, 12, 8); BackColor = Color.White;
+        Dock = DockStyle.Fill; Padding = new Padding(10, 6, 10, 6); BackColor = Color.White;
         _root.RowStyles.Add(new RowStyle(SizeType.Absolute, 0));
         _root.RowStyles.Add(new RowStyle(SizeType.Absolute, 0));
         _root.RowStyles.Add(new RowStyle(SizeType.Absolute, 0));
@@ -631,7 +675,7 @@ public sealed class ChatInputControl : UserControl
             FitAction(_attach, "Đính kèm");
             FitAction(_pasteImage, "Dán ảnh");
             FitAction(_captureRegion, "Chụp vùng");
-            _send.MinimumSize = new Size(this.ScalePixels(compact ? 56 : 90), this.ScalePixels(36));
+            _send.MinimumSize = new Size(this.ScalePixels(compact ? 56 : 80), this.ScalePixels(32));
 
             void FitAction(Button button, string caption)
             {
@@ -907,7 +951,7 @@ public sealed class ChatInputControl : UserControl
 
 public sealed class ChatViewControl : UserControl
 {
-    private readonly PersonNameLabel _title = Theme.NameLabel("Chào mừng đến LanChat", 17, true);
+    private readonly PersonNameLabel _title = Theme.NameLabel("Chào mừng đến LanChat", 14, true);
     private readonly Label _subtitle = Theme.Label("Chọn một người trong mạng nội bộ để bắt đầu trò chuyện.");
     private readonly MessageListControl _messages = new();
     private readonly Label _loadingView = new() { Dock = DockStyle.Fill, BackColor = Theme.Canvas,
@@ -947,7 +991,7 @@ public sealed class ChatViewControl : UserControl
             var compact = header.ClientSize.Width < this.ScalePixels(315);
             _find.Text = compact ? "" : _find.AccessibleName;
             _info.Text = compact ? "" : _info.AccessibleName;
-            _find.MinimumSize = _info.MinimumSize = new Size(this.ScalePixels(compact ? 36 : 90), this.ScalePixels(36));
+            _find.MinimumSize = _info.MinimumSize = new Size(this.ScalePixels(compact ? 32 : 78), this.ScalePixels(30));
             var inset = this.ScalePixels(compact ? 3 : 8);
             _find.Padding = _info.Padding = new Padding(inset, this.ScalePixels(3), inset, this.ScalePixels(3));
         }
@@ -966,10 +1010,10 @@ public sealed class ChatViewControl : UserControl
         _messages.NewMessages += value => _new.Visible = value || _returnToLatest;
         _messages.ReachedBottom += () => ReadRequested?.Invoke();
         _new.LinkClicked += async (_, _) => { if (_returnToLatest && OlderRequested is not null) await OlderRequested(); else { _messages.ScrollToEnd(); ReadRequested?.Invoke(); } };
-        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 50)); layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 26));
+        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 42)); layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 22));
         layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100)); layout.RowStyles.Add(new RowStyle(SizeType.Absolute, ChatInputControl.BaseHeight));
-        _title.Padding = new Padding(14, 8, 0, 0); _subtitle.Padding = new Padding(14, 0, 0, 0); _subtitle.ForeColor = Theme.Muted;
+        _title.Padding = new Padding(10, 4, 0, 0); _subtitle.Padding = new Padding(10, 0, 0, 0); _subtitle.ForeColor = Theme.Muted;
         _title.AutoSize = false; _title.AutoEllipsis = true; _subtitle.AutoSize = false; _subtitle.AutoEllipsis = true;
         layout.Controls.Add(header, 0, 0); layout.Controls.Add(_subtitle, 0, 1); layout.Controls.Add(_older, 0, 2); layout.Controls.Add(history, 0, 3); layout.Controls.Add(_input, 0, 4);
         Controls.Add(layout); _input.SendRequested += async text => { if (SendRequested is not null) await SendRequested(text); };
@@ -1004,7 +1048,7 @@ public sealed class ChatViewControl : UserControl
     internal void SelectConversation(PersonName name, bool online, bool group)
     {
         _title.SetName(name);
-        _subtitle.Text = group ? "Chat nhóm · Tin nhắn được lưu và đồng bộ giữa các máy" : online ? "● Đang trực tuyến · Chat trực tiếp trong mạng LAN" : "○ Đang offline · Tin nhắn sẽ tự gửi khi kết nối lại";
+        _subtitle.Text = group ? "Cuộc trò chuyện nhóm" : online ? "● Đang trực tuyến" : "○ Ngoại tuyến · Tin nhắn sẽ gửi khi kết nối lại";
         _input.Enabled = _find.Enabled = _info.Enabled = !_loading;
     }
     internal Task PrepareHistoryAsync(int count, CancellationToken ct, Func<bool>? isCurrent = null) => _messages.PrepareAsync(count, ct, isCurrent);
