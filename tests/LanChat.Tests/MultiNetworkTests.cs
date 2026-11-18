@@ -16,7 +16,7 @@ public sealed class MultiNetworkTests
         await using var a = new TestNode(cluster, secret, "A");
         await using var b = new TestNode(cluster, secret, "B");
         await a.InitializeAsync();
-        await b.InitializeAsync(true);
+        await b.InitializeAsync();
 
         var store = a.Host.Services.GetRequiredService<ChatStore>();
         var peer = await b.Store.GetNodeInfoAsync();
@@ -24,6 +24,7 @@ public sealed class MultiNetworkTests
         b.Options.ServicePort = oldPort;
         var staleAddress = await b.Store.GetNodeInfoAsync();
         b.Options.ServicePort = peer.ServicePort;
+        await b.Host.StartAsync();
         await store.ObservePeerAsync(staleAddress, "127.0.0.2", ChatStore.PeerObservation.Discovery, default);
         await store.ObservePeerAsync(peer, "127.0.0.1", ChatStore.PeerObservation.Discovery, default);
 

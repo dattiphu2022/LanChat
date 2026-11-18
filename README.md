@@ -1,4 +1,4 @@
-# LanChat v1.2.3 — Chat nội bộ cho Windows
+# LanChat v1.2.4 — Chat nội bộ cho Windows
 
 LanChat hỗ trợ chat riêng, chat nhóm và truyền ảnh, tệp, thư mục giữa các máy Windows trên mạng LAN. Mỗi máy lưu dữ liệu trong SQLite. Tin nhắn và tệp được mã hóa đầu cuối. Kiểm tra và tải bản cập nhật từ GitHub cần Internet.
 
@@ -16,7 +16,7 @@ Mở **Giới thiệu → Hướng dẫn sử dụng** để đọc hướng d�
 - **Enter** gửi tin, **Shift+Enter** xuống dòng, **Ctrl+K** tìm hội thoại và **Ctrl+F** tìm tin. Bấm khung trích dẫn để đến tin gốc, rồi chọn **Quay về tin nhắn mới** để trở lại cuối hội thoại.
 - Dùng **Dán ảnh**, **Chụp vùng** hoặc kéo tệp vào ô soạn tin. LanChat tạm ẩn khi chụp vùng và hiện lại khi chụp xong hoặc nhấn **Esc**.
 - Nội dung nhập cùng ảnh là chú thích chung cho lần gửi. Bấm ảnh để mở khung xem lớn. Dùng **Trước/Sau** hoặc phím mũi tên để chuyển ảnh, cuộn chuột để phóng to và **Esc** để đóng.
-- Dùng **Đính kèm → Thêm thư mục** để chọn thư mục từ Windows. Mỗi thư mục có thể chứa tối đa 10.000 mục và 20 GB dữ liệu. Bấm tên tệp để tải, kiểm tra SHA-256 và mở bằng ứng dụng mặc định.
+- Dùng **Đính kèm → Thêm thư mục** để chọn thư mục từ Windows. Mỗi thư mục có thể chứa tối đa 10.000 mục và 20 GB dữ liệu. Khi gửi hoặc nhận tin, ảnh, tệp và toàn bộ nội dung thư mục tự tải về nền và được kiểm tra SHA-256. Bấm tên tệp hoặc thư mục để mở bản đã chuẩn bị trên máy.
 
 Tin đã đồng bộ nghĩa là ít nhất một máy khác có bản sao. Trạng thái **Đã nhận** và **Đã đọc** dựa trên xác nhận của người tham gia. Ghim, tắt thông báo và xóa phía tôi áp dụng trên máy này.
 
@@ -99,8 +99,8 @@ Khi bật nhiều mạng, xem cổng TCP thực tế trong **Mạng chat → Chi
 - TLS và HMAC bảo vệ giao thức mạng chat. Máy trong mạng vẫn thấy thông tin danh bạ, hiện diện, tên nhóm, thành viên, thời gian và định danh dùng để đồng bộ. Tin đã giải mã, chỉ mục tìm kiếm và tệp đã mở lưu ở dạng rõ tại thiết bị được cấp quyền. Việc lộ khóa riêng có thể ảnh hưởng đến bản mã đã lưu trước đó.
 - Các máy nên đồng bộ giờ: envelope có cửa sổ thời gian 120 giây. HLC và sequence giải quyết thứ tự/đồng bộ; không thay thế kiểm tra giờ của xác thực.
 - Không tự loại voter offline vì việc đó làm sai quorum. Nếu mất vĩnh viễn đa số voter, cần phục hồi máy/dữ liệu đã có; chưa có công cụ quản trị loại voter hoặc khôi phục cưỡng bức.
-- Binary chỉ ở máy đã gửi/tải. Không còn nguồn trực tuyến thì vẫn giữ metadata, báo chưa tải được. Tối đa 20 ảnh/tệp mỗi tin, 20 GB/tệp; streaming, progress, hủy, SHA256, tệp tạm và đổi tên nguyên tử.
-- Ảnh JPEG/PNG/GIF/BMP/TIFF đang nằm trong vùng chat hiển thị sẽ tự tải về cache local để tạo hình thu nhỏ (tối đa 20 MB/ảnh, hai tác vụ ảnh đồng thời). Ảnh lớn hơn cần bấm để tải/xem. Khung xem lớn hỗ trợ tối đa 100 MB và 40 megapixel; ảnh vượt giới hạn có thể mở bằng **Ứng dụng ngoài**. GIF/TIFF chỉ hiển thị khung/trang đầu. Ảnh đã tải có thể xem lại khi máy gửi offline. Khung xem dùng ảnh gốc đã gửi; sửa chú thích bằng thao tác sửa tin nhắn.
+- Ảnh, tệp và thư mục trong các tin được phép xem tự tải về với tối đa hai tác vụ nền đồng thời. Ứng dụng thử lại khi nguồn chưa trực tuyến và kiểm tra lại tệp còn thiếu khi khởi động. Tối đa 20 ảnh/tệp mỗi tin và 20 GB/tệp. Tệp tạm được kiểm tra SHA-256 trước khi công bố bản hoàn chỉnh.
+- Ảnh JPEG/PNG/GIF/BMP/TIFF trong vùng chat hiển thị có hình thu nhỏ với tối đa 20 MB/ảnh và hai tác vụ giải mã ảnh đồng thời. Ảnh lớn hơn vẫn tự tải về nền và có thể bấm để xem. Khung xem lớn hỗ trợ tối đa 100 MB và 40 megapixel. Ảnh vượt giới hạn có thể mở bằng **Ứng dụng ngoài**. GIF/TIFF chỉ hiển thị khung/trang đầu. Ảnh đã tải có thể xem lại khi máy gửi offline. Khung xem dùng ảnh gốc đã gửi, sửa chú thích bằng thao tác sửa tin nhắn.
 - Tệp mở bằng ứng dụng ngoài giữ tên/đuôi gốc trong `Data/Attachments/Open/<AttachmentId>/`. Lần bấm sau dùng lại bản local này, kể cả khi nguồn offline. Chỉnh sửa bằng Word/Excel chỉ thay đổi bản mở local, không tự gửi lại hoặc thay đổi blob gốc mà các peer tải xuống. Muốn chia sẻ nội dung đã sửa, gửi lại tệp đó.
 - Sửa/xóa file gốc sau khi gửi không thay đổi nội dung đã gửi. Nếu bản lưu trong ứng dụng bị hỏng/mất, LanChat thử phục hồi từ file nguồn hoặc bản mở local còn đúng SHA256, rồi tìm bản đúng trên máy khác. File nguồn chỉ được ghi nhớ bằng đường dẫn trong dữ liệu local, không gửi đường dẫn này qua mạng. Nếu không còn bản nguyên vẹn, cần bật máy từng gửi/tải hoặc gửi lại file thành tin nhắn mới; không thay SHA của tin nhắn cũ để chấp nhận nội dung đã sửa.
 - Chưa có compaction/snapshot control log, retention hoặc benchmark cụm lớn. Bản hiện tại phù hợp đánh giá trong mạng nội bộ tin cậy trước khi nghiệm thu thực tế.

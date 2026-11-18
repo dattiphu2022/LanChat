@@ -123,6 +123,7 @@ public static class ServiceRegistration
         builder.Services.AddHostedService<PairGroupMaintenance>();
         builder.Services.AddHostedService<RestoreGroupsBackgroundService>();
         builder.Services.AddHostedService(x => x.GetRequiredService<ReplicationBackgroundService>());
+        builder.Services.AddHostedService<AttachmentDownloadBackgroundService>();
         builder.Services.AddHostedService<FallbackScanBackgroundService>();
         configure?.Invoke(builder.Services);
         return builder.Build();

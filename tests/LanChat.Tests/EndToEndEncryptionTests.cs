@@ -128,6 +128,9 @@ public sealed class EndToEndEncryptionTests
         Assert.Null(recipient.FindFileKey(FileTransferCrypto.TransferId(unrelatedKey), default));
         await files.DownloadAsync(projected);
         Assert.Null(recipient.FindFileKey(FileTransferCrypto.TransferId(unrelatedKey), default));
+        var forwarded = await files.PrepareForwardAsync(projected);
+        Assert.NotEqual(projected.FileKey, forwarded.FileKey);
+        Assert.Null(recipient.FindFileKey(FileTransferCrypto.TransferId(unrelatedKey), default));
     }
 
     [Theory]

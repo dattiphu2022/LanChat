@@ -178,8 +178,13 @@ public sealed partial class PeerFileTransferService(NodeOptions options, IDistri
         var directory = Path.Combine(options.DataDirectory, "Attachments", "Open", file.Id.ToString("N"));
         return Path.Combine(directory, name);
     }
+
+    internal bool IsPrepared(AttachmentDto file) => file.MimeType == FolderAttachment.MimeType
+        ? Directory.Exists(OpenPath(file)) : File.Exists(OpenPath(file));
+
     public async Task<string> DownloadAsync(AttachmentDto file, IProgress<FileProgress>? progress = null, CancellationToken ct = default)
     {
+        ct.ThrowIfCancellationRequested();
         if (file.FileSize is < 0 or > 20L * 1024 * 1024 * 1024) throw new InvalidDataException("Kích thước tệp không hợp lệ.");
         var key = DeviceIdentity.Decode(file.FileKey, DeviceIdentity.KeyBytes);
         try { return await DownloadWithKeyAsync(file, key, progress, ct); }

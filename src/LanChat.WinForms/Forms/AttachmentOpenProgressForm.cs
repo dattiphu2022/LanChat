@@ -7,11 +7,14 @@ internal sealed class AttachmentOpenProgressForm : DpiForm
 {
     private readonly Label _state = Theme.Label("Đang chuẩn bị tệp…");
     private readonly ProgressBar _progress = new() { Dock = DockStyle.Fill, Style = ProgressBarStyle.Marquee, Maximum = 1000 };
-    public AttachmentOpenProgressForm(string fileName, CancellationTokenSource cancellation, bool folder = false)
+    private readonly bool _forwarding;
+    public AttachmentOpenProgressForm(string fileName, CancellationTokenSource cancellation, bool folder = false, bool forwarding = false)
     {
+        _forwarding = forwarding;
         Icon = AppIcon.Value;
-        Text = folder ? "Tải và mở thư mục" : "Mở tệp đính kèm";
-        if (folder) _state.Text = "Đang đọc danh sách tệp trong thư mục…";
+        Text = forwarding ? "Chuyển tiếp tin nhắn" : folder ? "Tải và mở thư mục" : "Mở tệp đính kèm";
+        if (forwarding) _state.Text = "Đang chuẩn bị tệp và thư mục để chuyển tiếp…";
+        else if (folder) _state.Text = "Đang đọc danh sách tệp trong thư mục…";
         ClientSize = new Size(500, 175); FormBorderStyle = FormBorderStyle.FixedDialog;
         StartPosition = FormStartPosition.CenterParent; ShowInTaskbar = false; MaximizeBox = MinimizeBox = false;
         var layout = Theme.Stack(4); layout.Padding = new Padding(12);
@@ -25,7 +28,7 @@ internal sealed class AttachmentOpenProgressForm : DpiForm
     {
         if (IsDisposed) return;
         if (progress.Completed >= progress.Total)
-        { _progress.Style = ProgressBarStyle.Marquee; _state.Text = "Đang kiểm tra và chuẩn bị mở…"; }
+        { _progress.Style = ProgressBarStyle.Marquee; _state.Text = _forwarding ? "Đang kiểm tra và chuẩn bị chuyển tiếp…" : "Đang kiểm tra và chuẩn bị mở…"; }
         else
         {
             _progress.Style = ProgressBarStyle.Continuous;

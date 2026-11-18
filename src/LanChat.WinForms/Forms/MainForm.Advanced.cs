@@ -75,15 +75,30 @@ public sealed partial class MainForm
                 using (var select = new SelectionForm("Chuyển tiếp đến", conversations.Select(x => new SelectionItem(x.Id, x.DisplayName, x.Department))))
                 {
                     if (select.ShowDialog(this) != DialogResult.OK || select.SelectedId is not { } destination) return;
-                    var details = await Distributed.GetMessageDetailsAsync(message.Id, _lifetime.Token);
-                    await Distributed.SendToConversationAsync(destination, message.Text, forwardedFrom: message.Id,
-                        attachments: details.Attachments.Select(x => x with { Id = LanChat.Domain.AppIdentity.NewId(), MessageId = Guid.Empty }).ToArray(), ct: _lifetime.Token);
+                    await ForwardMessageAsync(message.Id, destination);
                 }
                 break;
             default: if (action.StartsWith("react:", StringComparison.Ordinal)) await Distributed.ReactAsync(message.Id, action.Substring(6), true, _lifetime.Token); break;
         }
         await RefreshAsync();
     }
+
+    private async Task ForwardMessageAsync(Guid messageId, Guid destination)
+    {
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
+        using var progressForm = new AttachmentOpenProgressForm("Tin nhắn đang chuyển tiếp", cancellation, forwarding: true);
+        try
+        {
+            var forward = _services.GetRequiredService<IChatService>().ForwardAsync(messageId, destination,
+                new Progress<FileProgress>(progressForm.Report), cancellation.Token);
+            if (await Task.WhenAny(forward, Task.Delay(350, cancellation.Token)) != forward && !cancellation.IsCancellationRequested)
+                progressForm.Show(this);
+            await forward;
+        }
+        catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { }
+        finally { progressForm.Close(); }
+    }
+
     private async Task OpenAttachmentAsync(AttachmentDto file)
     {
         if (ChatImageService.IsImage(file)) { await OpenImageGalleryAsync(file); return; }

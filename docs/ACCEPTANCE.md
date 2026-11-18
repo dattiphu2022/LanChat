@@ -1,6 +1,6 @@
 # Nghiệm thu LanChat trên mạng thật
 
-Danh sách dưới đây dùng để nghiệm thu v1.2.3 trên các PC tại nơi sử dụng. Xem thao tác của người dùng và kết quả đã ghi nhận trong [Hướng dẫn sử dụng](HUONG_DAN_SU_DUNG.md) và [Kết quả kiểm chứng](VERIFICATION.md).
+Danh sách dưới đây dùng để nghiệm thu v1.2.4 trên các PC tại nơi sử dụng. Xem thao tác của người dùng và kết quả đã ghi nhận trong [Hướng dẫn sử dụng](HUONG_DAN_SU_DUNG.md) và [Kết quả kiểm chứng](VERIFICATION.md).
 
 ## Chuẩn bị
 
@@ -46,9 +46,10 @@ Danh sách dưới đây dùng để nghiệm thu v1.2.3 trên các PC tại nơ
 - [ ] Bấm ảnh mở đúng ảnh đã chọn; caption giữ xuống dòng, tên người gửi và số thứ tự chính xác. Chuyển bằng thumbnail/Trước/Sau/phím mũi tên qua các lần gửi khác nhau.
 - [ ] Zoom bằng cuộn chuột/nút, kéo ảnh đã phóng to, Vừa khung/100%, Esc đóng; đổi nhanh ảnh và đóng khi đang tải không bị ảnh cũ ghi đè hoặc lỗi ứng dụng.
 - [ ] Thử ảnh gửi không kèm chữ, JPEG xoay EXIF, GIF, ảnh hỏng và ảnh vượt giới hạn; ảnh không tải được có thể thử lại, tệp lớn có thể mở bằng ứng dụng ngoài.
-- [ ] Bấm tên tệp ngay trong tin nhắn: local mở bằng ứng dụng mặc định; remote tự tải, kiểm tra hash và mở, không cần bấm Tải.
+- [ ] Gửi ảnh, tệp và thư mục rồi chuyển sang hội thoại khác. Chờ tải nền hoàn tất, tắt máy gửi và bấm mở trên máy nhận. Kiểm tra đủ tệp, thư mục con và thư mục rỗng. Mở lại LanChat để xác minh các tệp còn thiếu tiếp tục được tải.
 - [ ] Bấm lại khi máy gửi offline vẫn mở bản local; chỉnh sửa bản mở không làm thay đổi blob gốc phục vụ P2P.
 - [ ] B đã tải có thể phục vụ cho C khi A offline.
+- [ ] Chuyển tiếp từ B sang C một tệp và một thư mục có các tệp trùng nội dung. Thử lúc B chưa tải xong và lúc A đã offline sau khi B tải đủ. Sửa bản mở trên B rồi đối chiếu C nhận đúng bản gốc. Hủy trong lúc chuẩn bị và kiểm tra chưa có tin chuyển tiếp được gửi.
 - [ ] Không còn nguồn online thì hiện lỗi rõ, metadata vẫn còn.
 - [ ] Đối chiếu SHA256 với tệp gốc; thử nguồn bị hỏng và đường truyền ngắt.
 - [ ] Resize cửa sổ, DPI 100/125/150%, tên/tin dài, nhiều tệp. Kiểm tra Ctrl+K, Ctrl+F, Shift+Enter, bản nháp theo hội thoại và tải tin cũ giữ vị trí cuộn.

@@ -97,10 +97,7 @@ public sealed partial class PeerFileTransferService
             return target;
         }
 
-        var manifestPath = await DownloadAsync(attachment, ct: ct).ConfigureAwait(false);
-        var manifest = JsonSerializer.Deserialize<FolderManifest>(await FrameworkIO.ReadBytesAsync(manifestPath, ct).ConfigureAwait(false))
-            ?? throw new InvalidDataException("Thiếu nội dung thư mục.");
-        ValidateManifest(manifest, attachment.FileName);
+        var manifest = await ReadFolderManifestAsync(attachment, ct).ConfigureAwait(false);
 
         RejectFolderPathLinks(parent, options.DataDirectory);
         Directory.CreateDirectory(parent);
@@ -138,6 +135,17 @@ public sealed partial class PeerFileTransferService
             return target;
         }
         finally { if (Directory.Exists(temporary)) Directory.Delete(temporary, true); }
+    }
+
+    private async Task<FolderManifest> ReadFolderManifestAsync(AttachmentDto attachment, CancellationToken ct)
+    {
+        ValidateFolderSegment(attachment.FileName);
+        if (attachment.FileSize is < 1 or > MaxManifestBytes) throw new InvalidDataException("Danh sách nội dung thư mục không hợp lệ.");
+        var path = await DownloadAsync(attachment, ct: ct).ConfigureAwait(false);
+        var manifest = JsonSerializer.Deserialize<FolderManifest>(await FrameworkIO.ReadBytesAsync(path, ct).ConfigureAwait(false))
+            ?? throw new InvalidDataException("Thiếu nội dung thư mục.");
+        ValidateManifest(manifest, attachment.FileName);
+        return manifest;
     }
 
     internal static void ValidateManifest(FolderManifest manifest, string expectedName)

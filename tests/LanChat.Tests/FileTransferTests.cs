@@ -9,6 +9,8 @@ namespace LanChat.Tests;
 public sealed class FileTransferTests
 {
     private static IFileTransferService Files(TestNode n) => n.Host.Services.GetRequiredService<IFileTransferService>();
+    private static string PreparedPath(TestNode node, AttachmentDto file) =>
+        Path.Combine(node.Options.DataDirectory, "Attachments", "Open", file.Id.ToString("N"), file.FileName);
 
     [Fact]
     public async Task FolderTransfersOverTlsAndRestoresNestedFilesAndEmptyDirectories()
@@ -16,7 +18,7 @@ public sealed class FileTransferTests
         var cluster = Guid.NewGuid(); var secret = FrameworkIO.RandomBytes(32);
         await using var a = new TestNode(cluster, secret, "A");
         await using var b = new TestNode(cluster, secret, "B");
-        await a.InitializeAsync(true); await b.InitializeAsync();
+        await a.InitializeAsync(true); await b.InitializeAsync(true);
         await b.Store.RememberPeerAsync(await a.Store.GetNodeInfoAsync(), "127.0.0.1");
         var source = Path.Combine(Path.GetDirectoryName(a.Options.DataDirectory)!, Guid.NewGuid().ToString("N"), "Hồ sơ");
         Directory.CreateDirectory(Path.Combine(source, "Phụ lục", "Rỗng"));
@@ -37,7 +39,8 @@ public sealed class FileTransferTests
         await storeB.ImportEventsAsync(await storeA.GetEventRangeAsync(new((await a.Store.GetIdentityAsync()).NodeId, 0)));
         var received = Assert.Single(await storeB.GetAttachmentsAsync(conversation));
         Assert.Equal("Hồ sơ", received.FileName);
-        var opened = await Files(b).PrepareOpenAsync(received);
+        var opened = PreparedPath(b, received);
+        await TestNode.WaitUntilAsync(() => Task.FromResult(Directory.Exists(opened) && Directory.Exists(PreparedPath(a, folder))));
         Assert.Equal("Hồ sơ", Path.GetFileName(opened));
         Assert.Equal(bytes, await FrameworkIO.ReadBytesAsync(Path.Combine(opened, "Phụ lục", "Kết quả.bin")));
         Assert.Equal("Bản gốc", await FrameworkIO.ReadTextAsync(Path.Combine(opened, "Báo cáo.txt")));
@@ -96,7 +99,7 @@ public sealed class FileTransferTests
         Assert.Equal(".txt", Path.GetExtension(safePath));
     }
     [Fact]
-    public async Task MetadataReplicatesButBytesOnlyDownloadOnRequestAndCachedPeerCanServeThem()
+    public async Task AttachmentsPrepareAutomaticallyOnSendAndReceiveAndCachedPeerCanServeThem()
     {
         var cluster = Guid.NewGuid(); var secret = FrameworkIO.RandomBytes(32);
         await using var a = new TestNode(cluster, secret, "A"); await using var b = new TestNode(cluster, secret, "B"); await using var c = new TestNode(cluster, secret, "C");
@@ -108,11 +111,13 @@ public sealed class FileTransferTests
         await storeA.SendToConversationAsync(conversation, "Tệp kiểm thử", attachments: [file]);
         await TestNode.WaitUntilAsync(async () => (await storeB.GetAttachmentsAsync()).Length == 1);
         var received = Assert.Single(await storeB.GetAttachmentsAsync()); Assert.Equal(file.Sha256, received.Sha256);
-        Assert.Null(await Files(b).GetLocalPathAsync(file.Sha256));
+        await TestNode.WaitUntilAsync(() => Task.FromResult(File.Exists(PreparedPath(b, received)) && File.Exists(PreparedPath(a, file))));
+        Assert.Equal(bytes, await FrameworkIO.ReadBytesAsync(PreparedPath(b, received)));
         var progress = new CaptureProgress(); var path = await Files(b).DownloadAsync(received, progress);
         Assert.Equal(bytes, await FrameworkIO.ReadBytesAsync(path)); Assert.Equal(bytes.Length, progress.Last!.Completed);
         // A sender with no intact copy must not prevent another cached peer from serving the original.
         await FrameworkIO.WriteTextAsync(source, "changed source");
+        await FrameworkIO.WriteTextAsync(PreparedPath(a, file), "Sender's working copy changed");
         await FrameworkIO.WriteTextAsync((await Files(a).GetLocalPathAsync(file.Sha256))!, "damaged cache");
         Assert.False((await a.Host.Services.GetRequiredService<PeerFileTransferService>().HasFileAsync(file.Sha256, default)).Available);
         await FrameworkIO.WriteTextAsync(await Files(b).PrepareOpenAsync(received), "Receiver's local edits");
@@ -126,6 +131,177 @@ public sealed class FileTransferTests
         await storeC.ImportEventsAsync(await storeB.GetEventRangeAsync(new((await b.Store.GetIdentityAsync()).NodeId, 0)));
         var copy = await Files(c).DownloadAsync(Assert.Single(await storeC.GetAttachmentsAsync(forwarded)));
         Assert.Equal(bytes, await FrameworkIO.ReadBytesAsync(copy));
+    }
+
+    [Fact]
+    public async Task ForwardedFileUsesCachedOriginalAfterSenderGoesOffline()
+    {
+        await AssertForwardedAttachmentAvailableAsync(folder: false, prepared: true);
+    }
+
+    [Fact]
+    public async Task ForwardedFolderUsesCachedOriginalAfterSenderGoesOffline()
+    {
+        await AssertForwardedAttachmentAvailableAsync(folder: true, prepared: true);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ForwardingWaitsForFileAndFolderDataAndDoesNotSendWhenUnavailable(bool folder)
+    {
+        await AssertForwardedAttachmentAvailableAsync(folder, prepared: false);
+    }
+
+    private static async Task AssertForwardedAttachmentAvailableAsync(bool folder, bool prepared)
+    {
+        var cluster = Guid.NewGuid(); var secret = FrameworkIO.RandomBytes(32);
+        await using var a = new TestNode(cluster, secret, "Original");
+        await using var b = new TestNode(cluster, secret, "Forwarder");
+        await using var c = new TestNode(cluster, secret, "Recipient");
+        await a.InitializeAsync(true); await b.InitializeAsync(); await c.InitializeAsync();
+        await a.Store.RememberPeerAsync(await b.Store.GetNodeInfoAsync(), "127.0.0.1");
+        await b.Store.RememberPeerAsync(await a.Store.GetNodeInfoAsync(), "127.0.0.1");
+        await b.Store.RememberPeerAsync(await c.Store.GetNodeInfoAsync(), "127.0.0.1");
+        await c.Store.RememberPeerAsync(await b.Store.GetNodeInfoAsync(), "127.0.0.1");
+
+        var cached = Path.Combine(b.Options.DataDirectory, "cached.txt");
+        await FrameworkIO.WriteTextAsync(cached, "Bản gốc cần chuyển tiếp");
+        if (prepared) await Files(b).ImportLocalAsync(cached);
+        var source = Path.Combine(Path.GetDirectoryName(a.Options.DataDirectory)!, Guid.NewGuid().ToString("N"), "Hồ sơ chuyển tiếp");
+        Directory.CreateDirectory(Path.Combine(source, "Tài liệu", "Rỗng"));
+        var sourceFile = Path.Combine(source, "Tài liệu", "Báo cáo.txt");
+        await FrameworkIO.WriteTextAsync(sourceFile, "Bản gốc cần chuyển tiếp");
+        await FrameworkIO.WriteTextAsync(Path.Combine(source, "Bản sao.txt"), "Bản gốc cần chuyển tiếp");
+        var file = folder ? await Files(a).ImportFolderAsync(source) : await Files(a).ImportLocalAsync(sourceFile);
+        var originalConversation = await a.Store.OpenDirectAsync((await b.Store.GetIdentityAsync()).UserId);
+        var storeA = a.Host.Services.GetRequiredService<IDistributedStore>();
+        var storeB = b.Host.Services.GetRequiredService<IDistributedStore>();
+        var original = await storeA.SendToConversationAsync(originalConversation, "", attachments: [file]);
+        await storeB.ImportEventsAsync(await storeA.GetEventRangeAsync(new((await a.Store.GetIdentityAsync()).NodeId, 0)));
+        var received = Assert.Single(await storeB.GetAttachmentsAsync(originalConversation));
+        if (prepared)
+        {
+            var originalCopy = await Files(b).PrepareOpenAsync(received);
+            var originalDocument = folder ? Path.Combine(originalCopy, "Tài liệu", "Báo cáo.txt") : originalCopy;
+            await FrameworkIO.WriteTextAsync(originalDocument, "Chỉnh sửa cục bộ của người chuyển tiếp");
+            await a.Host.StopAsync();
+        }
+        var destination = await b.Store.OpenDirectAsync((await c.Store.GetIdentityAsync()).UserId);
+        var chat = b.Host.Services.GetRequiredService<IChatService>();
+        if (!prepared)
+        {
+            var sourceNode = (await a.Store.GetIdentityAsync()).NodeId;
+            var faults = b.Host.Services.GetRequiredService<FaultInjection>();
+            lock (faults.BlockedNodes) faults.BlockedNodes.Add(sourceNode);
+            await Assert.ThrowsAsync<IOException>(() => chat.ForwardAsync(original.Id, destination));
+            Assert.Empty(await b.Store.GetMessagesAsync(destination));
+            lock (faults.BlockedNodes) faults.BlockedNodes.Clear();
+            using var cancel = new CancellationTokenSource();
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => chat.ForwardAsync(original.Id, destination,
+                new CaptureProgress(_ => cancel.Cancel()), cancel.Token));
+            Assert.Empty(await b.Store.GetMessagesAsync(destination));
+        }
+        var forwarded = await chat.ForwardAsync(original.Id, destination);
+        await b.Host.StartAsync();
+        if (!prepared) await a.Host.StopAsync();
+
+        var storeC = c.Host.Services.GetRequiredService<IDistributedStore>();
+        await storeC.ImportEventsAsync(await storeB.GetEventRangeAsync(new((await b.Store.GetIdentityAsync()).NodeId, 0)));
+        var copy = Assert.Single(await storeC.GetAttachmentsAsync(destination));
+        Assert.NotEqual(received.Id, copy.Id);
+        Assert.NotEqual(received.FileKey, copy.FileKey);
+        Assert.Equal(original.Id, (await storeC.GetMessageDetailsAsync(forwarded.Id)).Message.ForwardedFromMessageId);
+        var opened = await Files(c).PrepareOpenAsync(copy);
+        var document = folder ? Path.Combine(opened, "Tài liệu", "Báo cáo.txt") : opened;
+        Assert.Equal("Bản gốc cần chuyển tiếp", await FrameworkIO.ReadTextAsync(document));
+        if (folder)
+        {
+            Assert.Equal("Bản gốc cần chuyển tiếp", await FrameworkIO.ReadTextAsync(Path.Combine(opened, "Bản sao.txt")));
+            Assert.Empty(Directory.EnumerateFileSystemEntries(Path.Combine(opened, "Tài liệu", "Rỗng")));
+        }
+    }
+
+    [Fact]
+    public async Task MissingAttachmentsRetryAfterRestartAndPrepareWholeFolderAndLargeImage()
+    {
+        var cluster = Guid.NewGuid(); var secret = FrameworkIO.RandomBytes(32);
+        await using var a = new TestNode(cluster, secret, "A");
+        await using var b = new TestNode(cluster, secret, "B");
+        await a.InitializeAsync(); await b.InitializeAsync();
+        await a.Store.RememberPeerAsync(await b.Store.GetNodeInfoAsync(), "127.0.0.1");
+        await b.Store.RememberPeerAsync(await a.Store.GetNodeInfoAsync(), "127.0.0.1");
+
+        var source = Path.Combine(Path.GetDirectoryName(a.Options.DataDirectory)!, Guid.NewGuid().ToString("N"), "Hồ sơ tự tải");
+        Directory.CreateDirectory(Path.Combine(source, "Phụ lục", "Rỗng"));
+        await FrameworkIO.WriteTextAsync(Path.Combine(source, "Phụ lục", "Báo cáo.txt"), "Bản gốc trong thư mục");
+        var folder = await Files(a).ImportFolderAsync(source);
+        var imagePath = Path.Combine(a.Options.DataDirectory, "Ảnh lớn.bmp");
+        using (var bitmap = new System.Drawing.Bitmap(3200, 2400)) bitmap.Save(imagePath, System.Drawing.Imaging.ImageFormat.Bmp);
+        var image = await Files(a).ImportLocalAsync(imagePath);
+        Assert.True(image.FileSize > 20L * 1024 * 1024);
+
+        var conversation = await a.Store.OpenDirectAsync((await b.Store.GetIdentityAsync()).UserId);
+        var storeA = a.Host.Services.GetRequiredService<IDistributedStore>();
+        var storeB = b.Host.Services.GetRequiredService<IDistributedStore>();
+        await storeA.SendToConversationAsync(conversation, "Tự tải cả thư mục và ảnh ngoài vùng xem", attachments: [folder, image]);
+        await storeB.ImportEventsAsync(await storeA.GetEventRangeAsync(new((await a.Store.GetIdentityAsync()).NodeId, 0)));
+        await b.Host.StartAsync();
+        await TestNode.WaitUntilAsync(() => Task.FromResult(Directory.Exists(Path.Combine(b.Options.DataDirectory, "Attachments"))));
+        await b.Host.StopAsync();
+        Assert.False(Directory.Exists(PreparedPath(b, folder)));
+        Assert.False(File.Exists(PreparedPath(b, image)));
+        Assert.Empty(Directory.GetFiles(Path.Combine(b.Options.DataDirectory, "Attachments"), "*.part", SearchOption.AllDirectories));
+
+        await using var restarted = new TestNode(cluster, secret, "B", b.Options.DataDirectory);
+        await restarted.InitializeAsync(true);
+        await a.Store.RememberPeerAsync(await restarted.Store.GetNodeInfoAsync(), "127.0.0.1");
+        await a.Host.StartAsync();
+        var openedFolder = PreparedPath(restarted, folder);
+        var openedImage = PreparedPath(restarted, image);
+        await TestNode.WaitUntilAsync(() => Task.FromResult(Directory.Exists(openedFolder) && File.Exists(openedImage)), 25);
+        await a.Host.StopAsync();
+        Assert.Equal("Bản gốc trong thư mục", await FrameworkIO.ReadTextAsync(Path.Combine(openedFolder, "Phụ lục", "Báo cáo.txt")));
+        Assert.Empty(Directory.EnumerateFileSystemEntries(Path.Combine(openedFolder, "Phụ lục", "Rỗng")));
+        Assert.Equal(image.FileSize, new FileInfo(openedImage).Length);
+        Assert.NotNull(await Files(restarted).GetLocalPathAsync(image.Sha256));
+        Assert.Equal(openedFolder, await Files(restarted).PrepareOpenAsync(folder));
+        Assert.Equal(openedImage, await Files(restarted).PrepareOpenAsync(image));
+    }
+
+    [Fact]
+    public async Task AutomaticDownloadsSkipRecalledFilesAndPrivateCiphertextOnRelay()
+    {
+        var cluster = Guid.NewGuid(); var secret = FrameworkIO.RandomBytes(32);
+        await using var a = new TestNode(cluster, secret, "A");
+        await using var b = new TestNode(cluster, secret, "B");
+        await using var relay = new TestNode(cluster, secret, "Relay");
+        await a.InitializeAsync(); await b.InitializeAsync(); await relay.InitializeAsync();
+        await a.Store.RememberPeerAsync(await b.Store.GetNodeInfoAsync(), "127.0.0.1");
+        await b.Store.RememberPeerAsync(await a.Store.GetNodeInfoAsync(), "127.0.0.1");
+        await relay.Store.RememberPeerAsync(await a.Store.GetNodeInfoAsync(), "127.0.0.1");
+
+        var source = Path.Combine(a.Options.DataDirectory, "Document.txt");
+        await FrameworkIO.WriteTextAsync(source, "Giữ lại");
+        var kept = await Files(a).ImportLocalAsync(source);
+        await FrameworkIO.WriteTextAsync(source, "Đã thu hồi");
+        var recalled = await Files(a).ImportLocalAsync(source);
+        var storeA = a.Host.Services.GetRequiredService<IDistributedStore>();
+        var conversation = await a.Store.OpenDirectAsync((await b.Store.GetIdentityAsync()).UserId);
+        await storeA.SendToConversationAsync(conversation, "Tệp được phép nhận", attachments: [kept]);
+        var message = await storeA.SendToConversationAsync(conversation, "Thu hồi trước khi tải", attachments: [recalled]);
+        await storeA.RecallMessageAsync(message.Id);
+        var events = await storeA.GetEventRangeAsync(new((await a.Store.GetIdentityAsync()).NodeId, 0));
+        foreach (var node in new[] { b, relay })
+            await node.Host.Services.GetRequiredService<IDistributedStore>().ImportEventsAsync(events);
+        foreach (var node in new[] { a, b, relay }) await node.Host.StartAsync();
+
+        await TestNode.WaitUntilAsync(() => Task.FromResult(File.Exists(PreparedPath(b, kept))));
+        Assert.Equal("Giữ lại", await FrameworkIO.ReadTextAsync(PreparedPath(b, kept)));
+        Assert.False(File.Exists(PreparedPath(b, recalled)));
+        Assert.Null(await Files(b).GetLocalPathAsync(recalled.Sha256));
+        Assert.Empty(await relay.Host.Services.GetRequiredService<IDistributedStore>().GetAttachmentsAsync());
+        Assert.False(Directory.Exists(Path.Combine(relay.Options.DataDirectory, "Attachments")));
     }
     [Fact]
     public async Task CorruptSourceIsRejectedAndTemporaryFileIsRemoved()

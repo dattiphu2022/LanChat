@@ -26,6 +26,7 @@ Nhấp phải hội thoại để ghim, tắt thông báo hoặc **Xóa hội th
 ## Trả lời và tìm tin cũ
 
 - Bấm biểu tượng dấu trích dẫn trên tin nhắn để trả lời. Bấm biểu tượng trái tim để chọn cảm xúc. Menu chuột phải có thêm các thao tác như sao chép, chuyển tiếp, sửa và thu hồi.
+- Khi chọn **Chuyển tiếp** cho tin có ảnh, tệp hoặc thư mục, LanChat chuẩn bị bản gốc trên máy trước khi gửi. Thư mục được kiểm tra cả các tệp bên trong. Có thể bấm **Hủy** nếu quá trình tải mất thời gian. Nội dung chuyển tiếp dùng bản gốc đã nhận, kể cả khi bạn đã chỉnh sửa bản mở trên máy.
 - Bấm khung trích dẫn trong tin trả lời để tới tin gốc. Có thể chọn khung bằng bàn phím rồi nhấn **Enter**. Với tin gốc đã thu hồi hoặc bị xóa phía bạn, khung báo trạng thái của tin.
 - Bấm **Quay về tin nhắn mới** để trở lại cuối hội thoại. Bản nháp được giữ khi bạn xem tin cũ.
 - Dùng **Tìm tin** hoặc **Ctrl+F** trong hội thoại. Chọn một kết quả để mở vị trí của tin trong lịch sử.
@@ -36,7 +37,8 @@ Nhấp phải hội thoại để ghim, tắt thông báo hoặc **Xóa hội th
 - Chọn **Dán ảnh** để lấy ảnh trong bảng nhớ tạm. **Ctrl+V** dán ảnh khi bảng nhớ tạm chỉ có ảnh. Khi có cả chữ và ảnh, **Ctrl+V** dán chữ.
 - Chọn **Chụp vùng** để tạm ẩn LanChat. Kéo chuột chọn vùng, rồi nhả chuột để chụp. Nhấn **Esc** để hủy. LanChat hiện lại sau cả hai thao tác.
 - Ảnh dán hoặc chụp xuất hiện dưới dạng PNG trong bản nháp. Kiểm tra bản xem trước, gỡ tệp nếu cần, rồi bấm **Gửi**. Mỗi tin có thể đính kèm tối đa 20 mục.
-- Bấm ảnh trong tin nhắn để xem lớn. Dùng phím mũi tên để chuyển ảnh, cuộn chuột để phóng to và nhấn **Esc** để đóng. Bấm tên tệp hoặc thư mục để mở. Tệp chưa tải cần một máy đang trực tuyến còn giữ bản tệp.
+- Khi gửi hoặc nhận tin, LanChat tự tải ảnh, tệp và toàn bộ nội dung thư mục về nền, kể cả khi bạn đang xem hội thoại khác. Bấm tên tệp hoặc thư mục để mở bản đã chuẩn bị trên máy. Nếu máy giữ tệp đang ngoại tuyến, ứng dụng tự thử lại và tiếp tục kiểm tra tệp còn thiếu khi mở lại LanChat.
+- Bấm ảnh trong tin nhắn để xem lớn. Dùng phím mũi tên để chuyển ảnh, cuộn chuột để phóng to và nhấn **Esc** để đóng.
 
 ## Cập nhật và thoát ứng dụng
 

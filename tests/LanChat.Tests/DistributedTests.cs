@@ -138,7 +138,7 @@ public sealed class DistributedTests
         await Distributed(b).ReactAsync(original.Id, "👍", true); await Distributed(b).ReactAsync(original.Id, "👍", false); await Distributed(b).ReactAsync(original.Id, "❤️", true);
         await b.Store.SetConversationAsync(original.ConversationId, markRead: true);
         var reply = await Distributed(b).SendToConversationAsync(original.ConversationId, "Trả lời", replyTo: original.Id);
-        var forwarded = await Distributed(b).SendToConversationAsync(original.ConversationId, original.Text, forwardedFrom: original.Id);
+        var forwarded = await b.Host.Services.GetRequiredService<IChatService>().ForwardAsync(original.Id, original.ConversationId);
         foreach (var e in (await Events(b)).Reverse()) await Distributed(a).ImportEventsAsync(new([e]));
         var details = await Distributed(a).GetMessageDetailsAsync(original.Id);
         Assert.Equal(new[] { "❤️" }, details.Reactions); Assert.Equal(1, details.ReadCount); Assert.Equal(MessageStatus.Delivered, details.Message.Status);
