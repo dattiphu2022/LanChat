@@ -82,6 +82,8 @@ public sealed class GroupsForm : DpiForm
             button.Margin = new Padding(3, 5, 3, 5);
             actions.Controls.Add(button);
         }
+        actions.Controls.Add(UiInteraction.CloseButton(this));
+        UiInteraction.Wrap(_status, layout);
         layout.Controls.Add(_status, 0, 0);
         layout.Controls.Add(columns, 0, 1);
         layout.Controls.Add(actions, 0, 2);
@@ -91,6 +93,7 @@ public sealed class GroupsForm : DpiForm
         _members.CreateRequested += async members => await CreateGroupAsync(members);
         _newGroup.Click += (_, _) =>
         {
+            if (_creating && _members.HasDrafts && !UiInteraction.Discard(this, "Bỏ lựa chọn thành viên nhóm mới để chọn lại?")) return;
             _error = null;
             _creating = true;
             _members.ResetNewGroup();
@@ -108,10 +111,11 @@ public sealed class GroupsForm : DpiForm
         _rename.Click += async (_, _) =>
         {
             if (CurrentGroup is not { } group) return;
-            await RunAsync(async () =>
+            await RunAsync(() =>
             {
-                var name = SelectionForm.Prompt(this, "Đổi tên nhóm", group.Name);
-                if (name is not null) await SubmitAsync(Command(ControlCommandType.GroupRenamed, group.Id, name: name));
+                SelectionForm.Prompt(this, "Đổi tên nhóm", group.Name,
+                    save: name => SubmitAsync(Command(ControlCommandType.GroupRenamed, group.Id, name: name)));
+                return Task.CompletedTask;
             });
         };
         _transfer.Click += async (_, _) =>
@@ -120,7 +124,7 @@ public sealed class GroupsForm : DpiForm
             await RunAsync(async () =>
             {
                 using var choose = new SelectionForm("Chọn chủ nhóm mới", group.Members.Where(id => id != _profile!.Id).Select(_members.MemberName));
-                if (choose.ShowDialog(this) == DialogResult.OK && choose.SelectedId is { } id)
+                if (UiInteraction.ShowDialog(choose, this) == DialogResult.OK && choose.SelectedId is { } id)
                     await SubmitAsync(Command(ControlCommandType.GroupOwnerChanged, group.Id, id));
             });
         };
@@ -129,8 +133,8 @@ public sealed class GroupsForm : DpiForm
             if (CurrentGroup is not { } group) return;
             await RunAsync(async () =>
             {
-                if (MessageBox.Show(this, $"Xóa nhóm {group.Name}? Lịch sử vẫn được giữ trong dữ liệu nội bộ.", "Xóa nhóm",
-                    MessageBoxButtons.YesNo) == DialogResult.Yes)
+                if (MessageBox.Show(UiInteraction.Owner(this), $"Xóa nhóm {group.Name}? Lịch sử vẫn được giữ trong dữ liệu nội bộ.", "Xóa nhóm",
+                    MessageBoxButtons.YesNo, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2) == DialogResult.Yes)
                     await SubmitAsync(Command(ControlCommandType.GroupDeleted, group.Id));
             });
         };
@@ -150,6 +154,11 @@ public sealed class GroupsForm : DpiForm
             if (!_stop.IsCancellationRequested) _timer.Start();
         };
         _timer.Tick += async (_, _) => { if (!_saving) await RefreshAsync(); };
+        FormClosing += (_, e) =>
+        {
+            if (_saving) { e.Cancel = true; _error = "Đang lưu thay đổi nhóm. Vui lòng chờ hoàn tất."; UpdateActions(); }
+            else if (_members.HasDrafts && !UiInteraction.Discard(this, "Bỏ các thay đổi thành viên chưa lưu?")) e.Cancel = true;
+        };
         FormClosed += (_, _) => Stop();
         Disposed += (_, _) => Stop();
         UpdateActions();
@@ -254,17 +263,18 @@ public sealed class GroupsForm : DpiForm
         var details = group is null ? "Chọn nhóm hoặc tạo nhóm mới." : group.PendingCreation ? "Nhóm mới · đang chờ mạng xác nhận." :
             $"{group.Members.Length} thành viên · {(owner ? "Bạn là chủ nhóm" : "Bạn là thành viên")}";
         _status.Text = (_network is null ? "Đang tải danh sách nhóm…" : UiText.HideIpAddresses(_network.StatusText)) + "\n" +
-            (_error ?? _refreshError ?? (WaitingForCommit ? "Đang đồng bộ thay đổi nhóm…" : details));
+            (_error ?? _refreshError ?? (_saving ? "Đang xử lý thay đổi nhóm…" : WaitingForCommit ? "Đang đồng bộ thay đổi nhóm…" : details));
     }
 
-    private Task CreateGroupAsync(Guid[] members) => RunAsync(async () =>
+    private Task CreateGroupAsync(Guid[] members) => RunAsync(() =>
     {
-        var name = SelectionForm.Prompt(this, "Tên nhóm mới");
-        if (name is null) return;
         var id = AppIdentity.NewId();
-        await SubmitAsync(new ControlCommand(AppIdentity.NewId(), ControlCommandType.GroupCreated, _profile!.Id, id, Name: name, Members: members));
+        var name = SelectionForm.Prompt(this, "Tên nhóm mới", save: value => SubmitAsync(
+            new ControlCommand(AppIdentity.NewId(), ControlCommandType.GroupCreated, _profile!.Id, id, Name: value, Members: members)));
+        if (name is null) return Task.CompletedTask;
         _createdGroup = id;
         _search.Clear();
+        return Task.CompletedTask;
     }, createGroup: true);
 
     private ControlCommand Command(ControlCommandType type, Guid group, Guid? target = null, string? name = null) =>

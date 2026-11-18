@@ -10,23 +10,30 @@ internal sealed class AboutForm : DpiForm
     internal const string AuthorName = "Trung tá Nguyễn Quốc Đạt - K02 - BCA";
     private const string ProjectUrl = "https://github.com/dattiphu2022/LanChat.git";
 
-    public AboutForm(string updateMessage, Func<Task<string>> checkForUpdate)
+    internal bool InstallRequested { get; private set; }
+
+    public AboutForm(UpdateCoordinator updates, Func<bool> canInstall)
     {
         Text = "Giới thiệu LanChat";
         Icon = AppIcon.Value;
         StartPosition = FormStartPosition.CenterParent;
         FormBorderStyle = FormBorderStyle.FixedDialog;
         ShowInTaskbar = MinimizeBox = MaximizeBox = false;
-        ClientSize = new Size(524, 420);
+        ClientSize = new Size(560, 560);
+        MinimumSize = new Size(500, 450);
+        AutoScroll = true;
 
-        var layout = Theme.Stack(6);
+        var layout = Theme.Stack(4);
         layout.Padding = new Padding(24, 20, 24, 16);
-        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 91));
-        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 76));
         layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        var scroll = new Panel { Dock = DockStyle.Fill, AutoScroll = true, Margin = Padding.Empty };
+        var content = Theme.Stack(4); content.Dock = DockStyle.Top; content.AutoSize = true; content.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+        content.RowStyles.Add(new RowStyle(SizeType.Absolute, 91));
+        content.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        content.RowStyles.Add(new RowStyle(SizeType.AutoSize)); content.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
         var header = new TableLayoutPanel { Dock = DockStyle.Fill, Margin = Padding.Empty, ColumnCount = 2, RowCount = 3 };
         header.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 66));
@@ -48,20 +55,22 @@ internal sealed class AboutForm : DpiForm
         header.Controls.Add(version, 1, 2);
 
         var author = Theme.Stack(2);
+        author.Dock = DockStyle.Top; author.AutoSize = true; author.AutoSizeMode = AutoSizeMode.GrowAndShrink;
         author.BackColor = Theme.Canvas;
         author.Margin = new Padding(0, 0, 0, 6);
         author.Padding = new Padding(12, 8, 12, 8);
         author.RowStyles.Add(new RowStyle(SizeType.Absolute, 21));
-        author.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        author.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         var credit = Theme.Label("Tác giả", 9);
         credit.ForeColor = Theme.Muted;
         author.Controls.Add(credit, 0, 0);
-        author.Controls.Add(Theme.Label(AuthorName, 15, true), 0, 1);
+        var authorName = Theme.Label(AuthorName, 15, true); UiInteraction.Wrap(authorName, author);
+        author.Controls.Add(authorName, 0, 1);
 
         var introduction = Theme.Label("LanChat phục vụ trao đổi công việc và chia sẻ tài liệu giữa các máy trong mạng nội bộ (LAN).\n\n" +
             "Ứng dụng hỗ trợ chat riêng, chat nhóm và gửi ảnh, tệp, thư mục. Tin nhắn và tệp được mã hóa đầu cuối. " +
             "Tin đang chờ sẽ tự đồng bộ khi kết nối trở lại.");
-        introduction.AutoSize = false;
+        UiInteraction.Wrap(introduction, content);
         introduction.Margin = new Padding(0, 12, 0, 0);
 
         var resources = Theme.Toolbar();
@@ -72,7 +81,7 @@ internal sealed class AboutForm : DpiForm
         guide.LinkClicked += (_, _) =>
         {
             using var dialog = new UserGuideForm();
-            dialog.ShowDialog(this);
+            UiInteraction.ShowDialog(dialog, this);
         };
         var project = ResourceLink("Dự án trên GitHub", UiIcon.Open);
         project.AccessibleDescription = ProjectUrl;
@@ -80,7 +89,7 @@ internal sealed class AboutForm : DpiForm
         license.LinkClicked += (_, _) =>
         {
             using var dialog = new LicenseForm();
-            dialog.ShowDialog(this);
+            UiInteraction.ShowDialog(dialog, this);
         };
         resources.Controls.AddRange([guide, project, license]);
         var links = new ToolTip();
@@ -88,23 +97,22 @@ internal sealed class AboutForm : DpiForm
         Disposed += (_, _) => links.Dispose();
 
         var footer = Theme.Toolbar();
-        footer.FlowDirection = FlowDirection.RightToLeft;
+        footer.FlowDirection = FlowDirection.LeftToRight;
         footer.Margin = Padding.Empty;
         var close = Theme.Button("Đóng", UiIcon.Close);
         close.DialogResult = DialogResult.OK;
-        footer.Controls.Add(close);
-        var check = Theme.Secondary("Kiểm tra cập nhật", UiIcon.Refresh);
-        footer.Controls.Add(check);
         var donation = Theme.Secondary("Ủng hộ phát triển", UiIcon.Heart);
         donation.Click += (_, _) =>
         {
             using var dialog = new DonationForm();
-            dialog.ShowDialog(this);
+            UiInteraction.ShowDialog(dialog, this);
         };
         footer.Controls.Add(donation);
-        var status = Theme.Label(updateMessage, 9);
+        footer.Controls.Add(close);
+        var status = Theme.Label("", 9);
         status.ForeColor = Theme.Muted;
         status.UseMnemonic = false;
+        status.Visible = false;
         project.LinkClicked += (_, _) =>
         {
             try
@@ -114,25 +122,51 @@ internal sealed class AboutForm : DpiForm
             catch (Win32Exception)
             {
                 status.Text = "Chưa mở được trình duyệt. " + ProjectUrl;
+                status.Visible = true;
             }
         };
-        check.Click += async (_, _) =>
+        var updatePanel = new UpdatePanel(updates);
+        (int Width, int Dpi, int FontHeight, string Text)? actionLayout = null;
+        void AlignActions()
         {
-            check.Enabled = false;
-            status.Text = "Đang kiểm tra cập nhật…";
-            var message = await checkForUpdate();
-            if (IsDisposed) return;
-            status.Text = message;
-            check.Enabled = true;
+            var buttons = updatePanel.ActionButtons.Concat(new[] { donation, close }).ToArray();
+            var key = (layout.ClientSize.Width, this.LayoutDpi(), buttons.Max(button => button.Font.Height), string.Join("\0", buttons.Select(button => button.Text)));
+            if (actionLayout == key) return;
+            actionLayout = key;
+            foreach (var button in buttons) button.MinimumSize = Size.Empty;
+            var preferred = buttons.Select(button => button.GetPreferredSize(Size.Empty)).ToArray();
+            var width = Math.Min(preferred.Max(size => size.Width), Math.Max(1, (layout.ClientSize.Width - layout.Padding.Horizontal) / 2 - this.ScalePixels(10)));
+            var height = Math.Max(this.ScalePixels(36), preferred.Max(size => size.Height));
+            foreach (var button in buttons)
+            {
+                button.AutoSize = false;
+                button.Size = button.MinimumSize = new Size(width, height);
+                button.Margin = new Padding(this.ScalePixels(5));
+            }
+        }
+        layout.SizeChanged += (_, _) => AlignActions();
+        DpiChanged += (_, _) => AlignActions();
+        updates.Changed += AlignActions;
+        Disposed += (_, _) => updates.Changed -= AlignActions;
+        updatePanel.InstallRequested += () =>
+        {
+            if (!canInstall())
+            {
+                updates.Notify("Hãy hoàn tất hoặc hủy tác vụ đang chạy rồi chọn Cài đặt ngay.");
+                return;
+            }
+            InstallRequested = true;
+            DialogResult = DialogResult.OK;
         };
         AcceptButton = CancelButton = close;
+        Shown += (_, _) => { close.Focus(); scroll.AutoScrollPosition = Point.Empty; };
 
-        layout.Controls.Add(header, 0, 0);
-        layout.Controls.Add(author, 0, 1);
-        layout.Controls.Add(introduction, 0, 2);
-        layout.Controls.Add(resources, 0, 3);
-        layout.Controls.Add(status, 0, 4);
-        layout.Controls.Add(footer, 0, 5);
+        content.Controls.Add(header, 0, 0); content.Controls.Add(author, 0, 1);
+        content.Controls.Add(introduction, 0, 2); content.Controls.Add(resources, 0, 3); scroll.Controls.Add(content);
+        UiInteraction.Wrap(status, layout);
+        layout.Controls.Add(scroll, 0, 0); layout.Controls.Add(updatePanel, 0, 1);
+        layout.Controls.Add(status, 0, 2); layout.Controls.Add(footer, 0, 3);
         Controls.Add(layout);
+        AlignActions();
     }
 }

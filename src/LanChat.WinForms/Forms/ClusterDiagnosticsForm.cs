@@ -26,9 +26,15 @@ public sealed class ClusterDiagnosticsForm : DpiForm
         layout.Controls.Add(_summary, 0, 0); layout.Controls.Add(_grid, 0, 1);
         var lifetime = new CancellationTokenSource();
         var buttons = Theme.Toolbar(); var refresh = Theme.Button("Làm mới", UiIcon.Refresh); var copy = Theme.Button("Sao chép chẩn đoán", UiIcon.Copy);
-        buttons.Controls.Add(refresh); buttons.Controls.Add(copy); layout.Controls.Add(buttons, 0, 2); Controls.Add(layout);
+        buttons.Controls.Add(refresh); buttons.Controls.Add(copy); buttons.Controls.Add(UiInteraction.CloseButton(this));
+        layout.Controls.Add(buttons, 0, 2); Controls.Add(layout);
+        var loading = false;
+        copy.Enabled = false;
         async Task LoadAsync()
         {
+            if (loading || IsDisposed || lifetime.IsCancellationRequested) return;
+            loading = true; refresh.Enabled = copy.Enabled = false; _summary.Text = "Đang tải chẩn đoán…";
+            copy.Text = "Sao chép chẩn đoán";
             try
             {
                 var users = await store.GetUsersAsync(ct: lifetime.Token); var identity = await store.GetIdentityAsync(lifetime.Token);
@@ -43,11 +49,13 @@ public sealed class ClusterDiagnosticsForm : DpiForm
                     x.Role, x.Term,
                     LastSeen = Time(x.LastSeenTicks), Cursor = sync.Cursors.FirstOrDefault(c => c.OriginNodeId == x.NodeId)?.LastOriginSequence ?? 0 }).ToList();
                 _grid.Tag = string.Join("\n", sync.Cursors.Select(c => $"Cursor {c.OriginNodeId}: {c.LastOriginSequence}"));
+                copy.Enabled = true;
             }
             catch (Exception ex) { if (!IsDisposed) _summary.Text = UiText.HideIpAddresses(ex.Message); }
+            finally { loading = false; if (!IsDisposed) refresh.Enabled = true; }
         }
         Shown += async (_, _) => await LoadAsync(); refresh.Click += async (_, _) => await LoadAsync();
-        copy.Click += (_, _) => Clipboard.SetText(BuildReport());
+        copy.Click += (_, _) => { if (UiInteraction.Copy(this, BuildReport())) copy.Text = "Đã sao chép"; };
 #if DEBUG
         foreach (var label in new[] { "Pause Replication", "Stop Heartbeat", "Simulate Leader Failure" })
         {
@@ -61,6 +69,8 @@ public sealed class ClusterDiagnosticsForm : DpiForm
         forceSync.Click += async (_, _) => { forceSync.Enabled = false; try { await replication.SynchronizeAsync(lifetime.Token); await LoadAsync(); } catch (Exception ex) { if (!IsDisposed) _summary.Text = UiText.HideIpAddresses(ex.Message); } finally { if (!IsDisposed) forceSync.Enabled = true; } };
 #endif
         FormClosed += (_, _) => lifetime.Cancel();
+        var disposed = false;
+        Disposed += (_, _) => { if (disposed) return; disposed = true; lifetime.Cancel(); lifetime.Dispose(); };
     }
 
     internal string BuildReport()

@@ -8,6 +8,7 @@ internal sealed class FolderPickerDialog : CommonDialog
     private const uint FileSystemPath = 0x80058000; // SIGDN_FILESYSPATH
 
     public string? SelectedPath { get; private set; }
+    public string Title { get; set; } = "Chọn thư mục đính kèm";
 
     public override void Reset() => SelectedPath = null;
 
@@ -19,7 +20,7 @@ internal sealed class FolderPickerDialog : CommonDialog
         {
             dialog.GetOptions(out var options);
             dialog.SetOptions(options | FileDialogOptions.PickFolders | FileDialogOptions.ForceFileSystem);
-            dialog.SetTitle("Chọn thư mục đính kèm");
+            dialog.SetTitle(Title);
             dialog.SetOkButtonLabel("Chọn thư mục");
             dialog.SetFileNameLabel("Thư mục:");
 

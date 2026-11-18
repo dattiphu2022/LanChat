@@ -90,6 +90,9 @@ public sealed class ConversationItemControl : UserControl
     public ConversationItemControl()
     {
         Height = 72; TabStop = true; Dock = DockStyle.Top; Cursor = Cursors.Hand;
+        DoubleBuffered = true; ResizeRedraw = true;
+        Padding = new Padding(0, 0, 0, 1);
+        DpiChangedAfterParent += (_, _) => Padding = new Padding(0, 0, 0, 1);
         var layout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 3, Padding = new Padding(8, 5, 8, 5) };
         layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 44)); layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         layout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
@@ -116,6 +119,18 @@ public sealed class ConversationItemControl : UserControl
         foreach (Control control in new Control[] { layout, _avatar, _title, _preview, _meta, _unread })
         { control.Click += (_, _) => { if (_model is not null) Selected?.Invoke(_model); }; control.ContextMenuStrip = menu; }
     }
+    protected override void OnPaint(PaintEventArgs e)
+    {
+        base.OnPaint(e);
+        var inset = this.ScalePixels(8);
+        using var line = new SolidBrush(Theme.Border);
+        e.Graphics.FillRectangle(line, inset, ClientSize.Height - 1, Math.Max(0, ClientSize.Width - inset * 2), 1);
+    }
+    internal void SetActive(bool active)
+    {
+        var color = active ? Theme.Selection : Color.White;
+        if (BackColor != color) BackColor = color;
+    }
     public void Bind(ConversationSummary c, bool active)
     {
         if (_model == c && BackColor == (active ? Theme.Selection : Color.White)) return;
@@ -126,7 +141,7 @@ public sealed class ConversationItemControl : UserControl
         _preview.Text = c.Preview.NormalizeLines(" ");
         _meta.Text = $"{(c.Kind == ConversationKind.Group ? "♧ Nhóm" : c.Presence == PresenceStatus.Online ? "● Trực tuyến" : "○ Ngoại tuyến")}  {(c.IsPinned ? "◆ " : "")}{(c.IsMuted ? "Im lặng  " : "")}" +
             (c.LastMessageTicks > 0 ? new DateTime(c.LastMessageTicks, DateTimeKind.Utc).ToLocalTime().ToString("HH:mm") : "");
-        BackColor = active ? Theme.Selection : Color.White;
+        SetActive(active);
     }
 }
 
@@ -135,6 +150,7 @@ public sealed class ConversationListControl : UserControl
     private readonly PromptTextBox _search = new() { Dock = DockStyle.Top, PlaceholderText = "Tìm cuộc trò chuyện…", Margin = new Padding(8) };
     private readonly Panel _items = new BufferedPanel { Dock = DockStyle.Fill, AutoScroll = true, BackColor = Color.White };
     private readonly Dictionary<Guid, ConversationItemControl> _rows = [];
+    private Guid? _activeKey;
     private static Guid Key(ConversationSummary row) => row.Id == Guid.Empty ? row.OtherUserId : row.Id;
     private readonly Label _empty = Theme.Label("Chưa có cuộc trò chuyện.\nMở Người dùng để bắt đầu.");
     public string SearchText => _search.Text.Trim();
@@ -142,6 +158,14 @@ public sealed class ConversationListControl : UserControl
     public void FocusSearch() { _search.Focus(); _search.SelectAll(); }
     public event Action<ConversationSummary>? Selected;
     public event Action<ConversationSummary, string>? ActionRequested;
+    internal void SetActive(Guid? id)
+    {
+        if (id.HasValue && !_rows.ContainsKey(id.Value)) return;
+        if (_activeKey == id) return;
+        if (_activeKey is Guid previous && _rows.TryGetValue(previous, out var old)) old.SetActive(false);
+        _activeKey = id;
+        if (id is Guid current && _rows.TryGetValue(current, out var row)) row.SetActive(true);
+    }
     public ConversationListControl()
     {
         Dock = DockStyle.Fill; Padding = new Padding(8);
@@ -162,7 +186,9 @@ public sealed class ConversationListControl : UserControl
         {
             if (!_rows.TryGetValue(Key(c), out var row))
             {
-                row = new ConversationItemControl(); row.Selected += x => Selected?.Invoke(x); row.ActionRequested += (x, a) => ActionRequested?.Invoke(x, a);
+                row = new ConversationItemControl();
+                row.Selected += x => { SetActive(Key(x)); Selected?.Invoke(x); };
+                row.ActionRequested += (x, a) => ActionRequested?.Invoke(x, a);
                 _rows.Add(Key(c), row);
                 Theme.AddAtCurrentDpi(_items, row);
             }
@@ -176,5 +202,6 @@ public sealed class ConversationListControl : UserControl
         }
         _empty.Text = SearchText.Length == 0 ? "Chưa có cuộc trò chuyện.\nMở Danh bạ để bắt đầu." : "Không tìm thấy kết quả.";
         _empty.Visible = conversations.Count == 0; _items.ResumeLayout();
+        _activeKey = activeId;
     }
 }

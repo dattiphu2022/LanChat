@@ -31,6 +31,7 @@ Nhấp phải hội thoại để ghim, tắt thông báo hoặc **Xóa hội th
 - Khi chọn **Chuyển tiếp** cho tin có ảnh, tệp hoặc thư mục, LanChat chuẩn bị bản gốc trên máy trước khi gửi. Thư mục được kiểm tra cả các tệp bên trong. Có thể bấm **Hủy** nếu quá trình tải mất thời gian. Nội dung chuyển tiếp dùng bản gốc đã nhận, kể cả khi bạn đã chỉnh sửa bản mở trên máy.
 - Bấm khung trích dẫn trong tin trả lời để tới tin gốc. Có thể chọn khung bằng bàn phím rồi nhấn **Enter**. Với tin gốc đã thu hồi hoặc bị xóa phía bạn, khung báo trạng thái của tin.
 - Bấm **Quay về tin nhắn mới** để trở lại cuối hội thoại. Bản nháp được giữ khi bạn xem tin cũ.
+- Khi **Sửa** tin nhắn, bản nháp trước đó được giữ, gồm cả ảnh, tệp và tin đang trả lời. Hủy sửa hoặc lưu sửa thành công sẽ khôi phục bản nháp đó. Nếu gửi lỗi, nội dung vẫn còn để thử lại.
 - Dùng **Tìm tin** hoặc **Ctrl+F** trong hội thoại. Chọn một kết quả để mở vị trí của tin trong lịch sử.
 
 ## Gửi ảnh, tệp và thư mục
@@ -42,13 +43,26 @@ Nhấp phải hội thoại để ghim, tắt thông báo hoặc **Xóa hội th
 - Khi gửi hoặc nhận tin, LanChat tự tải ảnh, tệp và toàn bộ nội dung thư mục về nền, kể cả khi bạn đang xem hội thoại khác. Bấm tên tệp hoặc thư mục để mở bản đã chuẩn bị trên máy. Nếu máy giữ tệp đang ngoại tuyến, ứng dụng tự thử lại và tiếp tục kiểm tra tệp còn thiếu khi mở lại LanChat.
 - Bấm ảnh trong tin nhắn để xem lớn. Dùng phím mũi tên để chuyển ảnh, cuộn chuột để phóng to và nhấn **Esc** để đóng.
 
+## Lưu đính kèm và mở lại bản đã sửa
+
+- **Mở** cạnh mỗi tệp, thư mục hoặc ảnh dùng ứng dụng mặc định của Windows; thư mục mở trong Explorer. Bấm trực tiếp tên tệp/thư mục vẫn mở như trước, còn bấm ảnh vẫn vào khung xem LanChat với ảnh gốc của tin nhắn.
+- **Lưu về máy** lưu bản đang làm việc, gồm các chỉnh sửa bằng Word, Excel hoặc trình sửa ảnh. Tệp dùng hộp thoại chọn tên và nơi lưu. Thư mục dùng hộp thoại chọn nơi lưu, rồi giữ nguyên thư mục con và nội dung đang làm việc. Dòng trạng thái và tooltip hiển thị vị trí đã lưu.
+- Lần lưu đầu chuyển bản làm việc của LanChat ra vị trí đã chọn. Nếu lưu tiếp sang nơi khác, ứng dụng tạo bản sao mới và giữ bản đã lưu trước. Từ đó, **Mở** luôn dùng vị trí mới nhất, kể cả khi khởi động lại. Đóng tệp trong ứng dụng khác nếu Windows báo tệp đang bận, rồi thử lưu lại.
+- Với tin có nhiều đính kèm, mở menu **… → Lưu tất cả đính kèm của tin…**. Chỉ chọn thư mục một lần cho cả ảnh, tệp và thư mục của tin đó. Trong khung xem ảnh, menu **… → Lưu tất cả ảnh của tin…** chỉ lưu ảnh cùng tin với ảnh đang chọn. Các thao tác tương ứng cũng có ở bảng **Thông tin hội thoại** và cửa sổ xem tệp.
+- Lưu hàng loạt tự thêm `(2)`, `(3)` nếu trùng tên; nếu đích đúng là bản đang dùng thì giữ nguyên. Có thể **Hủy** trong cửa sổ tiến độ. Những mục đã lưu được giữ; lỗi một mục không ngăn các mục còn lại. Cửa sổ kết quả ghi rõ vị trí hoặc lỗi của từng mục. Lưu không tự mở tệp.
+- Nếu bản đã lưu bị mất hoặc ổ đĩa chưa kết nối, chọn **Tìm lại tệp/thư mục…**, **Tạo lại từ bản gốc** hoặc **Hủy**. Tìm lại giữ các chỉnh sửa của bản bạn chọn. Tạo lại chỉ lấy nội dung gốc trong tin nhắn và không thể phục hồi chỉnh sửa cục bộ đã mất. Ứng dụng giữ vị trí cũ cho đến khi bạn chọn cách xử lý.
+- Bản gốc dùng để đồng bộ, chuyển tiếp và xem ảnh trong chat được giữ riêng. Muốn chia sẻ nội dung đã sửa, đính kèm lại tệp thành tin mới. Khi sao lưu dữ liệu, sao lưu thêm các bản làm việc đã lưu bên ngoài thư mục LanChat.
+
 ## Cập nhật và thoát ứng dụng
 
-1. Mở **Giới thiệu → Kiểm tra cập nhật**. Nếu có bản mới hơn, đóng cửa sổ Giới thiệu và chọn **Tải và cập nhật** trên cửa sổ chính.
-2. Khi tải hoàn tất, LanChat kiểm tra kích thước và SHA-256. Hoàn tất tác vụ hoặc chọn xử lý bản nháp theo lời nhắc để tiếp tục cài.
-3. Mở lại **Giới thiệu** sau khi cài để đối chiếu phiên bản. Có thể cài thủ công EXE từ GitHub Releases bằng cùng tài khoản Windows đang dùng LanChat.
+1. Mở **Giới thiệu → Kiểm tra cập nhật**. Nếu có bản mới hơn, chọn **Tải bản cập nhật** ngay tại đây. Kết quả, tiến độ và các nút cập nhật luôn đồng bộ với cửa sổ chính.
+2. Bạn có thể đóng Giới thiệu để tiếp tục chat trong lúc tải nền, hoặc chọn **Hủy tải**. Mở lại Giới thiệu sẽ thấy tiến độ hiện tại. Nếu tải lỗi hoặc đã hủy, có thể tải lại.
+3. Tải xong, LanChat kiểm tra kích thước và SHA-256 rồi chờ bạn chọn **Cài đặt ngay**. Hoàn tất hoặc hủy tác vụ đang chạy, xử lý bản nháp theo lời nhắc để tiếp tục. Ứng dụng xác minh lại bộ cài trước khi thoát để cài đặt.
+4. Mở lại **Giới thiệu** sau khi cài để đối chiếu phiên bản. Có thể cài thủ công EXE từ GitHub Releases bằng cùng tài khoản Windows đang dùng LanChat.
 
 Kiểm tra cập nhật cần Internet. Nhắn tin và truyền tệp giữa những máy đã kết nối sử dụng mạng nội bộ. Nút **X** hoặc **Thu nhỏ** đưa ứng dụng xuống khay hệ thống. Nhấp đúp biểu tượng để mở lại hoặc nhấp phải rồi chọn **Thoát LanChat**.
+
+Các hộp thoại có nút **Hủy/Đóng** và hỗ trợ **Esc**. Khi có tác vụ ghi đang chạy, chờ hoàn tất trước khi đóng. Ứng dụng hỏi trước khi bỏ nội dung chưa lưu; bản nháp chỉ được giữ trong phiên làm việc hiện tại. Nếu bấm thông báo tin nhắn lúc đang mở hộp thoại, LanChat đưa hộp thoại lên trước và chuyển tới tin nhắn sau khi bạn đóng hộp thoại đó.
 
 ## Khi không thấy máy hoặc cần sao lưu
 

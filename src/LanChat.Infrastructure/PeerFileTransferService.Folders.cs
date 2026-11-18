@@ -85,13 +85,13 @@ public sealed partial class PeerFileTransferService
         finally { if (File.Exists(temp)) File.Delete(temp); }
     }
 
-    private async Task<string> PrepareFolderAsync(AttachmentDto attachment, IProgress<FileProgress>? progress, CancellationToken ct)
+    private async Task<string> PrepareFolderAsync(AttachmentDto attachment, IProgress<FileProgress>? progress, CancellationToken ct, bool force = false)
     {
         ValidateFolderSegment(attachment.FileName);
         if (attachment.FileSize is < 1 or > MaxManifestBytes) throw new InvalidDataException("Danh sách nội dung thư mục không hợp lệ.");
         var parent = Path.Combine(options.DataDirectory, "Attachments", "Open", attachment.Id.ToString("N"));
         var target = Path.Combine(parent, attachment.FileName);
-        if (Directory.Exists(target))
+        if (!force && Directory.Exists(target))
         {
             RejectFolderPathLinks(target, options.DataDirectory);
             return target;
@@ -130,8 +130,14 @@ public sealed partial class PeerFileTransferService
                 progress?.Report(new(completed, total));
             }
             ct.ThrowIfCancellationRequested();
+            if (force && Directory.Exists(target))
+            {
+                RejectFolderPathLinks(target, options.DataDirectory);
+                if (!IsWithin(Path.GetFullPath(target), Path.GetFullPath(parent))) throw new IOException("Đường dẫn khôi phục không hợp lệ.");
+                Directory.Delete(target, true);
+            }
             try { Directory.Move(temporary, target); }
-            catch (IOException) when (Directory.Exists(target)) { RejectFolderPathLinks(target, options.DataDirectory); }
+            catch (IOException) when (!force && Directory.Exists(target)) { RejectFolderPathLinks(target, options.DataDirectory); }
             return target;
         }
         finally { if (Directory.Exists(temporary)) Directory.Delete(temporary, true); }

@@ -148,6 +148,7 @@ public sealed partial class MainForm
             await OpenAttachmentAsync(attachments.First(x => !ChatImageService.IsImage(x)));
             if (openedPaths.Count != 3 || openedPaths[0] != openedPaths[openedPaths.Count - 1]) throw new InvalidOperationException("Bấm lại chưa tái sử dụng tệp local.");
             _attachmentLaunchForVerification = null; _galleryForVerification = null;
+            await VerifySavedAttachmentsAsync(attachments, reportPath, deadline.Token);
             if (firstInstance)
             {
                 var command = new ControlCommand(LanChat.Domain.AppIdentity.NewId(), Domain.ControlCommandType.GroupCreated, profile.Id, LanChat.Domain.AppIdentity.NewId(), "Nhóm thử nghiệm LAN", Members: [profile.Id, other.UserId]);
@@ -157,6 +158,11 @@ public sealed partial class MainForm
             GroupSummary[] groups;
             do { await Task.Delay(250, deadline.Token); groups = await Distributed.GetGroupsAsync(deadline.Token); } while (groups.Length == 0);
             var group = groups[0]; await SelectConversationAsync(group.Id); await _chat.SubmitForVerificationAsync("Xin chào nhóm từ " + profile.DisplayName);
+            var previousSelection = SelectConversationAsync(conversation);
+            var latestSelection = SelectConversationAsync(group.Id);
+            await Task.WhenAll(previousSelection, latestSelection);
+            if (_activeConversation != group.Id || _boundConversation != group.Id)
+                throw new InvalidOperationException("Chuyển nhanh hội thoại hiển thị nhầm kết quả tải cũ.");
             IReadOnlyList<Domain.Message> groupMessages;
             do { await Task.Delay(200, deadline.Token); groupMessages = await _store.GetMessagesAsync(group.Id, ct: deadline.Token); } while (groupMessages.Count < 3);
             await RefreshAsync(); await Task.Delay(300, deadline.Token);
@@ -185,7 +191,7 @@ public sealed partial class MainForm
                 Messages = messages.Select(x => new { x.Id, x.Text, x.Status, x.IsEdited, x.ReplyToMessageId }).ToArray(),
                 GroupId = group.Id, GroupMessageIds = groupMessages.Select(x => x.Id).ToArray(), VerifiedFiles = attachments.Length, VerifiedOpenRequests = openedPaths.Count,
                 VerifiedGalleries = verifiedGalleries, InlineImagesLoaded = inlineImagesLoaded, VerifiedSourceChanges = 3,
-                VerifiedReplies = true, VerifiedClipboard = true, VerifiedGroupMembers = true,
+                VerifiedReplies = true, VerifiedClipboard = true, VerifiedGroupMembers = true, VerifiedSavedAttachments = 2,
                 Consensus = await Consensus.GetStatusAsync(deadline.Token), Captures = captures }, new JsonSerializerOptions { WriteIndented = true }), deadline.Token);
             var partnerReport = Path.Combine(Path.GetDirectoryName(reportPath)!, firstInstance ? "B.json" : "A.json");
             while (!File.Exists(partnerReport)) await Task.Delay(200, deadline.Token);
@@ -196,6 +202,39 @@ public sealed partial class MainForm
             await FrameworkIO.WriteTextAsync(reportPath, JsonSerializer.Serialize(new { Success = false, Error = ex.ToString(), Captures = captures }));
         }
         finally { Close(); }
+    }
+
+    private async Task VerifySavedAttachmentsAsync(AttachmentDto[] attachments, string reportPath, CancellationToken ct)
+    {
+        var directory = Path.Combine(Path.GetDirectoryName(reportPath)!, Path.GetFileNameWithoutExtension(reportPath) + "-saved");
+        Directory.CreateDirectory(directory);
+        var saved = new List<string>(); _attachmentLaunchForVerification = saved.Add;
+        try
+        {
+            foreach (var file in new[] { attachments.First(f => !ChatImageService.IsImage(f)), attachments.First(ChatImageService.IsImage) })
+            {
+                var working = await Files.PrepareOpenAsync(file, ct: ct);
+                if (ChatImageService.IsImage(file))
+                {
+                    using var bitmap = new Bitmap(100, 80); using var graphics = Graphics.FromImage(bitmap); graphics.Clear(Color.Tomato);
+                    bitmap.Save(working, ImageFormat.Png);
+                }
+                else await FrameworkIO.WriteTextAsync(working, "Chỉnh sửa cục bộ cần giữ khi lưu", ct);
+                var first = Path.Combine(directory, file.FileName);
+                await Files.SaveLocalAsync(file, first, ct: ct);
+                if (File.Exists(working)) throw new IOException("Bản làm việc cũ chưa được chuyển ra ngoài.");
+                await OpenExternalAttachmentAsync(file);
+                if (saved.LastOrDefault() != first) throw new IOException("Nút Mở chưa dùng vị trí đã lưu.");
+                var second = Path.Combine(directory, "copy-" + file.FileName);
+                await Files.SaveLocalAsync(file, second, ct: ct); await OpenExternalAttachmentAsync(file);
+                if (saved.LastOrDefault() != second || !File.Exists(first) || !File.ReadAllBytes(first).SequenceEqual(File.ReadAllBytes(second)))
+                    throw new IOException("Lần lưu sau không giữ bản đã lưu trước hoặc làm mất chỉnh sửa.");
+                using var original = File.OpenRead(await Files.DownloadAsync(file, ct: ct));
+                if (!FrameworkIO.Hex(await FrameworkIO.HashAsync(original, ct)).Equals(file.Sha256, StringComparison.OrdinalIgnoreCase))
+                    throw new IOException("Lưu bản chỉnh sửa đã ảnh hưởng bản gốc.");
+            }
+        }
+        finally { _attachmentLaunchForVerification = null; }
     }
 
     private async Task VerifyGroupMembersPanelAsync(Guid direct, Guid group, Guid other, bool owner, CancellationToken ct)
@@ -213,7 +252,8 @@ public sealed partial class MainForm
         void VerifyBothChecked()
         {
             if (!members.CheckedItems.Cast<SelectionItem>().Select(person => person.Id).ToHashSet().SetEquals(new[] { _localUser, other }))
-                throw new InvalidOperationException("Dấu tích trong Thông tin hội thoại chưa khớp danh sách thành viên.");
+                throw new InvalidOperationException("Dấu tích trong Thông tin hội thoại chưa khớp danh sách thành viên. " +
+                    $"Có {members.Items.Count} dòng; đã tích: {string.Join(", ", members.CheckedItems.Cast<SelectionItem>().Select(person => person.Id))}.");
         }
         VerifyBothChecked();
         members.SetItemChecked(Row(_localUser), false);

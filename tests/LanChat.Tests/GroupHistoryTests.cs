@@ -113,7 +113,9 @@ public sealed class GroupHistoryTests
             Assert.Empty(Directory.EnumerateFileSystemEntries(Path.Combine(openedFolder, "Rỗng")));
         }
         await Distributed(c).ReactAsync(messages[0].Id, "👍", true);
-        await TestNode.WaitUntilAsync(async () => (await Distributed(holder).GetMessageDetailsAsync(messages[0].Id)).Reactions.Contains("👍"));
+        // Peers may still be finishing the multi-page history round. Allow the
+        // next full reconciliation interval before declaring the reaction lost.
+        await TestNode.WaitUntilAsync(async () => (await Distributed(holder).GetMessageDetailsAsync(messages[0].Id)).Reactions.Contains("👍"), 35);
         await holder.Host.StopAsync();
         var later = await Distributed(c).SendToConversationAsync(group, "Tin tiếp tục từ thành viên vừa nhận lịch sử");
         await TestNode.WaitUntilAsync(async () => (await d.Store.GetMessagesAsync(group, limit: 500)).Any(m => m.Id == later.Id));

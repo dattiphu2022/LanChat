@@ -37,8 +37,13 @@ public sealed partial class MainForm : DpiForm
     private Guid? _searchAnchor;
     private bool _jumpedInLatest;
     private long _historyRequest;
+    private CancellationTokenSource? _historyRead;
     private bool _panelOpen;
     private long _panelRequest;
+    private Task? _panelLoad;
+    private (Guid Conversation, long Request) _panelLoadKey;
+    private long _panelSearchRequest;
+    private CancellationTokenSource? _panelSearch;
     private long _panelCommitIndex;
     private long _memberSaveIndex;
     private bool _savingMembers;
@@ -67,8 +72,10 @@ public sealed partial class MainForm : DpiForm
     private Guid? _notificationConversation;
     private long? _incomingPosition;
     internal int UnreadCount { get; private set; }
-    internal bool HasUnsentDrafts => _chat.Draft().HasContent || _drafts.Values.Any(draft => draft.HasContent);
+    internal bool HasUnsentDrafts => _chat.Draft().HasContent || _drafts.Values.Any(draft => draft.HasContent) || _info.HasMemberDrafts;
     internal bool HasActiveWork => _chat.ComposerWorking || _scanCancellation is not null || _userOperations > 0;
+    internal bool HasDialogOperation => _openingDialogs.Count > 0;
+    internal event Action? DialogOperationCompleted;
     internal event Action? UnreadCountChanged;
     private readonly NavigationItemControl _messageNav = new() { Caption = "Tin nhắn", Icon = UiIcon.Chat, Active = true };
     private readonly NavigationItemControl _usersNav = new() { Caption = "Danh bạ", Icon = UiIcon.Contacts };
@@ -79,6 +86,8 @@ public sealed partial class MainForm : DpiForm
     {
         _store = store; _scanner = scanner; _services = services; _health = health;
         _images = images; _chat.ConfigureImages(images);
+        _attachmentActions = new AttachmentActions(Files); _chat.ConfigureAttachments(_attachmentActions);
+        _info.ConfigureAttachments(_attachmentActions);
         _draftImages = new DraftImageStore(services.GetRequiredService<NodeOptions>().DataDirectory);
         _chat.ConfigureDraftImages(_draftImages, _lifetime.Token);
         _chat.DraftFilesChanged += CleanupDraftImages;
@@ -141,18 +150,18 @@ public sealed partial class MainForm : DpiForm
 
         _messageNav.Selected += (_, _) => ShowPeople(false);
         _usersNav.Selected += (_, _) => ShowPeople(true);
-        groups.Selected += async (_, _) => await RunUiAsync(async () =>
+        groups.Selected += async (_, _) => await RunUiAsync(() => RunDialogAsync("groups", async () =>
         {
             using var form = ActivatorUtilities.CreateInstance<GroupsForm>(services);
-            if (form.ShowDialog(this) == DialogResult.OK && form.SelectedGroup is Guid id)
+            if (UiInteraction.ShowDialog(form, this) == DialogResult.OK && form.SelectedGroup is Guid id)
             {
                 await _store.ShowConversationAsync(id, _lifetime.Token);
                 await SelectConversationAsync(id);
             }
-        });
-        files.Selected += async (_, _) => await RunUiAsync(OpenFilesAsync);
+        }));
+        files.Selected += async (_, _) => await RunUiAsync(() => RunDialogAsync("files", OpenFilesAsync));
         scan.Selected += async (_, _) => await ScanAsync(scan);
-        _networkNav.Selected += (_, _) => { using var form = ActivatorUtilities.CreateInstance<NetworkForm>(services); form.ShowDialog(this); };
+        _networkNav.Selected += (_, _) => { using var form = ActivatorUtilities.CreateInstance<NetworkForm>(services); UiInteraction.ShowDialog(form, this); };
         _userSearch.TextChanged += (_, _) => BindPeople();
         _conversations.SearchChanged += (_, _) => BindConversations();
         _conversations.Selected += async c => await RunUiAsync(async () =>
@@ -165,7 +174,7 @@ public sealed partial class MainForm : DpiForm
             if (c.Id == Guid.Empty) return;
             if (action == "delete")
             {
-                if (MessageBox.Show(this, $"Xóa hội thoại “{new PersonName(c.DisplayName, c.Department)}” trên máy này?\n\nLịch sử trên máy khác vẫn được giữ. Hội thoại sẽ hiện lại khi có tin mới.",
+                if (MessageBox.Show(UiInteraction.Owner(this), $"Xóa hội thoại “{new PersonName(c.DisplayName, c.Department)}” trên máy này?\n\nLịch sử trên máy khác vẫn được giữ. Hội thoại sẽ hiện lại khi có tin mới.",
                     "Xóa hội thoại phía tôi", MessageBoxButtons.YesNo, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2) != DialogResult.Yes) return;
                 await _store.DeleteConversationLocalAsync(c.Id, _lifetime.Token);
                 _drafts.Remove(c.Id);
@@ -181,12 +190,15 @@ public sealed partial class MainForm : DpiForm
         _chat.ActionRequested += async (m, action) => await RunUiAsync(() => MessageActionAsync(m, action), userOperation: true);
         _chat.QuoteRequested += async (conversation, message) => await RunUiAsync(() => JumpToMessageAsync(conversation, message, useLoadedHistory: true));
         _chat.FileRequested += async file => await RunUiAsync(() => OpenAttachmentAsync(file), userOperation: true);
+        _chat.AttachmentCommandRequested += async (file, command) => await RunUiAsync(() => AttachmentCommandAsync(file, command), userOperation: true);
         _chat.OlderRequested += async () => await RunUiAsync(LoadOlderAsync);
         _chat.ReadRequested += async () => await RunUiAsync(MarkActiveReadAsync);
         _chat.PanelRequested += async search => await RunUiAsync(() => OpenPanelAsync(search));
         _info.CloseRequested += () => SetPanel(false);
         _info.FileRequested += async file => await RunUiAsync(() => OpenAttachmentAsync(file), userOperation: true);
+        _info.AttachmentCommandRequested += async (file, command) => await RunUiAsync(() => AttachmentCommandAsync(file, command), userOperation: true);
         _info.SearchRequested += async query => await RunUiAsync(() => SearchInPanelAsync(query));
+        _info.SearchChanged += CancelPanelSearch;
         _info.ResultSelected += async result => await RunUiAsync(() => JumpAsync(result));
         _info.MemberSaveRequested += async changes => await RunUiAsync(() => SavePanelMembersAsync(changes), userOperation: true);
         _chatArea.SizeChanged += (_, _) => QueueWorkspaceLayout();
@@ -206,6 +218,8 @@ public sealed partial class MainForm : DpiForm
         Disposed += (_, _) =>
         {
             _timer.Stop(); _timer.Dispose(); _lifetime.Cancel(); _scanCancellation?.Cancel();
+            _historyRead?.Cancel(); _historyRead?.Dispose(); _historyRead = null;
+            CancelPanelSearch();
             _draftImages.Dispose();
             _notification.Dispose();
         };
@@ -216,7 +230,7 @@ public sealed partial class MainForm : DpiForm
         if (keyData == (Keys.Control | Keys.K)) { ShowPeople(false); _conversations.FocusSearch(); return true; }
         if (keyData == (Keys.Control | Keys.F))
         {
-            _ = RunUiAsync(() => _activeConversation.HasValue ? OpenPanelAsync(true) : SearchMessagesAsync());
+            _ = RunUiAsync(() => _activeConversation.HasValue ? OpenPanelAsync(true) : RunDialogAsync("search", SearchMessagesAsync));
             return true;
         }
         if (keyData == Keys.Escape && _panelOpen) { SetPanel(false); return true; }
@@ -267,8 +281,13 @@ public sealed partial class MainForm : DpiForm
 
     public async Task SelectConversationAsync(Guid id)
     {
+        _conversations.SetActive(id);
+        if (_activeConversation == id && _boundConversation == id)
+        { ShowPeople(false); _chat.FocusComposer(); return; }
         if (_activeConversation != id)
         {
+            _historyRead?.Cancel(); _historyRead?.Dispose();
+            _historyRead = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
             if (_activeConversation is Guid old && _chat.Draft() is { HasContent: true } previousDraft) _drafts[old] = previousDraft;
             _drafts.TryGetValue(id, out var draft);
             _drafts.Remove(id);
@@ -277,13 +296,21 @@ public sealed partial class MainForm : DpiForm
             _olderMessages = _visibleMessages = []; _searchAnchor = null; _jumpedInLatest = false; _hasOlder = true;
             _historyRequest++;
             ResetConversationPanel(_summaries.Any(conversation => conversation.Id == id && conversation.Kind == ConversationKind.Group));
+            if (IsCompactChat) SetPanel(false);
         }
         _activeConversation = id; ShowPeople(false);
-        await RefreshAsync();
+        var selected = _summaries.FirstOrDefault(item => item.Id == id);
+        if (selected is not null) _chat.SelectConversation(new PersonName(selected.DisplayName, selected.Department),
+            selected.Presence == PresenceStatus.Online, selected.Kind == ConversationKind.Group);
+        _chat.SetLoading(true);
+        try { await RefreshAsync(); }
+        catch { if (!IsDisposed && _activeConversation == id) _chat.ShowHistoryError(); throw; }
+        if (!IsDisposed && _activeConversation == id && (_isSelectedNetwork?.Invoke() ?? true)) _chat.FocusComposer();
     }
 
     private void ClearActiveConversation()
     {
+        _historyRead?.Cancel(); _historyRead?.Dispose(); _historyRead = null;
         _activeConversation = _boundConversation = _searchAnchor = null;
         _historyRequest++;
         _jumpedInLatest = false;
@@ -297,7 +324,7 @@ public sealed partial class MainForm : DpiForm
     private void CleanupDraftImages()
     {
         if (!_chat.ComposerWorking && !IsDisposed)
-            _draftImages.Prune(_drafts.Values.SelectMany(draft => draft.Files).Concat(_chat.Draft().Files));
+            _draftImages.Prune(_drafts.Values.SelectMany(draft => draft.AllFiles).Concat(_chat.Draft().AllFiles));
     }
 
     private async Task RunUiAsync(Func<Task> action, bool userOperation = false)
@@ -305,7 +332,7 @@ public sealed partial class MainForm : DpiForm
         if (userOperation) _userOperations++;
         try { await action(); }
         catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { }
-        catch (Exception ex) { if (!IsDisposed) MessageBox.Show(this, UiText.HideIpAddresses(ex.Message), "LanChat", MessageBoxButtons.OK, MessageBoxIcon.Warning); }
+        catch (Exception ex) { UiInteraction.Warn(this, ex.Message); }
         finally { if (userOperation) _userOperations--; }
     }
 
@@ -371,7 +398,15 @@ public sealed partial class MainForm : DpiForm
                     var refreshHistory = changed || _boundConversation != id || _boundSearch != anchor || _boundOlder != previous;
                     if (refreshHistory)
                     {
-                        var data = await ReadHistoryAsync(id.Value, anchor, previous, ct);
+                        var historyToken = _historyRead?.Token ?? ct;
+                        (Message[] Messages, MessageDetails[] Details, bool More) data;
+                        try
+                        {
+                            data = await ReadHistoryAsync(id.Value, anchor, previous, historyToken);
+                            if (id != _activeConversation || anchor != _searchAnchor || previous != _olderMessages) return;
+                            await _chat.PrepareHistoryAsync(data.Messages.Length, historyToken);
+                        }
+                        catch (OperationCanceledException) when (historyToken.IsCancellationRequested && !ct.IsCancellationRequested) { return; }
                         if (IsDisposed) return;
                         if (id == _activeConversation && anchor == _searchAnchor && previous == _olderMessages)
                         {
@@ -408,6 +443,7 @@ public sealed partial class MainForm : DpiForm
     {
         _visibleMessages = data.Messages;
         _chat.Bind(conversation, data.Messages, _localUser, data.Details, anchor.HasValue);
+        _chat.SetLoading(false);
         _boundConversation = conversation;
         _boundSearch = anchor;
         _boundOlder = previous;
@@ -557,15 +593,17 @@ public sealed partial class MainForm : DpiForm
 
     private void SetPanel(bool visible)
     {
-        if (!visible) _panelRequest++;
+        if (!visible) { _panelRequest++; CancelPanelSearch(); }
         _panelOpen = visible;
         _info.Visible = visible;
         LayoutPanel();
+        if (!visible) _chat.FocusComposer();
     }
 
     private void ResetConversationPanel(bool isGroup)
     {
         _panelRequest++;
+        CancelPanelSearch();
         _memberSaveError = null;
         _info.ResetConversation(isGroup);
     }
@@ -610,8 +648,18 @@ public sealed partial class MainForm : DpiForm
     }
     private async Task LoadPanelAsync(Guid id)
     {
+        if (IsDisposed || !_panelOpen || id != _activeConversation) return;
+        var key = (id, _panelRequest);
+        if (_panelLoad is { } pending && _panelLoadKey == key) { await pending; return; }
+        var task = ReadPanelAsync(id, _panelRequest);
+        _panelLoad = task; _panelLoadKey = key;
+        try { await task; }
+        finally { if (ReferenceEquals(_panelLoad, task)) _panelLoad = null; }
+    }
+
+    private async Task ReadPanelAsync(Guid id, long request)
+    {
         var ct = _lifetime.Token;
-        var request = ++_panelRequest;
         var isGroup = _summaries.Any(conversation => conversation.Id == id && conversation.Kind == ConversationKind.Group);
         var data = await Task.Run(async () =>
         {
@@ -669,7 +717,10 @@ public sealed partial class MainForm : DpiForm
             try
             {
                 if (!ct.IsCancellationRequested && !IsDisposed && _panelOpen && _activeConversation is Guid current)
+                {
+                    _panelRequest++;
                     await LoadPanelAsync(current);
+                }
             }
             finally
             {
@@ -679,12 +730,33 @@ public sealed partial class MainForm : DpiForm
         }
     }
 
+    private void CancelPanelSearch()
+    {
+        _panelSearchRequest++;
+        _panelSearch?.Cancel();
+        if (!_info.IsDisposed) _info.StopSearch();
+    }
+
     private async Task SearchInPanelAsync(string query)
     {
-        if (_activeConversation is not Guid id) return;
-        var ct = _lifetime.Token;
-        var results = await Task.Run(() => Distributed.SearchMessagesAsync(query, id, ct), ct);
-        if (!IsDisposed && id == _activeConversation) _info.SetResults(query, results);
+        if (_activeConversation is not Guid id || !_panelOpen || string.IsNullOrWhiteSpace(query)) return;
+        CancelPanelSearch();
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
+        _panelSearch = cancellation;
+        var request = _panelSearchRequest;
+        _info.SetSearchState(query, true);
+        try
+        {
+            var results = await Task.Run(() => Distributed.SearchMessagesAsync(query, id, cancellation.Token), cancellation.Token);
+            if (Current()) _info.SetResults(query, results);
+        }
+        catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { }
+        catch (Exception ex) { if (Current()) _info.SetSearchState(query, false, UiText.HideIpAddresses(ex.Message)); }
+        finally
+        {
+            if (ReferenceEquals(_panelSearch, cancellation)) _panelSearch = null;
+        }
+        bool Current() => !IsDisposed && _panelOpen && id == _activeConversation && request == _panelSearchRequest && !cancellation.IsCancellationRequested;
     }
     private Task JumpAsync(SearchResult result) => JumpToMessageAsync(result.ConversationId, result.MessageId);
 
@@ -716,6 +788,8 @@ public sealed partial class MainForm : DpiForm
             var data = await ReadHistoryAsync(conversation, message, [], ct);
             if (!IsCurrentHistory(conversation, request)) return;
             if (!data.Messages.Any(CanJump)) return;
+            await _chat.PrepareHistoryAsync(data.Messages.Length, ct, () => IsCurrentHistory(conversation, request));
+            if (!IsCurrentHistory(conversation, request)) return;
 
             if (IsCompactChat) SetPanel(false);
             _searchAnchor = message;

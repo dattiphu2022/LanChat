@@ -9,7 +9,9 @@ namespace LanChat.WinForms.Forms;
 
 public sealed partial class MainForm
 {
-    private readonly HashSet<Guid> _openingAttachments = [];
+    private readonly AttachmentActions _attachmentActions;
+    private readonly HashSet<Guid> _forwardingMessages = [];
+    private readonly HashSet<string> _openingDialogs = [];
     private readonly ChatImageService _images;
 #if DEBUG
     private Action<string>? _attachmentLaunchForVerification;
@@ -48,16 +50,20 @@ public sealed partial class MainForm
         }
         if (_activeConversation != conversation)
         {
-            if (_drafts.TryGetValue(conversation, out var draft) && MatchesSubmission(draft, submission)) _drafts.Remove(conversation);
+            if (_drafts.TryGetValue(conversation, out var draft) && MatchesSubmission(draft, submission))
+            {
+                if (submission.EditId.HasValue && draft.BeforeEdit is { HasContent: true } original) _drafts[conversation] = original;
+                else _drafts.Remove(conversation);
+            }
             return;
         }
-        if (MatchesSubmission(_chat.Draft(), submission)) _chat.ResetDraft();
+        if (MatchesSubmission(_chat.Draft(), submission)) _chat.CompleteSubmission(submission);
         try
         {
             await RefreshAsync();
             if (_activeConversation == conversation && !_searchAnchor.HasValue && !_jumpedInLatest) _chat.ScrollToEnd();
         }
-        catch (Exception ex) { if (!IsDisposed && !_lifetime.IsCancellationRequested) _status.Text = UiText.HideIpAddresses(ex.Message); }
+        catch (Exception ex) { if (!IsDisposed && !_lifetime.IsCancellationRequested) { _scanState.Text = UiText.HideIpAddresses(ex.Message); _scanState.ToolTipText = _scanState.Text; } }
     }
     private static bool MatchesSubmission(ComposerDraft draft, ComposerSubmission submission) =>
         draft.Text == submission.Text && draft.Reply == submission.ReplyTo && draft.Edit == submission.EditId && draft.Files.SequenceEqual(submission.Files);
@@ -65,6 +71,8 @@ public sealed partial class MainForm
     {
         switch (action)
         {
+            case "save-all":
+                await SaveMessageAttachmentsAsync(message.Id); return;
             case "reply": _chat.SetContext(message, false); break;
             case "edit": _chat.SetContext(message, true); break;
             case "recall": await Distributed.RecallMessageAsync(message.Id, _lifetime.Token); break;
@@ -74,7 +82,7 @@ public sealed partial class MainForm
                 var conversations = await _store.GetConversationsAsync(ct: _lifetime.Token);
                 using (var select = new SelectionForm("Chuyển tiếp đến", conversations.Select(x => new SelectionItem(x.Id, x.DisplayName, x.Department))))
                 {
-                    if (select.ShowDialog(this) != DialogResult.OK || select.SelectedId is not { } destination) return;
+                    if (UiInteraction.ShowDialog(select, this) != DialogResult.OK || select.SelectedId is not { } destination) return;
                     await ForwardMessageAsync(message.Id, destination);
                 }
                 break;
@@ -85,6 +93,7 @@ public sealed partial class MainForm
 
     private async Task ForwardMessageAsync(Guid messageId, Guid destination)
     {
+        if (!_forwardingMessages.Add(messageId)) return;
         using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
         using var progressForm = new AttachmentOpenProgressForm("Tin nhắn đang chuyển tiếp", cancellation, forwarding: true);
         try
@@ -92,37 +101,37 @@ public sealed partial class MainForm
             var forward = _services.GetRequiredService<IChatService>().ForwardAsync(messageId, destination,
                 new Progress<FileProgress>(progressForm.Report), cancellation.Token);
             if (await Task.WhenAny(forward, Task.Delay(350, cancellation.Token)) != forward && !cancellation.IsCancellationRequested)
-                progressForm.Show(this);
+                progressForm.Show(UiInteraction.Owner(this));
             await forward;
         }
         catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { }
-        finally { progressForm.Close(); }
+        finally { progressForm.Close(); _forwardingMessages.Remove(messageId); }
     }
 
     private async Task OpenAttachmentAsync(AttachmentDto file)
     {
-        if (ChatImageService.IsImage(file)) { await OpenImageGalleryAsync(file); return; }
-        if (!_openingAttachments.Add(file.Id)) return;
-        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
-        using var progressForm = new AttachmentOpenProgressForm(file.FileName, cancellation, file.MimeType == FolderAttachment.MimeType);
-        try
-        {
-            var prepare = Files.PrepareOpenAsync(file, new Progress<FileProgress>(progressForm.Report), cancellation.Token);
-            // Cached files open directly; display progress only when preparation takes noticeable time.
-            if (await Task.WhenAny(prepare, Task.Delay(350, cancellation.Token)) != prepare && !cancellation.IsCancellationRequested)
-                progressForm.Show(this);
-            var path = await prepare;
-            cancellation.Token.ThrowIfCancellationRequested();
+        if (ChatImageService.IsImage(file)) { await RunDialogAsync("gallery", () => OpenImageGalleryAsync(file)); return; }
+        await OpenExternalAttachmentAsync(file);
+    }
+    private Task OpenExternalAttachmentAsync(AttachmentDto file) => _attachmentActions.OpenAsync(this, file, _lifetime.Token
 #if DEBUG
-            if (_attachmentLaunchForVerification is not null) _attachmentLaunchForVerification(path);
-            else
+        , _attachmentLaunchForVerification
 #endif
-                Process.Start(new ProcessStartInfo(path) { UseShellExecute = true, Verb = "open", WorkingDirectory = Path.GetDirectoryName(path) });
-        }
-        catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { }
-        catch (Win32Exception ex) when (ex.NativeErrorCode is 1155 or 31)
-        { throw new InvalidOperationException("Windows chưa có ứng dụng mặc định để mở loại tệp này. Hãy cài hoặc chọn ứng dụng phù hợp rồi bấm lại tệp.", ex); }
-        finally { progressForm.Close(); _openingAttachments.Remove(file.Id); }
+    );
+    private Task AttachmentCommandAsync(AttachmentDto file, AttachmentCommand command) => command switch
+    {
+        AttachmentCommand.Open => OpenExternalAttachmentAsync(file),
+        AttachmentCommand.Save => _attachmentActions.SaveAsync(this, file, _lifetime.Token),
+        AttachmentCommand.SaveMessageImages => SaveMessageAttachmentsAsync(file.MessageId, true),
+        _ => SaveMessageAttachmentsAsync(file.MessageId)
+    };
+    private async Task SaveMessageAttachmentsAsync(Guid messageId, bool imagesOnly = false)
+    {
+        var detail = await Distributed.GetMessageDetailsAsync(messageId, _lifetime.Token);
+        var attachments = (await Distributed.GetAttachmentsAsync(detail.Message.ConversationId, _lifetime.Token))
+            .Where(f => f.MessageId == messageId && (!imagesOnly || ChatImageService.IsImage(f))).ToArray();
+        if (attachments.Length == 0) throw new InvalidOperationException("Tin nhắn không còn đính kèm có thể lưu.");
+        await _attachmentActions.SaveBatchAsync(this, attachments, _lifetime.Token);
     }
     private async Task<GalleryImage[]> GetGalleryAsync(AttachmentDto selected)
     {
@@ -133,6 +142,13 @@ public sealed partial class MainForm
             .SelectMany(m => files[m.Message.Id].OrderBy(x => x.Id).Select(f =>
                 new GalleryImage(f, m.Message.Text, new PersonName(m.SenderName ?? "", m.SenderDepartment), m.Message.CreatedAtTicks))).ToArray();
     }
+    private async Task RunDialogAsync(string key, Func<Task> action)
+    {
+        if (!_openingDialogs.Add(key)) return;
+        _userOperations++;
+        try { await action(); }
+        finally { _openingDialogs.Remove(key); _userOperations--; DialogOperationCompleted?.Invoke(); }
+    }
     private async Task OpenImageGalleryAsync(AttachmentDto file)
     {
         var items = await GetGalleryAsync(file);
@@ -140,12 +156,12 @@ public sealed partial class MainForm
 #if DEBUG
         if (_galleryForVerification is not null) { await _galleryForVerification(items, file.Id); return; }
 #endif
-        using var gallery = new ImageGalleryForm(items, file.Id, _images, Files); gallery.ShowDialog(this);
+        using var gallery = new ImageGalleryForm(items, file.Id, _images, Files, _attachmentActions); UiInteraction.ShowDialog(gallery, this);
     }
     private async Task SearchMessagesAsync()
     {
         using var form = new MessageSearchForm(Distributed, await _store.GetConversationsAsync(ct: _lifetime.Token));
-        if (form.ShowDialog(this) == DialogResult.OK && form.SelectedConversation is { } id)
+        if (UiInteraction.ShowDialog(form, this) == DialogResult.OK && form.SelectedConversation is { } id)
         {
             var conversations = await _store.GetConversationsAsync(ct: _lifetime.Token); var selected = conversations.FirstOrDefault(x => x.Id == id);
             if (selected is not null && form.SelectedMessage is Guid message)
@@ -160,11 +176,11 @@ public sealed partial class MainForm
         var attachments = await Distributed.GetAttachmentsAsync(ct: _lifetime.Token);
         using var select = new SelectionForm("Tệp và thư mục trong các cuộc trò chuyện", attachments.Select(x => new SelectionItem(x.Id,
             x.MimeType == FolderAttachment.MimeType ? $"{x.FileName} · Thư mục" : $"{x.FileName} · {x.FileSize / 1024d:N1} KB")));
-        if (select.ShowDialog(this) == DialogResult.OK && select.SelectedId is { } id)
+        if (UiInteraction.ShowDialog(select, this) == DialogResult.OK && select.SelectedId is { } id)
         {
             var attachment = attachments.Single(x => x.Id == id);
             if (attachment.MimeType == FolderAttachment.MimeType) await OpenAttachmentAsync(attachment);
-            else { using var viewer = new AttachmentForm(attachment, Files); viewer.ShowDialog(this); }
+            else { using var viewer = new AttachmentForm(attachment, Files, _attachmentActions); UiInteraction.ShowDialog(viewer, this); }
         }
     }
 }

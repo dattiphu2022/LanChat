@@ -153,8 +153,7 @@ internal sealed class DonationForm : DpiForm
         try
         {
             using var source = OpenQr();
-            using var target = File.Create(dialog.FileName);
-            source.CopyTo(target);
+            UiInteraction.SaveFile(dialog.FileName, source.CopyTo);
             status.Text = "Đã lưu ảnh QR.";
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)

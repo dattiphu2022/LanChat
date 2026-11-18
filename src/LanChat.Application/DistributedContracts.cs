@@ -108,6 +108,12 @@ public interface IConsensusService
 public sealed record FileProgress(long Completed, long Total);
 public sealed record FileRequest(string TransferId);
 public sealed record FileAvailability(bool Available, long Length);
+public sealed record LocalAttachmentLocation(string Path, bool UserSelected, bool Exists);
+public sealed class LocalAttachmentMissingException(string path)
+    : IOException("Không tìm thấy bản đã lưu tại: " + path)
+{
+    public string SavedPath { get; } = path;
+}
 public interface IFileTransferService
 {
     Task<AttachmentDto> ImportLocalAsync(string path, CancellationToken ct = default);
@@ -115,6 +121,10 @@ public interface IFileTransferService
     Task<string?> GetLocalPathAsync(string sha256, CancellationToken ct = default);
     Task<string> DownloadAsync(AttachmentDto file, IProgress<FileProgress>? progress = null, CancellationToken ct = default);
     Task<string> PrepareOpenAsync(AttachmentDto file, IProgress<FileProgress>? progress = null, CancellationToken ct = default);
+    Task<LocalAttachmentLocation> GetLocalLocationAsync(AttachmentDto file, CancellationToken ct = default);
+    Task<string> SaveLocalAsync(AttachmentDto file, string destination, bool overwrite = false, IProgress<FileProgress>? progress = null, CancellationToken ct = default);
+    Task RelinkLocalAsync(AttachmentDto file, string path, CancellationToken ct = default);
+    Task<string> RestoreLocalAsync(AttachmentDto file, IProgress<FileProgress>? progress = null, CancellationToken ct = default);
     Task<AttachmentDto> PrepareForwardAsync(AttachmentDto file, IProgress<FileProgress>? progress = null, CancellationToken ct = default);
 }
 

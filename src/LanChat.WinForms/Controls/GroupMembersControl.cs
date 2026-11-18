@@ -22,6 +22,7 @@ internal sealed class GroupMembersControl : UserControl
     private string? _status;
 
     public CheckedListBox List => _list;
+    internal bool HasDrafts => _newGroupMembers.Count > 0 || _drafts.Values.Any(edits => edits.Count > 0);
     public event Action<GroupMemberChanges>? SaveRequested;
     public event Action<Guid[]>? CreateRequested;
 
@@ -45,6 +46,7 @@ internal sealed class GroupMembersControl : UserControl
         layout.Controls.Add(_list, 0, 1);
         layout.Controls.Add(actions, 0, 2);
         Controls.Add(layout);
+        UiInteraction.Wrap(_hint, layout);
 
         _list.IsCheckEnabled = item => CanCheck((SelectionItem)item);
         _list.ItemCheck += MemberChecked;

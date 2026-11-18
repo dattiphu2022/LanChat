@@ -17,6 +17,7 @@ Mở **Giới thiệu → Hướng dẫn sử dụng** để đọc hướng d�
 - Dùng **Dán ảnh**, **Chụp vùng** hoặc kéo tệp vào ô soạn tin. LanChat tạm ẩn khi chụp vùng và hiện lại khi chụp xong hoặc nhấn **Esc**.
 - Nội dung nhập cùng ảnh là chú thích chung cho lần gửi. Bấm ảnh để mở khung xem lớn. Dùng **Trước/Sau** hoặc phím mũi tên để chuyển ảnh, cuộn chuột để phóng to và **Esc** để đóng.
 - Dùng **Đính kèm → Thêm thư mục** để chọn thư mục từ Windows. Mỗi thư mục có thể chứa tối đa 10.000 mục và 20 GB dữ liệu. Khi gửi hoặc nhận tin, ảnh, tệp và toàn bộ nội dung thư mục tự tải về nền và được kiểm tra SHA-256. Bấm tên tệp hoặc thư mục để mở bản đã chuẩn bị trên máy.
+- Bấm **Lưu về máy** cạnh đính kèm để chọn nơi lưu bản đang làm việc, gồm các chỉnh sửa cục bộ. **Mở** dùng đúng vị trí đã lưu, kể cả sau khi khởi động lại. Menu tin nhắn có **Lưu tất cả đính kèm của tin…**; menu khung xem ảnh có **Lưu tất cả ảnh của tin…**.
 
 Tin đã đồng bộ nghĩa là ít nhất một máy khác có bản sao. Trạng thái **Đã nhận** và **Đã đọc** dựa trên xác nhận của người tham gia. Ghim, tắt thông báo và xóa phía tôi áp dụng trên máy này.
 
@@ -34,7 +35,7 @@ Bản phát hành nội bộ tự tham gia mạng mặc định được nhúng 
 
 ## Nâng cấp
 
-Với bản đã có trình cập nhật, mở **Giới thiệu → Kiểm tra cập nhật**. Khi có bản mới hơn, đóng Giới thiệu và chọn **Tải và cập nhật**. Có thể cài thủ công EXE từ GitHub Releases bằng cùng tài khoản Windows. Để thoát trước khi cài thủ công, dùng **Thoát LanChat** ở khay hệ thống.
+Với bản đã có trình cập nhật, mở **Giới thiệu → Kiểm tra cập nhật**. Khi có bản mới hơn, chọn **Tải bản cập nhật** ngay trong Giới thiệu. Đóng Giới thiệu vẫn tiếp tục tải nền; cửa sổ chính hiển thị cùng tiến độ và nút **Hủy tải**. Tải xong, chọn **Cài đặt ngay** khi đã hoàn tất công việc. LanChat xác minh lại bộ cài và nhắc xử lý bản nháp trước khi thoát để cài. Có thể cài thủ công EXE từ GitHub Releases bằng cùng tài khoản Windows. Để thoát trước khi cài thủ công, dùng **Thoát LanChat** ở khay hệ thống.
 
 Khi nâng từ giao thức cũ lên **giao thức v4** lần đầu, migration xóa lịch sử tin nhắn cũ, chỉ mục tìm kiếm và các tin đang chờ gửi. Sao lưu khi LanChat đã thoát nếu cần lưu dữ liệu cũ để tra cứu. Bảo vệ bản sao vì có thể chứa dữ liệu dạng rõ.
 
@@ -102,8 +103,8 @@ Khi bật nhiều mạng, xem cổng TCP thực tế trong **Mạng chat → Chi
 - Các máy nên đồng bộ giờ: envelope có cửa sổ thời gian 120 giây. HLC và sequence giải quyết thứ tự/đồng bộ; không thay thế kiểm tra giờ của xác thực.
 - Không tự loại voter offline vì việc đó làm sai quorum. Nếu mất vĩnh viễn đa số voter, cần phục hồi máy/dữ liệu đã có; chưa có công cụ quản trị loại voter hoặc khôi phục cưỡng bức.
 - Ảnh, tệp và thư mục trong các tin được phép xem tự tải về với tối đa hai tác vụ nền đồng thời. Ứng dụng thử lại khi nguồn chưa trực tuyến và kiểm tra lại tệp còn thiếu khi khởi động. Tối đa 20 ảnh/tệp mỗi tin và 20 GB/tệp. Tệp tạm được kiểm tra SHA-256 trước khi công bố bản hoàn chỉnh.
-- Ảnh JPEG/PNG/GIF/BMP/TIFF trong vùng chat hiển thị có hình thu nhỏ với tối đa 20 MB/ảnh và hai tác vụ giải mã ảnh đồng thời. Ảnh lớn hơn vẫn tự tải về nền và có thể bấm để xem. Khung xem lớn hỗ trợ tối đa 100 MB và 40 megapixel. Ảnh vượt giới hạn có thể mở bằng **Ứng dụng ngoài**. GIF/TIFF chỉ hiển thị khung/trang đầu. Ảnh đã tải có thể xem lại khi máy gửi offline. Khung xem dùng ảnh gốc đã gửi, sửa chú thích bằng thao tác sửa tin nhắn.
-- Tệp mở bằng ứng dụng ngoài giữ tên/đuôi gốc trong `Data/Attachments/Open/<AttachmentId>/`. Lần bấm sau dùng lại bản local này, kể cả khi nguồn offline. Chỉnh sửa bằng Word/Excel chỉ thay đổi bản mở local, không tự gửi lại hoặc thay đổi blob gốc mà các peer tải xuống. Muốn chia sẻ nội dung đã sửa, gửi lại tệp đó.
+- Ảnh JPEG/PNG/GIF/BMP/TIFF trong vùng chat hiển thị có hình thu nhỏ với tối đa 20 MB/ảnh và hai tác vụ giải mã ảnh đồng thời. Ảnh lớn hơn vẫn tự tải về nền và có thể bấm để xem. Khung xem lớn hỗ trợ tối đa 100 MB và 40 megapixel. Ảnh vượt giới hạn có thể mở bằng **Mở**. GIF/TIFF chỉ hiển thị khung/trang đầu. Ảnh đã tải có thể xem lại khi máy gửi offline. Khung xem dùng ảnh gốc đã gửi, sửa chú thích bằng thao tác sửa tin nhắn.
+- Bản làm việc ban đầu giữ tên/đuôi gốc trong `Data/Attachments/Open/<AttachmentId>/`. **Lưu về máy** lần đầu chuyển bản này tới nơi đã chọn; các lần sau sao chép sang vị trí mới và giữ bản đã lưu trước. Ánh xạ nằm riêng trong `Data/Attachments/Locations/` của từng mạng. Khi bản đã lưu bị mất, chọn tìm lại hoặc tạo lại từ bản gốc; tạo lại không phục hồi chỉnh sửa cục bộ đã mất. Chỉnh sửa bằng Word/Excel không tự gửi lại hoặc thay đổi blob gốc mà các peer tải xuống. Muốn chia sẻ nội dung đã sửa, gửi lại tệp đó. Khi sao lưu, sao lưu thêm các bản làm việc đã lưu ngoài thư mục dữ liệu.
 - Sửa/xóa file gốc sau khi gửi không thay đổi nội dung đã gửi. Nếu bản lưu trong ứng dụng bị hỏng/mất, LanChat thử phục hồi từ file nguồn hoặc bản mở local còn đúng SHA256, rồi tìm bản đúng trên máy khác. File nguồn chỉ được ghi nhớ bằng đường dẫn trong dữ liệu local, không gửi đường dẫn này qua mạng. Nếu không còn bản nguyên vẹn, cần bật máy từng gửi/tải hoặc gửi lại file thành tin nhắn mới; không thay SHA của tin nhắn cũ để chấp nhận nội dung đã sửa.
 - Chưa có compaction/snapshot control log, retention hoặc benchmark cụm lớn. Bản hiện tại phù hợp đánh giá trong mạng nội bộ tin cậy trước khi nghiệm thu thực tế.
 - Log cuốn trong `Data/Logs`, tối đa 14 tệp, 5 MB/tệp; không ghi secret hoặc nội dung chat.
@@ -112,6 +113,7 @@ Khi bật nhiều mạng, xem cổng TCP thực tế trong **Mạng chat → Chi
 ## Tài liệu
 
 - [Hướng dẫn sử dụng](docs/HUONG_DAN_SU_DUNG.md)
+- [Kiểm chứng lưu đính kèm](docs/VERIFICATION_ATTACHMENT_SAVE.md)
 - [Đóng gói và phát hành](installer/README.md)
 - [Kiến trúc và luồng dữ liệu](docs/ARCHITECTURE.md)
 - [Kết quả kiểm chứng](docs/VERIFICATION.md)

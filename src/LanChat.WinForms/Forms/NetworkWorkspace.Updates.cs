@@ -1,150 +1,51 @@
-using System.Runtime.InteropServices;
 using LanChat.WinForms.Controls;
 
 namespace LanChat.WinForms.Forms;
 
 internal sealed partial class NetworkWorkspace
 {
-    private readonly UpdateService _updates;
-    private readonly CancellationTokenSource _updateLifetime = new();
-    private readonly FlowLayoutPanel _updateBar = Theme.Toolbar();
-    private readonly Label _updateText = Theme.Label("", 9, true);
-    private readonly IconButton _applyUpdate = Theme.Secondary("Tải và cập nhật", UiIcon.Download);
-    private readonly Button _cancelUpdate = Theme.Secondary("Hủy tải", UiIcon.Close);
-    private readonly ProgressBar _updateProgress = new() { Size = new Size(128, 18), Margin = new Padding(5, 12, 5, 5), AccessibleName = "Tiến độ tải bản cập nhật" };
-    private string _checkMessage = "";
-    private string? _updateNote;
-    private UpdateRelease? _availableUpdate, _downloadingRelease;
-    private Task<UpdateCheck>? _checkTask;
-    private Task<VerifiedInstaller>? _downloadTask;
-    private CancellationTokenSource? _downloadCancellation;
+    private readonly UpdateCoordinator _updates;
+    private bool _installRequested, _installing;
     internal VerifiedInstaller? PendingInstaller { get; private set; }
 
     private Control CreateUpdateBar()
     {
-        _updateBar.Padding = new Padding(8, 0, 0, 0);
-        _updateBar.BackColor = Theme.Selection;
-        _updateBar.Visible = false;
-        _updateText.Dock = DockStyle.None;
-        _updateText.Margin = new Padding(5, 13, 7, 5);
-        _updateText.UseMnemonic = false;
-        _applyUpdate.Click += async (_, _) => await DownloadAndInstallAsync();
-        _cancelUpdate.Click += (_, _) => _downloadCancellation?.Cancel();
-        _updateBar.Controls.AddRange([_updateText, _applyUpdate, _updateProgress, _cancelUpdate]);
-        return _updateBar;
+        var panel = new UpdatePanel(_updates, showCheck: false) { Padding = new Padding(8, 4, 8, 4) };
+        panel.InstallRequested += async () => await InstallUpdateAsync();
+        void Refresh() { if (!panel.IsDisposed) panel.Visible = _updates.State.Release is not null; }
+        _updates.Changed += Refresh;
+        panel.Disposed += (_, _) => _updates.Changed -= Refresh;
+        Refresh();
+        return panel;
     }
 
-    private void RefreshUpdateBar()
-    {
-        var release = _downloadingRelease ?? _availableUpdate;
-        _updateBar.Visible = release is not null;
-        if (release is null) return;
-        var downloading = _downloadCancellation is not null;
-        _updateText.Text = $"LanChat {release.Version}" + (_updateNote is null ? "" : $" · {_updateNote}");
-        _applyUpdate.Visible = !downloading;
-        var downloaded = _updates.HasDownloaded(release);
-        _applyUpdate.Text = downloaded ? "Cài bản đã tải" : "Tải và cập nhật";
-        _applyUpdate.Icon = downloaded ? UiIcon.Install : UiIcon.Download;
-        _updateProgress.Visible = _cancelUpdate.Visible = downloading;
-    }
+    private bool HasActiveWork => _busy || _scan is not null || UiInteraction.ForegroundDialog(this) is not null ||
+        _running.Values.Any(item => item.View.HasActiveWork);
 
-    private async Task<string> CheckForUpdatesAsync(bool manual)
+    private async Task InstallUpdateAsync()
     {
-        if (_exiting) return "";
-        var ct = _updateLifetime.Token;
-        var check = _checkTask ??= Task.Run(() => _updates.CheckAsync(manual, ct), ct);
-        try
+        if (_exiting || _installing) return;
+        if (HasActiveWork)
         {
-            var result = await check;
-            if (_exiting || IsDisposed) return "";
-            if (_availableUpdate != result.Release && _downloadingRelease is null) _updateNote = null;
-            _availableUpdate = result.Release;
-            _checkMessage = result.Message;
-            RefreshUpdateBar();
-            return result.Message;
+            _updates.Notify("Hãy hoàn tất hoặc hủy tác vụ đang chạy rồi chọn Cài đặt ngay.");
+            return;
         }
-        catch (OperationCanceledException) when (ct.IsCancellationRequested) { return ""; }
-        catch (Exception ex)
-        {
-            System.Diagnostics.Trace.TraceWarning(ex.ToString());
-            return _checkMessage = "Chưa kiểm tra được cập nhật. Vui lòng thử lại.";
-        }
-        finally { if (_checkTask == check) _checkTask = null; }
-    }
-
-    private bool HasActiveWork => _busy || !IsWindowEnabled(Handle) || _running.Values.Any(item => item.View.HasActiveWork);
-
-    private async Task DownloadAndInstallAsync()
-    {
-        if (_exiting || _downloadCancellation is not null || _availableUpdate is not { } release) return;
-        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(_updateLifetime.Token);
-        _downloadCancellation = cancellation;
-        _downloadingRelease = release;
-        _updateNote = _updates.HasDownloaded(release) ? "Đang xác minh bộ cài…" : "Đang tải bộ cài…";
-        _updateProgress.Value = 0;
-        RefreshUpdateBar();
-
+        _installing = true;
+        UpdateActionState();
         VerifiedInstaller? installer = null;
         try
         {
-            var progress = new Progress<long>(bytes =>
-            {
-                if (IsDisposed || _exiting || _downloadCancellation != cancellation) return;
-                _updateProgress.Value = (int)Math.Min(100, 100d * bytes / release.Size);
-            });
-            var task = _downloadTask = Task.Run(() => _updates.DownloadAsync(release, progress, cancellation.Token), cancellation.Token);
-            installer = await task;
-            if (_exiting || _availableUpdate != release) return;
-            cancellation.Token.ThrowIfCancellationRequested();
-            if (HasActiveWork)
-            {
-                _updateNote = "Đã tải. Cài sau khi tác vụ đang chạy hoàn tất.";
-                return;
-            }
-            if (_running.Values.Any(item => item.View.HasUnsentDrafts) &&
-                MessageBox.Show(this, "Bạn còn bản nháp chưa gửi. Bỏ các bản nháp để cài đặt ngay?",
-                    "Cập nhật LanChat", MessageBoxButtons.YesNo, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2) != DialogResult.Yes)
-            {
-                _updateNote = "Đã tải. Bạn có thể cài sau.";
-                return;
-            }
-            if (_exiting || HasActiveWork)
-            {
-                _updateNote = "Đã tải. Cài sau khi tác vụ đang chạy hoàn tất.";
-                return;
-            }
+            installer = await _updates.PrepareInstallerAsync();
+            if (installer is null || _exiting) return;
+            if (HasActiveWork) { _updates.Notify("Đã tải. Hãy hoàn tất tác vụ đang chạy rồi bấm cài lại."); return; }
+            if (_running.Values.Any(item => item.View.HasUnsentDrafts) && !UiInteraction.Discard(this,
+                "Bạn còn bản nháp chưa gửi hoặc thay đổi thành viên chưa lưu. Bỏ các bản nháp để cài đặt ngay?", "Cập nhật LanChat"))
+            { _updates.Notify("Đã tải. Bạn có thể cài sau."); return; }
+            if (_exiting || HasActiveWork) { _updates.Notify("Hãy hoàn tất tác vụ đang chạy rồi bấm cài lại."); return; }
             PendingInstaller = installer;
             installer = null;
         }
-        catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { _updateNote = "Đã hủy tải."; }
-        catch (Exception ex)
-        {
-            if (!_exiting)
-            {
-                _updateNote = "Bộ cài chưa sẵn sàng.";
-                MessageBox.Show(this, UiText.HideIpAddresses(ex.Message), "Chưa cập nhật được LanChat", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-            }
-        }
-        finally
-        {
-            installer?.Dispose();
-            _downloadTask = null;
-            _downloadCancellation = null;
-            _downloadingRelease = null;
-            if (!_exiting && !IsDisposed) RefreshUpdateBar();
-        }
+        finally { installer?.Dispose(); _installing = false; if (!IsDisposed) UpdateActionState(); }
         if (PendingInstaller is not null) ExitApplication();
     }
-
-    private async Task StopUpdateOperationsAsync()
-    {
-        _updateLifetime.Cancel();
-        var tasks = new Task?[] { _checkTask, _downloadTask }.OfType<Task>().ToArray();
-        try { await Task.WhenAll(tasks); }
-        catch (Exception ex) when (ex is OperationCanceledException or IOException or System.Net.Http.HttpRequestException) { }
-    }
-
-    [DllImport("user32.dll")]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool IsWindowEnabled(IntPtr window);
 }

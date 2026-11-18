@@ -11,7 +11,7 @@ internal sealed class ImageGalleryForm : DpiForm
 {
     private readonly GalleryImage[] _items;
     private readonly ChatImageService _images;
-    private readonly IFileTransferService _files;
+    private readonly AttachmentActions _actions;
     private readonly ImageViewportControl _viewport = new();
     private readonly Label _title = Theme.Label("", 12, true);
     private readonly PersonNameLabel _sender = Theme.NameLabel("");
@@ -25,17 +25,18 @@ internal sealed class ImageGalleryForm : DpiForm
     private CancellationTokenSource? _selection;
     private int _index;
     private int _generation;
-    public ImageGalleryForm(GalleryImage[] items, Guid selectedId, ChatImageService images, IFileTransferService files)
+    private bool _closed;
+    public ImageGalleryForm(GalleryImage[] items, Guid selectedId, ChatImageService images, IFileTransferService files, AttachmentActions? actions = null)
     {
         if (items.Length == 0) throw new ArgumentException("Cuộc trò chuyện chưa có ảnh.");
-        _items = items; _images = images; _files = files; _index = Math.Max(0, Array.FindIndex(items, x => x.File.Id == selectedId));
+        _items = items; _images = images; _actions = actions ?? new AttachmentActions(files); _index = Math.Max(0, Array.FindIndex(items, x => x.File.Id == selectedId));
         Icon = AppIcon.Value;
         Text = "Xem ảnh — LanChat"; ClientSize = new Size(1080, 800); MinimumSize = new Size(780, 580); StartPosition = FormStartPosition.CenterParent;
         KeyPreview = true;
         var layout = Theme.Stack(6); layout.Padding = new Padding(12);
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 51));
         layout.RowStyles.Add(new RowStyle(SizeType.Percent, 82));
-        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 26));
+        layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         var stripRow = new RowStyle(SizeType.Absolute, 100);
         layout.RowStyles.Add(stripRow);
         layout.RowStyles.Add(new RowStyle(SizeType.Percent, 18));
@@ -48,7 +49,8 @@ internal sealed class ImageGalleryForm : DpiForm
         Load += (_, _) => FitThumbnailStrip();
         ClientSizeChanged += (_, _) => FitThumbnailStrip();
         DpiChanged += (_, _) => BeginInvoke((Action)FitThumbnailStrip);
-        _title.AutoSize = _status.AutoSize = false; _title.AutoEllipsis = _status.AutoEllipsis = true;
+        _title.AutoSize = false; _title.AutoEllipsis = true;
+        UiInteraction.Wrap(_status, layout);
         _title.UseMnemonic = false;
         var heading = Theme.Stack(2);
         heading.Margin = Padding.Empty;
@@ -68,10 +70,18 @@ internal sealed class ImageGalleryForm : DpiForm
         zoomTips.SetToolTip(zoomOut, zoomOut.AccessibleName);
         zoomTips.SetToolTip(zoomIn, zoomIn.AccessibleName);
         Disposed += (_, _) => zoomTips.Dispose();
-        var fit = Theme.Button("Vừa khung", UiIcon.Fit); var actual = Theme.Button("100%", UiIcon.ActualSize); var external = Theme.Button("Ứng dụng ngoài", UiIcon.Open); var retry = Theme.Button("Tải lại", UiIcon.Refresh);
+        var fit = Theme.Button("Vừa khung", UiIcon.Fit); var actual = Theme.Button("100%", UiIcon.ActualSize); var external = Theme.Button("Mở", UiIcon.Open); var retry = Theme.Button("Tải lại", UiIcon.Refresh);
+        var save = Theme.Button("Lưu về máy", UiIcon.Save);
+        var more = Theme.Icon(UiIcon.More, "Lưu ảnh cùng tin nhắn");
+        var menu = new ContextMenuStrip();
+        var saveAll = menu.Items.Add("Lưu tất cả ảnh của tin…", UiIcons.ForMenu(UiIcon.Save));
+        more.Click += (_, _) => menu.Show(more, new Point(0, more.Height));
+        saveAll.Click += async (_, _) => await _actions.SaveBatchAsync(this, SelectedMessageImages, _lifetime.Token);
+        save.Click += async (_, _) => { var selected = _items[_index].File; await _actions.SaveAsync(this, selected, _lifetime.Token); await ShowLocationAsync(selected); };
+        Disposed += (_, _) => menu.Dispose();
         _previous.MinimumSize = _next.MinimumSize = actual.MinimumSize = retry.MinimumSize = new Size(68, 36);
         _zoom.Dock = DockStyle.None; _zoom.Padding = new Padding(0, 10, 0, 0); _zoom.Width = 60;
-        buttons.Controls.AddRange([_previous, _next, zoomOut, zoomIn, fit, actual, _zoom, retry, external]);
+        buttons.Controls.AddRange([_previous, _next, zoomOut, zoomIn, fit, actual, _zoom, retry, external, save, more, UiInteraction.CloseButton(this)]);
         layout.Controls.Add(heading, 0, 0); layout.Controls.Add(_viewport, 0, 1); layout.Controls.Add(_status, 0, 2); layout.Controls.Add(_strip, 0, 3); layout.Controls.Add(captionLayout, 0, 4); layout.Controls.Add(buttons, 0, 5); Controls.Add(layout);
         _previous.Click += async (_, _) => await ShowImageAsync(_index - 1); _next.Click += async (_, _) => await ShowImageAsync(_index + 1);
         retry.Click += async (_, _) => await ShowImageAsync(_index);
@@ -79,19 +89,31 @@ internal sealed class ImageGalleryForm : DpiForm
         _viewport.ZoomChanged += scale => _zoom.Text = $"{scale:P0}";
         external.Click += async (_, _) =>
         {
-            external.Enabled = false;
-            try
-            {
-                var path = await _files.PrepareOpenAsync(_items[_index].File, ct: _lifetime.Token);
-                _lifetime.Token.ThrowIfCancellationRequested();
-                Process.Start(new ProcessStartInfo(path) { UseShellExecute = true, Verb = "open", WorkingDirectory = Path.GetDirectoryName(path) });
-            }
-            catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { }
-            catch (Exception ex) { if (!IsDisposed) _status.Text = "Không mở được ứng dụng ngoài: " + UiText.HideIpAddresses(ex.Message); }
+            if (!external.Enabled) return;
+            external.Enabled = false; var selected = _items[_index].File;
+            try { await _actions.OpenAsync(this, selected, _lifetime.Token); await ShowLocationAsync(selected); }
             finally { if (!IsDisposed) external.Enabled = true; }
         };
         Shown += async (_, _) => { if (_generation == 0) await ShowImageAsync(_index); };
-        FormClosed += (_, _) => { _lifetime.Cancel(); _selection?.Cancel(); };
+        void Stop()
+        {
+            if (_closed) return;
+            _closed = true; _lifetime.Cancel(); _selection?.Cancel();
+        }
+        FormClosed += (_, _) => Stop();
+        Disposed += (_, _) => { Stop(); _lifetime.Dispose(); };
+    }
+    internal AttachmentDto[] SelectedMessageImages => _items.Where(x => x.File.MessageId == _items[_index].File.MessageId).Select(x => x.File).ToArray();
+    private async Task ShowLocationAsync(AttachmentDto selected, bool onlySaved = false)
+    {
+        try
+        {
+            var location = await _actions.LocationAsync(selected, _lifetime.Token);
+            if (!_closed && _items[_index].File.Id == selected.Id && (!onlySaved || location.UserSelected))
+                _status.Text = location.UserSelected ? (location.Exists ? "Đã lưu: " : "Không tìm thấy: ") + location.Path : "Bản làm việc: " + location.Path;
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex) { if (!_closed && _items[_index].File.Id == selected.Id) _status.Text = UiText.HideIpAddresses(ex.Message); }
     }
     private async Task ShowImageAsync(int index)
     {
@@ -125,6 +147,7 @@ internal sealed class ImageGalleryForm : DpiForm
             var bitmap = await _images.LoadAsync(item.File, false, selection.Token, progress);
             if (IsDisposed || generation != _generation || selection.IsCancellationRequested) { bitmap.Dispose(); return; }
             _viewport.Image = bitmap; _status.Text = $"{bitmap.Width} × {bitmap.Height}  ·  Cuộn chuột để zoom · Kéo để di chuyển · ← → chuyển ảnh · Esc đóng";
+            await ShowLocationAsync(item.File, onlySaved: true);
         }
         catch (OperationCanceledException) when (selection.IsCancellationRequested) { }
         catch (Exception ex) { if (!IsDisposed && generation == _generation) _status.Text = "Chưa xem được ảnh: " + UiText.HideIpAddresses(ex.Message); }
@@ -132,6 +155,7 @@ internal sealed class ImageGalleryForm : DpiForm
     }
     protected override bool ProcessCmdKey(ref System.Windows.Forms.Message msg, Keys keyData)
     {
+        if (_caption.ContainsFocus && keyData != Keys.Escape) return base.ProcessCmdKey(ref msg, keyData);
         switch (keyData)
         {
             case Keys.Escape: Close(); return true;

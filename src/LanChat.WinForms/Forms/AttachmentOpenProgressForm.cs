@@ -15,12 +15,15 @@ internal sealed class AttachmentOpenProgressForm : DpiForm
         Text = forwarding ? "Chuyển tiếp tin nhắn" : folder ? "Tải và mở thư mục" : "Mở tệp đính kèm";
         if (forwarding) _state.Text = "Đang chuẩn bị tệp và thư mục để chuyển tiếp…";
         else if (folder) _state.Text = "Đang đọc danh sách tệp trong thư mục…";
-        ClientSize = new Size(500, 175); FormBorderStyle = FormBorderStyle.FixedDialog;
+        ClientSize = new Size(500, 200); FormBorderStyle = FormBorderStyle.FixedDialog;
         StartPosition = FormStartPosition.CenterParent; ShowInTaskbar = false; MaximizeBox = MinimizeBox = false;
         var layout = Theme.Stack(4); layout.Padding = new Padding(12);
-        foreach (var height in new[] { 36, 36, 24, 52 }) layout.RowStyles.Add(new RowStyle(SizeType.Absolute, height));
+        layout.RowStyles.Add(new RowStyle(SizeType.AutoSize)); layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 24)); layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         var name = Theme.Label(fileName, 11, true); name.AutoSize = false; name.AutoEllipsis = true;
         var cancel = Theme.Button("Hủy", UiIcon.Close); cancel.Click += (_, _) => Close();
+        CancelButton = cancel;
+        UiInteraction.Wrap(_state, layout);
         layout.Controls.Add(name, 0, 0); layout.Controls.Add(_state, 0, 1); layout.Controls.Add(_progress, 0, 2); layout.Controls.Add(cancel, 0, 3); Controls.Add(layout);
         FormClosing += (_, _) => cancellation.Cancel();
     }

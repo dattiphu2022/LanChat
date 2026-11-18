@@ -85,7 +85,7 @@ public sealed partial class PeerFileTransferService(NodeOptions options, IDistri
         // Also recover older attachments without a source reference from an unchanged named copy.
         foreach (var file in (await store.GetAttachmentsAsync(ct: ct)).Where(x => x.MimeType != FolderAttachment.MimeType &&
             string.Equals(x.Sha256, hash, StringComparison.OrdinalIgnoreCase)))
-            candidates.Add(OpenPath(file));
+            candidates.AddRange(RecoveryPaths(file));
         foreach (var candidate in candidates.Distinct(StringComparer.OrdinalIgnoreCase))
         {
             ct.ThrowIfCancellationRequested();
@@ -140,17 +140,17 @@ public sealed partial class PeerFileTransferService(NodeOptions options, IDistri
         finally { if (stream is not null) stream.Dispose(); }
         return null;
     }
-    public async Task<string> PrepareOpenAsync(AttachmentDto file, IProgress<FileProgress>? progress = null, CancellationToken ct = default)
+    private async Task<string> PrepareManagedAsync(AttachmentDto file, IProgress<FileProgress>? progress, CancellationToken ct, bool force = false)
     {
         ct.ThrowIfCancellationRequested();
         if (file.Id == Guid.Empty) throw new ArgumentException("Định danh tệp không hợp lệ.");
-        if (file.MimeType == FolderAttachment.MimeType) return await PrepareFolderAsync(file, progress, ct);
+        if (file.MimeType == FolderAttachment.MimeType) return await PrepareFolderAsync(file, progress, ct, force);
         _ = BlobPath(file.Sha256);
         var target = OpenPath(file);
         var directory = Path.GetDirectoryName(target)!;
         // A named working copy gives Windows the original extension. Never open/edit the shared immutable blob.
         // Keep an existing working copy, including edits made by the user's associated application.
-        if (File.Exists(target)) return target;
+        if (!force && File.Exists(target)) return target;
         var blob = await DownloadAsync(file, progress, ct);
         Directory.CreateDirectory(directory);
         var temp = Path.Combine(directory, LanChat.Domain.AppIdentity.NewId() + ".part");
@@ -161,8 +161,8 @@ public sealed partial class PeerFileTransferService(NodeOptions options, IDistri
                 await source.CopyToAsync(destination, ct);
             if (!await VerifyAsync(temp, file, ct)) throw new IOException("Bản lưu tệp đã thay đổi trong lúc mở. Hãy bấm lại để tải bản đúng.");
             ct.ThrowIfCancellationRequested();
-            try { File.Move(temp, target); }
-            catch (IOException) when (File.Exists(target)) { /* Another click already prepared this attachment. */ }
+            try { if (force && File.Exists(target)) File.Replace(temp, target, null); else File.Move(temp, target); }
+            catch (IOException) when (!force && File.Exists(target)) { /* Another click already prepared this attachment. */ }
             return target;
         }
         finally { if (File.Exists(temp)) File.Delete(temp); }
@@ -179,8 +179,20 @@ public sealed partial class PeerFileTransferService(NodeOptions options, IDistri
         return Path.Combine(directory, name);
     }
 
-    internal bool IsPrepared(AttachmentDto file) => file.MimeType == FolderAttachment.MimeType
-        ? Directory.Exists(OpenPath(file)) : File.Exists(OpenPath(file));
+    internal bool IsPrepared(AttachmentDto file)
+    {
+        try
+        {
+            var record = ReadLocation(file);
+            return record?.UserSelected == true || record?.PendingDestination is not null || Exists(file, record?.Path ?? OpenPath(file));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // An unreadable location must not recreate a working copy or block other downloads.
+            logger.LogDebug("Local attachment location is unavailable for {Attachment}: {Type}", file.Id, ex.GetType().Name);
+            return true;
+        }
+    }
 
     public async Task<string> DownloadAsync(AttachmentDto file, IProgress<FileProgress>? progress = null, CancellationToken ct = default)
     {
