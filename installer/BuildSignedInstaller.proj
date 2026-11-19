@@ -1,0 +1,22 @@
+<Project DefaultTargets="CompileInstaller">
+  <Import Project="../CodeSigning.local.props" Condition="Exists('../CodeSigning.local.props')" />
+  <Import Project="PublicInstaller.targets" />
+  <PropertyGroup>
+    <RepositoryRoot>$([MSBuild]::NormalizeDirectory('$(MSBuildThisFileDirectory)', '..'))</RepositoryRoot>
+    <ReleaseVersion Condition="'$(ReleaseVersion)' == ''">$([System.Text.RegularExpressions.Regex]::Match($([System.IO.File]::ReadAllText('$(RepositoryRoot)src/LanChat.Application/Contracts.cs')), 'const\s+string\s+CurrentApplicationVersion\s*=\s*&quot;([0-9]+\.[0-9]+\.[0-9]+)&quot;;').Groups[1].Value)</ReleaseVersion>
+    <ReleaseDirectory Condition="'$(ReleaseDirectory)' == ''">$(RepositoryRoot)artifacts/v$(ReleaseVersion)-release</ReleaseDirectory>
+    <PayloadDirectory>$(ReleaseDirectory)/publish</PayloadDirectory>
+    <SigningTool>$(RepositoryRoot)tools/LanChat.Signing/bin/Release/net48/LanChat.Signing.exe</SigningTool>
+    <InnoSetupCompiler Condition="'$(InnoSetupCompiler)' == '' and Exists('$(MSBuildProgramFiles32)/Inno Setup 6/ISCC.exe')">$(MSBuildProgramFiles32)/Inno Setup 6/ISCC.exe</InnoSetupCompiler>
+    <InnoSetupCompiler Condition="'$(InnoSetupCompiler)' == ''">$(LocalAppData)/Programs/Inno Setup 6/ISCC.exe</InnoSetupCompiler>
+  </PropertyGroup>
+  <Target Name="CompileInstaller">
+    <Error Condition="'$(LanChatSigningThumbprint)' == ''" Text="Configure the backed-up LanChat development certificate in CodeSigning.local.props first." />
+    <Error Condition="!Exists('$(PayloadDirectory)/LanChat.WinForms.exe')" Text="Publish the public Release payload before compiling the installer." />
+    <Error Condition="!Exists('$(InnoSetupCompiler)')" Text="Inno Setup 6 is required." />
+    <PrepareLanChatPublicPayload PayloadDirectory="$(PayloadDirectory)" ReleaseVersion="$(ReleaseVersion)" DefinitionsPath="$(MSBuildThisFileDirectory)PublicPublishDir.local.iss" />
+    <Exec Command="&quot;$(SigningTool)&quot; verify --thumbprint $(LanChatSigningThumbprint) &quot;$(PayloadDirectory)/LanChat.WinForms.exe&quot;" />
+    <Exec Command="&quot;$(InnoSetupCompiler)&quot; &quot;/DPublishDir=$(PayloadDirectory)&quot; /DAppVersion=$(ReleaseVersion) /DSetupOutputName=LanChat-Setup-Windows-x64 &quot;/O$(ReleaseDirectory)/installer&quot; /DLanChatDevelopmentSigning &quot;/SLanChatDevelopment=$q$(SigningTool)$q sign --thumbprint $(LanChatSigningThumbprint) $f&quot; &quot;$(MSBuildThisFileDirectory)LanChat.iss&quot;" />
+    <Exec Command="&quot;$(SigningTool)&quot; verify --thumbprint $(LanChatSigningThumbprint) &quot;$(ReleaseDirectory)/installer/LanChat-Setup-Windows-x64.exe&quot;" />
+  </Target>
+</Project>

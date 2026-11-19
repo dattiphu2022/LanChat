@@ -13,13 +13,23 @@
     <OutputPath Condition="'$(LanChatPublicBuildDirectory)' != ''">$(LanChatPublicBuildDirectory)/bin/</OutputPath>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="QRCoder" Version="1.8.1" />
     <ProjectReference Include="../LanChat.Infrastructure/LanChat.Infrastructure.csproj" />
+    <ProjectReference Include="../../tools/LanChat.Signing/LanChat.Signing.csproj" ReferenceOutputAssembly="false" PrivateAssets="all" />
     <Reference Include="System.Net.Http" />
     <InternalsVisibleTo Include="LanChat.Tests" />
     <EmbeddedResource Include="Assets/DonationQr.png" LogicalName="LanChat.DonationQr" />
     <EmbeddedResource Include="../../docs/HUONG_DAN_SU_DUNG.md" LogicalName="LanChat.UserGuide" />
     <EmbeddedResource Include="../../LICENSE" LogicalName="LanChat.License" />
+    <Content Include="../../docs/QRCoder-LICENSE.txt" Link="QRCoder-LICENSE.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
+  <Import Project="../../CodeSigning.local.props" Condition="Exists('../../CodeSigning.local.props')" />
+  <Target Name="SignDevelopmentBuild" AfterTargets="Build" Condition="'$(LanChatDevelopmentSigning)' == 'true'">
+    <Exec Command="&quot;$(MSBuildProjectDirectory)/../../tools/LanChat.Signing/bin/$(Configuration)/net48/LanChat.Signing.exe&quot; sign --thumbprint &quot;$(LanChatSigningThumbprint)&quot; &quot;$(TargetPath)&quot;" />
+  </Target>
+  <Target Name="SignDevelopmentPublish" AfterTargets="Publish" BeforeTargets="BuildInnoSetup" Condition="'$(LanChatDevelopmentSigning)' == 'true'">
+    <Exec Command="&quot;$(MSBuildProjectDirectory)/../../tools/LanChat.Signing/bin/$(Configuration)/net48/LanChat.Signing.exe&quot; sign --thumbprint &quot;$(LanChatSigningThumbprint)&quot; &quot;$([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)', '$(PublishDir)'))/$(TargetFileName)&quot;" />
+  </Target>
   <ItemGroup Condition="'$(LanChatPublicRelease)' != 'true' and Exists('Assets/DefaultNetwork.local.json')">
     <EmbeddedResource Include="Assets/DefaultNetwork.local.json" LogicalName="LanChat.DefaultNetwork" />
   </ItemGroup>
@@ -30,12 +40,13 @@
       <InnoSetupCompiler Condition="'$(InnoSetupCompiler)' == ''">ISCC.exe</InnoSetupCompiler>
       <InstallerScript>$(MSBuildProjectDirectory)/../../installer/LanChat.iss</InstallerScript>
       <InstallerPublishDir>$([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)', '$(PublishDir)'))</InstallerPublishDir>
+      <DevelopmentSignArguments Condition="'$(LanChatDevelopmentSigning)' == 'true'">&quot;/DLanChatDevelopmentSigning&quot; &quot;/SLanChatDevelopment=$q$(MSBuildProjectDirectory)/../../tools/LanChat.Signing/bin/$(Configuration)/net48/LanChat.Signing.exe$q sign --thumbprint $(LanChatSigningThumbprint) $f&quot;</DevelopmentSignArguments>
     </PropertyGroup>
     <Error Condition="!Exists('Assets/DefaultNetwork.local.json')" Text="Missing the shared default invitation. Restore Assets/DefaultNetwork.local.json from the internal release backup before publishing the installer." />
     <Error Condition="!Exists('$(InstallerPublishDir)/$(TargetFileName)')" Text="WinForms publish output is missing from $(InstallerPublishDir)." />
     <WriteLinesToFile File="$(MSBuildProjectDirectory)/../../installer/PublishDir.local.iss"
                       Lines="#define PublishDir &quot;$([MSBuild]::EnsureTrailingSlash('$(InstallerPublishDir)')).&quot;"
                       Overwrite="true" Encoding="UTF-8" />
-    <Exec WorkingDirectory="$(MSBuildProjectDirectory)" Command="&quot;$(InnoSetupCompiler)&quot; &quot;/DPublishDir=$([MSBuild]::EnsureTrailingSlash('$(InstallerPublishDir)')).&quot; &quot;$(InstallerScript)&quot;" />
+    <Exec WorkingDirectory="$(MSBuildProjectDirectory)" Command="&quot;$(InnoSetupCompiler)&quot; &quot;/DPublishDir=$([MSBuild]::EnsureTrailingSlash('$(InstallerPublishDir)')).&quot; $(DevelopmentSignArguments) &quot;$(InstallerScript)&quot;" />
   </Target>
 </Project>

@@ -1,5 +1,5 @@
 #ifndef AppVersion
-  #define AppVersion "1.2.6"
+  #define AppVersion "1.2.7"
 #endif
 #ifndef PublishDir
   #if FileExists("PublishDir.local.iss")
@@ -37,6 +37,10 @@ Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
 SetupIconFile=..\src\LanChat.WinForms\Assets\LanChat.ico
+#ifdef LanChatDevelopmentSigning
+SignTool=LanChatDevelopment
+SignedUninstaller=yes
+#endif
 
 [Files]
 Source: "{#PublishDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "*.pdb,default-network.json,DefaultNetwork.local.json"

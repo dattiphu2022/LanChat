@@ -1,4 +1,4 @@
-# LanChat v1.2.6 — Chat nội bộ cho Windows
+# LanChat v1.2.7 — Chat nội bộ cho Windows
 
 LanChat hỗ trợ chat riêng, chat nhóm và truyền ảnh, tệp, thư mục giữa các máy Windows trên mạng LAN. Mỗi máy lưu dữ liệu trong SQLite. Tin nhắn và tệp được mã hóa đầu cuối. Cập nhật hỗ trợ GitHub, máy cùng mạng chat trong LAN hoặc bộ cài cục bộ; LAN và bộ cài cục bộ hoạt động không cần Internet.
 
@@ -29,6 +29,12 @@ Mạng có ba voter đang hoạt động ổn định chịu được một máy
 Khi chỉ còn hai máy kết nối trong mạng thiếu phiếu, LanChat chọn một máy điều phối. Hai máy chạy v1.2.3 trở lên có thể tạo nhóm mới cho hai người và dùng ngay. Sửa nhóm đã có vẫn cần đủ phiếu. Các máy v1.2.2 tiếp tục nhắn tin, gửi tệp và nhận nhóm mới khi nhóm được xác nhận trong nhật ký chung.
 
 Trong **Cài đặt**, bật **Khởi động cùng hệ thống** để mở LanChat khi đăng nhập Windows. Nhấn **Thu nhỏ** hoặc **X** để đưa LanChat xuống khay hệ thống. Nhấp đúp biểu tượng để mở lại, hoặc bấm chuột phải và chọn **Thoát LanChat** để dừng ứng dụng.
+
+## Chọn nhiều tin và chia sẻ QR
+
+Bấm **Chọn nhiều** trên tiêu đề chat để hiện checkbox. Chọn từng tin, **Chọn tất cả** trong phần lịch sử đang hiển thị, **Bỏ chọn** hoặc **Hủy chọn**. Tải tin cũ hơn để chọn thêm. Các lựa chọn được giữ khi làm mới; đổi hội thoại sẽ hủy chế độ. Tin đã thu hồi không được xuất.
+
+**Xuất QR** mở bản xem trước QR và văn bản nguyên gốc. Các tin ghép theo thời gian tăng dần bằng hai ký tự xuống dòng LF, không thêm tên người gửi hay thời gian, không chuẩn hóa hoặc cắt nội dung. QR là Plain Text UTF-8, ECC M, tối đa Version 18 và **500 byte UTF-8** tính cả dấu phân cách. Khi vượt giới hạn, nút xuất bị khóa và hiện dung lượng để bỏ chọn bớt. PNG có nền trắng, vùng trống và điểm ảnh sắc nét; toàn bộ thao tác chạy trên máy, không gọi dịch vụ tạo QR.
 
 ## Mã mặc định cho nhiều máy
 
@@ -123,9 +129,14 @@ Khi bật nhiều mạng, xem cổng TCP thực tế trong **Mạng chat → Chi
 - Log cuốn trong `Data/Logs`, tối đa 14 tệp, 5 MB/tệp; không ghi secret hoặc nội dung chat.
 - Sao lưu cả thư mục khi app đã đóng. DPAPI gắn với tài khoản Windows; không coi bản sao cluster.json là mã mời cho máy khác.
 
+## Ký số phát triển
+
+Bản v1.2.7 có EXE ứng dụng và bộ cài Inno Setup ký Authenticode bằng chứng thư tự ký **CN=LanChat Development**. Đây là chữ ký phát triển, không phải chứng thư phát hành đã được CA xác thực; Windows/SmartScreen có thể vẫn cảnh báo. Không tự thêm chứng thư vào Trusted Root hoặc thay đổi Kaspersky/chính sách Windows. Xem [cấu hình, sao lưu và khôi phục chứng thư](docs/CODE_SIGNING.md).
+
 ## Tài liệu
 
 - [Hướng dẫn sử dụng](docs/HUONG_DAN_SU_DUNG.md)
+- [Kiểm chứng v1.2.7: QR và ký số](docs/VERIFICATION_QR_SIGNING.md)
 - [Kiểm chứng ô soạn, tên tệp và cập nhật LAN](docs/VERIFICATION_LAN_UPDATE.md)
 - [Kiểm chứng lưu đính kèm](docs/VERIFICATION_ATTACHMENT_SAVE.md)
 - [Đóng gói và phát hành](installer/README.md)

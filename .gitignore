@@ -4,6 +4,11 @@
 .codex-temp/
 TestResults/
 artifacts/
+*.pfx
+*.p12
+*.key
+LanChat_CodeSigning_Backup/
+CodeSigning.local.props
 Data/
 *.user
 /src/LanChat.WinForms/Assets/DefaultNetwork.local.json

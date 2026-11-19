@@ -19,7 +19,7 @@ namespace LanChat.Tests;
 public sealed class WindowsUiCollection { }
 
 [Collection("Windows UI")]
-public sealed class WindowsUiTests
+public sealed partial class WindowsUiTests
 {
     [Fact]
     public Task AboutAndBannerShareDownloadAcrossClosingAndReopening() => OnUi(async host =>

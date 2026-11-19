@@ -1,4 +1,4 @@
-param([string]$OutputDirectory, [switch]$NoRestore, [switch]$PublicRelease)
+param([string]$OutputDirectory, [switch]$NoRestore, [switch]$PublicRelease, [switch]$DevelopmentSign)
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path -Parent $PSScriptRoot
 if (-not $OutputDirectory) { $OutputDirectory = Join-Path $repo 'artifacts' }
@@ -9,6 +9,7 @@ $zip = Join-Path $OutputDirectory 'LanChat-Win11-x64.zip'
 
 $publishArgs = @('publish', (Join-Path $repo 'src/LanChat.WinForms/LanChat.WinForms.csproj'), '-m:1', '-c', 'Release', '-f', 'net48', '-o', $stage)
 if ($NoRestore) { $publishArgs += '--no-restore' }
+if ($DevelopmentSign) { $publishArgs += '-p:LanChatDevelopmentSigning=true' }
 if ($PublicRelease) {
     $contracts = Get-Content -LiteralPath (Join-Path $repo 'src/LanChat.Application/Contracts.cs') -Raw
     $versionMatch = [regex]::Match($contracts, 'const\s+string\s+CurrentApplicationVersion\s*=\s*"(?<version>\d+\.\d+\.\d+)";')
@@ -40,8 +41,23 @@ if ($PublicRelease) {
     $setupScript = Join-Path $repo 'installer/LanChat.iss'
     $installerDirectory = Join-Path $OutputDirectory 'installer'
     $setupName = 'LanChat-Setup-Windows-x64'
-    & $compiler "/DPublishDir=$stage" "/DAppVersion=$appVersion" "/DSetupOutputName=$setupName" "/O$installerDirectory" $setupScript
+    $signArguments = @()
+    if ($DevelopmentSign) {
+        $signer = Join-Path $repo 'tools/LanChat.Signing/bin/Release/net48/LanChat.Signing.exe'
+        $local = Join-Path $repo 'CodeSigning.local.props'
+        if (-not (Test-Path -LiteralPath $local)) { throw 'Configure and back up the development certificate first.' }
+        [xml]$signConfiguration = Get-Content -LiteralPath $local -Raw
+        $thumbprint = [string]$signConfiguration.Project.PropertyGroup.LanChatSigningThumbprint
+        if ($thumbprint -notmatch '^[0-9A-Fa-f]{40}$') { throw 'Missing development signing thumbprint.' }
+        $command = '$q' + $signer + '$q sign --thumbprint ' + $thumbprint + ' $f'
+        $signArguments = @('/DLanChatDevelopmentSigning', ('/SLanChatDevelopment=' + $command))
+    }
+    & $compiler "/DPublishDir=$stage" "/DAppVersion=$appVersion" "/DSetupOutputName=$setupName" "/O$installerDirectory" @signArguments $setupScript
     if ($LASTEXITCODE -ne 0) { throw "Inno Setup thất bại ($LASTEXITCODE)." }
+    if ($DevelopmentSign) {
+        & $signer verify --thumbprint $thumbprint (Join-Path $installerDirectory "$setupName.exe")
+        if ($LASTEXITCODE -ne 0) { throw 'Installer signature verification failed; do not publish.' }
+    }
     Write-Output (Join-Path $installerDirectory "$setupName.exe")
     return
 }

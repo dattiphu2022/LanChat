@@ -1,0 +1,26 @@
+{
+  "success": true,
+  "distinctIdentity": true,
+  "sameMessages": true,
+  "sameGroup": true,
+  "files": [
+    6,
+    6
+  ],
+  "saved": [
+    2,
+    2
+  ],
+  "lan": [
+    true,
+    true
+  ],
+  "members": [
+    true,
+    true
+  ],
+  "dpi": [
+    120,
+    120
+  ]
+}

@@ -22,6 +22,10 @@ Script publish sang thư mục mới, kiểm tra tệp cấp mã và tài nguyê
 
 Bộ cài dùng cùng AppId để nâng cấp tại chỗ. Kiểm tra hồ sơ, cấu hình mạng và lịch sử khi thử nâng cấp từ bản trước bằng cùng tài khoản Windows. Người dùng cài lần đầu chọn **Mạng chat → Thêm mã** hoặc **Tạo mạng**. [Hướng dẫn sử dụng](../docs/HUONG_DAN_SU_DUNG.md)
 
+## Ký số phát triển trước khi phát hành
+
+Từ v1.2.7, build trên máy phát triển có thể tự ký EXE bằng SignTool khi cấu hình `CodeSigning.local.props` trỏ tới thumbprint của chứng thư LanChat đã sao lưu. Dùng `dotnet msbuild installer/BuildSignedInstaller.proj` sau khi publish payload công khai để ký/xác minh bộ cài Inno Setup và phần gỡ cài đặt. Không tải bộ cài chưa ký lên release. Đây là chứng thư tự ký dành cho phát triển; không phải chứng thư CA và không tự cài Trusted Root. Xem [hướng dẫn ký và khôi phục PFX](../docs/CODE_SIGNING.md).
+
 ## Đóng gói nội bộ
 
 Publish dự án `LanChat.WinForms` bằng **FolderProfile** hoặc chạy `dotnet publish src/LanChat.WinForms -c Release` để biên dịch `LanChat.iss` và tạo bộ cài trong `artifacts/installer`. File `LanChat.iss` dùng thư mục từ lần publish nội bộ có tạo bộ cài gần nhất khi bạn mở và bấm **Compile** trong Inno Setup.

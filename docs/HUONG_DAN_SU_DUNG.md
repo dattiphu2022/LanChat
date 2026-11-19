@@ -53,6 +53,14 @@ Nhấp phải hội thoại để ghim, tắt thông báo hoặc **Xóa hội th
 - Nếu bản đã lưu bị mất hoặc ổ đĩa chưa kết nối, chọn **Tìm lại tệp/thư mục…**, **Tạo lại từ bản gốc** hoặc **Hủy**. Tìm lại giữ các chỉnh sửa của bản bạn chọn. Tạo lại chỉ lấy nội dung gốc trong tin nhắn và không thể phục hồi chỉnh sửa cục bộ đã mất. Ứng dụng giữ vị trí cũ cho đến khi bạn chọn cách xử lý.
 - Bản gốc dùng để đồng bộ, chuyển tiếp và xem ảnh trong chat được giữ riêng. Muốn chia sẻ nội dung đã sửa, đính kèm lại tệp thành tin mới. Khi sao lưu dữ liệu, sao lưu thêm các bản làm việc đã lưu bên ngoài thư mục LanChat.
 
+## Chọn nhiều tin và xuất QR
+
+1. Bấm **Chọn nhiều** trên tiêu đề chat. Tích checkbox của các tin cần chia sẻ. Tin đã thu hồi có checkbox bị khóa.
+2. **Chọn tất cả** chọn các tin trong phần lịch sử đang hiển thị; tải thêm tin cũ nếu cần. **Bỏ chọn** xóa lựa chọn và giữ chế độ. **Hủy chọn** hoặc **Esc** thoát chế độ; bản nháp được giữ. Chuyển hội thoại sẽ hủy lựa chọn.
+3. Dòng trạng thái hiển thị số tin và dung lượng UTF-8, tối đa **500 byte**, gồm cả dấu phân cách. Khi vượt giới hạn, **Xuất QR** bị khóa; bỏ chọn bớt tin để tiếp tục. Ứng dụng không tự cắt hoặc thay đổi nội dung.
+4. Bấm **Xuất QR** để xem mã và văn bản sẽ chia sẻ. Văn bản ghép theo thời gian tăng dần bằng hai dấu xuống dòng LF, không thêm metadata. QR dùng Plain Text UTF-8, sửa lỗi M, tối đa Version 18, không có BOM.
+5. Chọn **Xuất PNG…**, nhập nơi lưu và tên tệp. Hộp thoại Windows hỏi trước khi ghi đè. Không tự mở hay gửi ảnh QR ra ngoài. Tạo và xuất QR hoàn toàn trên máy, không dùng dịch vụ bên ngoài.
+
 ## Cập nhật và thoát ứng dụng
 
 Mở **Cài đặt → Cài đặt cập nhật**, hoặc nút cùng tên trong **Giới thiệu**. Cấu hình áp dụng cho toàn ứng dụng và được giữ khi mở lại:
