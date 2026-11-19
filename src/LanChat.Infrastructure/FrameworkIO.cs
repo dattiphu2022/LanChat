@@ -29,6 +29,18 @@ public static class FrameworkIO
         return hash.GetHashAndReset();
     }
 
+    public static async Task<byte[]> CopyAndHashAsync(Stream source, Stream destination, CancellationToken ct)
+    {
+        using var digest = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        var buffer = new byte[65536]; int count;
+        while ((count = await source.ReadAsync(buffer, 0, buffer.Length, ct).ConfigureAwait(false)) > 0)
+        {
+            digest.AppendData(buffer, 0, count);
+            await destination.WriteAsync(buffer, 0, count, ct).ConfigureAwait(false);
+        }
+        return digest.GetHashAndReset();
+    }
+
     public static string Hex(byte[] bytes) => BitConverter.ToString(bytes).Replace("-", "");
     public static Task<string> ReadTextAsync(string path, CancellationToken ct = default) =>
         Task.Run(() => File.ReadAllText(path), ct);

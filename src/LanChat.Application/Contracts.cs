@@ -38,7 +38,7 @@ public sealed record NodeInfoDto(Guid NodeId, string DeviceName, int ServicePort
     DevicePublicKeys? DeviceKeys = null, string? KeyProof = null)
 {
     public const int CurrentProtocol = 4;
-    public const string CurrentApplicationVersion = "1.2.7";
+    public const string CurrentApplicationVersion = "1.2.8";
 }
 public sealed record ChatMessageDto(Guid Id, Guid ClientMessageId, Guid ConversationId, Guid SenderUserId,
     Guid RecipientUserId, Guid OriginNodeId, long OriginSequence, MessageKind Kind, string Text,
@@ -49,8 +49,14 @@ public sealed record ConversationSummary(Guid Id, Guid OtherUserId, string Displ
     long LastMessageTicks, int UnreadCount, bool IsPinned, bool IsMuted, PresenceStatus Presence, ConversationKind Kind = ConversationKind.Direct, string? AvatarBase64 = null)
 {
     public string? Department { get; init; }
+    public int UnreadMentionCount { get; init; }
 }
-public sealed record IncomingMessageNotice(Guid ConversationId, string Preview);
+public sealed record IncomingMessageNotice(Guid ConversationId, string Preview)
+{
+    public Guid MessageId { get; init; }
+    public string SenderName { get; init; } = "";
+    public bool Mentioned { get; init; }
+}
 public sealed record IncomingMessageBatch(long Position, IncomingMessageNotice[] Messages);
 public sealed record NetworkInfo(string Adapter, string Address, string Mask, int PrefixLength,
     string Network, string Broadcast, string FirstHost, string LastHost, long HostCount, string? Gateway);
@@ -94,9 +100,10 @@ public interface IChatStore
 public interface IChatService
 {
     Task<Message> SendAsync(Guid recipientId, string text, CancellationToken ct = default);
+    Task<ForwardResult[]> ForwardBatchAsync(ForwardRequest[] requests, IProgress<ForwardProgress>? progress = null, CancellationToken ct = default);
     Task<Message> ForwardAsync(Guid messageId, Guid conversationId, IProgress<FileProgress>? progress = null, CancellationToken ct = default);
 }
-public sealed class ChatService(IChatStore store, IDistributedStore distributed, IFileTransferService files) : IChatService
+public sealed partial class ChatService(IChatStore store, IDistributedStore distributed, IFileTransferService files) : IChatService
 {
     public Task<Message> SendAsync(Guid recipientId, string text, CancellationToken ct = default)
     {
@@ -107,23 +114,15 @@ public sealed class ChatService(IChatStore store, IDistributedStore distributed,
 
     public async Task<Message> ForwardAsync(Guid messageId, Guid conversationId, IProgress<FileProgress>? progress = null, CancellationToken ct = default)
     {
-        ct.ThrowIfCancellationRequested();
-        var details = await distributed.GetMessageDetailsAsync(messageId, ct).ConfigureAwait(false);
-        var conversations = await store.GetConversationsAsync(ct: ct).ConfigureAwait(false);
-        if (!conversations.Any(item => item.Id == conversationId)) throw new InvalidOperationException("Hội thoại nhận chưa sẵn sàng.");
-        if (details.Message.IsRecalled || details.Message.IsDeletedLocal || !conversations.Any(item => item.Id == details.Message.ConversationId))
-            throw new InvalidOperationException("Tin nhắn đã thu hồi, bị xóa hoặc bạn không còn trong cuộc trò chuyện.");
-
-        var attachments = new List<AttachmentDto>();
-        foreach (var file in details.Attachments)
-            attachments.Add(await files.PrepareForwardAsync(file, progress, ct).ConfigureAwait(false));
-
-        // Recheck the source after a potentially long transfer before publishing the new message.
-        details = await distributed.GetMessageDetailsAsync(messageId, ct).ConfigureAwait(false);
-        conversations = await store.GetConversationsAsync(ct: ct).ConfigureAwait(false);
-        if (details.Message.IsRecalled || details.Message.IsDeletedLocal || !conversations.Any(item => item.Id == details.Message.ConversationId))
-            throw new InvalidOperationException("Tin nhắn gốc đã thay đổi quyền truy cập trong lúc chuẩn bị chuyển tiếp.");
-        return await distributed.SendToConversationAsync(conversationId, details.Message.Text, forwardedFrom: messageId,
-            attachments: attachments.ToArray(), ct: ct).ConfigureAwait(false);
+        var destination = (await store.GetConversationsAsync(ct: ct).ConfigureAwait(false)).FirstOrDefault(c => c.Id == conversationId)
+            ?? throw new InvalidOperationException("Hội thoại nhận chưa sẵn sàng.");
+        var result = (await ForwardBatchAsync([new(messageId, new(conversationId, true, destination.DisplayName))],
+            progress is null ? null : new SingleForwardProgress(progress), ct).ConfigureAwait(false)).Single();
+        if (result.Outcome == ForwardOutcome.Cancelled) throw new OperationCanceledException(ct);
+        if (result.Cause is { } cause) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(cause).Throw();
+        if (result.CreatedMessageId is not Guid id) throw new InvalidOperationException(result.Error);
+        return (await distributed.GetMessageDetailsAsync(id, ct).ConfigureAwait(false)).Message;
     }
+    private sealed class SingleForwardProgress(IProgress<FileProgress> progress) : IProgress<ForwardProgress>
+    { public void Report(ForwardProgress value) { if (value.File is { } file) progress.Report(file); } }
 }

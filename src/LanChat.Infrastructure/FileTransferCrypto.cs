@@ -66,6 +66,7 @@ internal static class FileTransferCrypto
         try
         {
             using var aes = new AesGcm(sessionKey, TagBytes);
+            using var digest = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
             long completed = 0;
             uint sequence = 0;
             do
@@ -74,10 +75,13 @@ internal static class FileTransferCrypto
                 await ReadFromNetworkAsync(network, encrypted, count + TagBytes, abort, ct).ConfigureAwait(false);
                 BinaryPrimitives.WriteUInt32BigEndian(nonce.AsSpan(8), sequence++);
                 aes.Decrypt(nonce, encrypted.AsSpan(0, count), encrypted.AsSpan(count, TagBytes), clear.AsSpan(0, count), metadata);
+                digest.AppendData(clear, 0, count);
                 await plaintext.WriteAsync(clear, 0, count, ct).ConfigureAwait(false);
                 completed += count;
                 progress?.Report(new(completed, length));
             } while (completed < length);
+            progress?.Report(new(completed, length, AttachmentPhase.Verifying));
+            if (!string.Equals(FrameworkIO.Hex(digest.GetHashAndReset()), hash, StringComparison.OrdinalIgnoreCase)) throw new InvalidDataException("Tệp tải về không khớp SHA-256.");
         }
         catch (CryptographicException ex) { throw new InvalidDataException("Tệp mã hóa đã bị thay đổi hoặc khóa không đúng.", ex); }
         finally { Array.Clear(sessionKey, 0, sessionKey.Length); Array.Clear(clear, 0, clear.Length); }

@@ -1,0 +1,35 @@
+using LanChat.Application;
+
+namespace LanChat.WinForms.Controls;
+
+internal sealed class MentionTextControl : RichTextBox
+{
+    private string? _signature;
+    internal MentionTextControl()
+    {
+        ReadOnly = true; BorderStyle = BorderStyle.None; DetectUrls = false; ScrollBars = RichTextBoxScrollBars.None;
+        Multiline = true; WordWrap = true; TabStop = false; Dock = DockStyle.Fill;
+        Font = Theme.DefaultFont;
+    }
+    internal void BindText(string text, MessageMention[] mentions, Guid local, string prefix, Color background, Color foreground, bool center)
+    {
+        var highlights = mentions.Where(m => m.UserIds.Contains(local)).ToArray();
+        var signature = prefix + text + "\u0001" + string.Join(";", highlights.Select(m => $"{m.Start}:{m.Length}")) + $"/{background.ToArgb()}/{foreground.ToArgb()}/{center}";
+        if (_signature == signature) return;
+        _signature = signature;
+        var start = SelectionStart; var length = SelectionLength;
+        // RichEdit normalizes CRLF to LF. Stored offsets stay in the original text.
+        var display = (prefix + text).Replace("\r\n", "\n").Replace('\r', '\n');
+        Text = display; BackColor = background;
+        SelectAll(); SelectionColor = foreground; SelectionBackColor = background;
+        SelectionAlignment = center ? HorizontalAlignment.Center : HorizontalAlignment.Left;
+        foreach (var mention in highlights)
+        {
+            if (mention.Start < 0 || mention.Length <= 0 || mention.Start > text.Length - mention.Length) continue;
+            var before = (prefix + text.Substring(0, mention.Start)).Replace("\r\n", "\n").Replace('\r', '\n').Length;
+            var count = text.Substring(mention.Start, mention.Length).Replace("\r\n", "\n").Replace('\r', '\n').Length;
+            Select(before, count); SelectionColor = Theme.Blue; SelectionBackColor = Color.FromArgb(218, 235, 255);
+        }
+        Select(Math.Min(start, TextLength), Math.Min(length, Math.Max(0, TextLength - start)));
+    }
+}

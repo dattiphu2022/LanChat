@@ -21,8 +21,8 @@ internal sealed partial class NetworkWorkspace : DpiForm
     private readonly List<Button> _networkActions = [];
     private bool _busy, _exiting, _closed, _exitRequested;
     private FormWindowState _restoreState;
-    private (Guid NetworkId, Guid ConversationId)? _notificationTarget;
-    private (Guid NetworkId, Guid ConversationId)? _pendingNotification;
+    private (Guid NetworkId, Guid ConversationId, Guid MessageId)? _notificationTarget;
+    private (Guid NetworkId, Guid ConversationId, Guid MessageId)? _pendingNotification;
 
     public NetworkWorkspace(NetworkCatalog catalog, WindowsStartup startup, UpdateService updates)
     {
@@ -101,7 +101,7 @@ internal sealed partial class NetworkWorkspace : DpiForm
         _pendingNotification = null;
         if (!_running.TryGetValue(target.NetworkId, out var item)) return;
         _tabs.SelectedTab = item.Tab;
-        await item.View.OpenNotificationAsync(target.ConversationId);
+        await item.View.OpenNotificationAsync(target.ConversationId, target.MessageId);
     }
 
     private void UpdateActionState()
@@ -155,7 +155,7 @@ internal sealed partial class NetworkWorkspace : DpiForm
             view = ActivatorUtilities.CreateInstance<MainForm>(network.Services);
             tab = _tabs.CreatePage(entry.Name, UiIcon.Network);
             tab.Tag = entry.Id;
-            view.EmbedInWorkspace((conversationId, title, body) => ShowNotification(entry.Id, conversationId, title, body),
+            view.EmbedInWorkspace((conversationId, messageId, title, body) => ShowNotification(entry.Id, conversationId, messageId, title, body),
                 () => Visible && WindowState != FormWindowState.Minimized && _tabs.SelectedTab == tab);
             view.Dock = DockStyle.Fill;
             tab.Controls.Add(view); _tabs.TabPages.Add(tab);
@@ -194,10 +194,10 @@ internal sealed partial class NetworkWorkspace : DpiForm
         if (!ReferenceEquals(_tray.Icon, icon)) _tray.Icon = icon;
     }
 
-    private void ShowNotification(Guid networkId, Guid conversationId, string title, string body)
+    private void ShowNotification(Guid networkId, Guid conversationId, Guid messageId, string title, string body)
     {
         if (_exiting) return;
-        _notificationTarget = (networkId, conversationId);
+        _notificationTarget = (networkId, conversationId, messageId);
         _tray.ShowBalloonTip(3000, title, body, ToolTipIcon.Info);
     }
 

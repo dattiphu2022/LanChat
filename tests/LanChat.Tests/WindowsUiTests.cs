@@ -424,7 +424,7 @@ public sealed partial class WindowsUiTests
         var detail = new MessageDetails(first[0], [], ["👍"], 1, 1, null, "Người A") { SenderDepartment = "Đơn vị A" };
         list.Bind(a, first, user, [detail]);
         var edited = Children(list).OfType<MessageBubbleControl>().Single(c => c.MessageId == first[0].Id);
-        Assert.Contains(Children(edited).OfType<Label>(), label => label.Text == first[0].Text);
+        Assert.Contains(Children(edited).OfType<RichTextBox>(), body => body.Text == first[0].Text);
         Assert.Contains(Children(edited).OfType<Label>(), label => label.Text.Contains("👍") && label.Text.Contains("Đã đọc"));
         var captures = Environment.GetEnvironmentVariable("LANCHAT_UI_CAPTURE_DIR");
         if (!string.IsNullOrWhiteSpace(captures))

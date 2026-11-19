@@ -1,0 +1,22 @@
+{
+  "version": "1.2.8",
+  "subject": "CN=LanChat Development",
+  "thumbprint": "9CC153E400BB35AAD399B6BA9956DC92EF0DC377",
+  "artifacts": [
+    {
+      "path": "publish/LanChat.WinForms.exe",
+      "size": 1711920,
+      "sha256": "4455b058e514924b82f7d08cff55e366c7748214821958460466d8f1a7261a00"
+    },
+    {
+      "path": "installer/LanChat-Setup-Windows-x64.exe",
+      "size": 6803032,
+      "sha256": "b833559021d664a91df5316288482bc6d77f7241b233b5412c84e2b2330547b8"
+    },
+    {
+      "path": "LanChat-Win11-x64.zip",
+      "size": 6337843,
+      "sha256": "20fcbf1b54ea36791155a2b31f993a648fb4fc862dd188a52fca3435d4b6bb20"
+    }
+  ]
+}

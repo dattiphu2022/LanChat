@@ -44,7 +44,7 @@ public sealed partial class ChatStore
         await ProjectEntityAsync(db, e.EntityId, ct);
         return ToEvent(e);
     }
-    private async Task EmitMessageAsync(ChatDbContext db, LocalSettings s, Message message, AttachmentDto[]? attachments, CancellationToken ct)
+    private async Task EmitMessageAsync(ChatDbContext db, LocalSettings s, Message message, AttachmentDto[]? attachments, CancellationToken ct, MessageMention[]? mentions = null)
     {
         var sender = db.Required<LocalUserProfile>("Id=$0", message.SenderUserId);
         var recipient = db.One<LocalUserProfile>("Id=$0", message.RecipientUserId);
@@ -52,7 +52,7 @@ public sealed partial class ChatStore
         var dto = new ChatMessageDto(message.Id, message.ClientMessageId, message.ConversationId, message.SenderUserId, message.RecipientUserId,
             message.OriginNodeId, message.OriginSequence, message.Kind, message.Text, message.CreatedAtTicks, message.PhysicalTicks, message.LogicalCounter);
         var content = new MessageContent(dto, ToProfile(sender), recipient is null ? null : ToProfile(recipient),
-            message.ReplyToMessageId, message.ForwardedFromMessageId, attachments, audience);
+            message.ReplyToMessageId, message.ForwardedFromMessageId, attachments, audience, mentions);
         await EmitAsync(db, s, ReplicationEventType.MessageCreated, message.Id, message.ConversationId, content, ct, audience);
     }
     public async Task<ReplicationDigest> GetDigestAsync(CancellationToken ct = default)

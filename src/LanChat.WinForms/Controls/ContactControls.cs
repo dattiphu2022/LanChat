@@ -139,7 +139,7 @@ public sealed class ConversationItemControl : UserControl
         _title.SetName(new PersonName(c.DisplayName, c.Department));
         _unread.SetCount(c.UnreadCount);
         _preview.Text = c.Preview.NormalizeLines(" ");
-        _meta.Text = $"{(c.Kind == ConversationKind.Group ? "♧ Nhóm" : c.Presence == PresenceStatus.Online ? "● Trực tuyến" : "○ Ngoại tuyến")}  {(c.IsPinned ? "◆ " : "")}{(c.IsMuted ? "Im lặng  " : "")}" +
+        _meta.Text = (c.UnreadMentionCount > 0 ? $"@ {c.UnreadMentionCount} nhắc tới bạn  " : "") + $"{(c.Kind == ConversationKind.Group ? "♧ Nhóm" : c.Presence == PresenceStatus.Online ? "● Trực tuyến" : "○ Ngoại tuyến")}  {(c.IsPinned ? "◆ " : "")}{(c.IsMuted ? "Im lặng  " : "")}" +
             (c.LastMessageTicks > 0 ? new DateTime(c.LastMessageTicks, DateTimeKind.Utc).ToLocalTime().ToString("HH:mm") : "");
         SetActive(active);
     }

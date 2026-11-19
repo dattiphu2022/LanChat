@@ -6,8 +6,8 @@ public sealed record EventDto(Guid Id, Guid OriginNodeId, long OriginSequence, G
     Guid? ConversationId, ReplicationEventType Type, string PayloadJson, long PhysicalTicks, int LogicalCounter, long CreatedAtTicks, string Signature,
     DevicePublicKeys? DeviceKeys = null);
 public sealed record MessageContent(ChatMessageDto Message, UserProfileDto Sender, UserProfileDto? Recipient,
-    Guid? ReplyToMessageId = null, Guid? ForwardedFromMessageId = null, AttachmentDto[]? Attachments = null, Guid[]? Audience = null);
-public sealed record MessageEdit(string Text);
+    Guid? ReplyToMessageId = null, Guid? ForwardedFromMessageId = null, AttachmentDto[]? Attachments = null, Guid[]? Audience = null, MessageMention[]? Mentions = null);
+public sealed record MessageEdit(string Text, MessageMention[]? Mentions = null);
 public sealed record ReactionChange(string Emoji, bool Active);
 public sealed record ReceiptChange(bool IsRead, long ReceivedAtTicks);
 public sealed record AttachmentDto(Guid Id, Guid MessageId, string FileName, string MimeType, long FileSize, string Sha256, string? FileKey = null);
@@ -43,6 +43,7 @@ public sealed record MessageDetails(Message Message, AttachmentDto[] Attachments
 {
     public string? SenderDepartment { get; init; }
     public ReplyQuote? Quote { get; init; }
+    public MessageMention[] Mentions { get; init; } = [];
 }
 public sealed record ReplyQuote(Guid MessageId, string Preview, string? SenderName = null, string? SenderDepartment = null, bool CanNavigate = false);
 public sealed record SearchResult(Guid MessageId, Guid ConversationId, string Text, long CreatedAtTicks);
@@ -85,8 +86,8 @@ public interface IDistributedStore
     Task<DistributedDiagnostics> GetDistributedDiagnosticsAsync(CancellationToken ct = default);
     Task<PeerDiagnostic[]> GetPeerDiagnosticsAsync(CancellationToken ct = default);
     Task<Message> SendToConversationAsync(Guid conversationId, string text, Guid? replyTo = null,
-        Guid? forwardedFrom = null, AttachmentDto[]? attachments = null, CancellationToken ct = default);
-    Task EditMessageAsync(Guid messageId, string text, CancellationToken ct = default);
+        Guid? forwardedFrom = null, AttachmentDto[]? attachments = null, CancellationToken ct = default, MessageMention[]? mentions = null);
+    Task EditMessageAsync(Guid messageId, string text, CancellationToken ct = default, MessageMention[]? mentions = null);
     Task RecallMessageAsync(Guid messageId, CancellationToken ct = default);
     Task DeleteLocalAsync(Guid messageId, CancellationToken ct = default);
     Task ReactAsync(Guid messageId, string emoji, bool active, CancellationToken ct = default);
@@ -105,7 +106,8 @@ public interface IConsensusService
     Task<LeadershipResult> SetCanLeadAsync(bool enabled, CancellationToken ct = default);
     Task<ControlResult> ProposeAsync(ControlCommand command, CancellationToken ct = default);
 }
-public sealed record FileProgress(long Completed, long Total);
+public enum AttachmentPhase { Waiting, Connecting, Downloading, Verifying, Preparing, Saving, Launching }
+public sealed record FileProgress(long Completed, long Total, AttachmentPhase Phase = AttachmentPhase.Downloading);
 public sealed record FileRequest(string TransferId);
 public sealed record FileAvailability(bool Available, long Length);
 public sealed record LocalAttachmentLocation(string Path, bool UserSelected, bool Exists);
@@ -116,6 +118,7 @@ public sealed class LocalAttachmentMissingException(string path)
 }
 public interface IFileTransferService
 {
+    FileProgress? GetPreparationState(Guid attachmentId);
     Task<AttachmentDto> ImportLocalAsync(string path, CancellationToken ct = default);
     Task<AttachmentDto> ImportFolderAsync(string path, IProgress<string>? progress = null, CancellationToken ct = default);
     Task<string?> GetLocalPathAsync(string sha256, CancellationToken ct = default);
@@ -125,6 +128,7 @@ public interface IFileTransferService
     Task<string> SaveLocalAsync(AttachmentDto file, string destination, bool overwrite = false, IProgress<FileProgress>? progress = null, CancellationToken ct = default);
     Task RelinkLocalAsync(AttachmentDto file, string path, CancellationToken ct = default);
     Task<string> RestoreLocalAsync(AttachmentDto file, IProgress<FileProgress>? progress = null, CancellationToken ct = default);
+    Task<AttachmentDto[]> PrepareForwardCopiesAsync(AttachmentDto file, int copies, IProgress<FileProgress>? progress = null, CancellationToken ct = default);
     Task<AttachmentDto> PrepareForwardAsync(AttachmentDto file, IProgress<FileProgress>? progress = null, CancellationToken ct = default);
 }
 

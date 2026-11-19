@@ -137,3 +137,13 @@ Mỗi host dùng SQLite và khóa riêng theo thư mục dữ liệu. Migration 
 | Nhóm/tệp/tìm kiếm/chẩn đoán | src/LanChat.WinForms/Forms/*Form.cs |
 | Hướng dẫn sử dụng | docs/HUONG_DAN_SU_DUNG.md, src/LanChat.WinForms/Forms/UserGuideForm.cs |
 | Cập nhật và đóng gói | src/LanChat.WinForms/UpdateService.cs, installer/LanChat.Public.iss |
+
+## Nhắc tên, chuyển tiếp hàng loạt và chuẩn bị tệp (v1.2.8)
+
+Metadata nhắc tên nằm trong MessageContent/MessageEdit đã mã hóa: khoảng UTF-16, loại User/All và UserId đích. @All chốt thành viên tại transaction gửi; projection MessageMentions được migration tạo và dựng lại từ event cục bộ, giữ trạng thái đọc/xóa. Không thêm trường vào EventDto/NodeInfoDto có chữ ký và giữ giao thức v4. Thông báo dùng cursor rowid, nối projection để lời nhắc đi qua mute; sửa tin không đổi cursor nên không phát toast mới. Bộ soạn theo dõi khoảng qua chỉnh sửa và Undo/Redo, bản nháp giữ cả metadata. RichTextBox chỉ tô xanh đích cục bộ, ánh xạ CRLF sang chỉ số hiển thị và giữ nguyên Message.Text cho sao chép/tìm/QR.
+
+ForwardBatchAsync nhận các cặp tin/đích; danh bạ dùng UserId, nhóm dùng ConversationId. Chuẩn bị blob gốc mỗi tin một lần, rồi cấp AttachmentId/FileKey riêng từng đích; thư mục có manifest và khóa con riêng. Trước từng commit kiểm tra lại quyền/thu hồi/thành viên, bỏ metadata nhắc tên và báo kết quả Queued/Failed/Cancelled riêng. Thử lại chỉ nhận các cặp chưa hoàn tất.
+
+PrepareOpenAsync có coordinator theo AttachmentId với subscriber và snapshot tiến độ. Đọc metadata vị trí nguyên tử không chờ khóa ghi; Mở/Lưu tham gia tải nền có sẵn. Hủy subscriber cuối phải drain writer; lượt thử lại không được tham gia tác vụ đã bỏ. Callback và polling snapshot chỉ cập nhật control hiện có. Tối đa hai nguồn được hỏi song song, chọn header hợp lệ đầu tiên và dừng nguồn dư; nếu body lỗi có thể thử các nguồn còn lại. Chờ header 30 giây–5 phút theo dung lượng; body giữ idle timeout 15 giây. SHA-256 được ghép vào lượt giải mã/sao chép, vẫn kiểm tra đầy đủ trước publish. ShellExecute chạy trên luồng STA riêng.
+
+Khi sửa một @All còn nguyên từ tin cũ, giữ tập đích đã chốt (loại người đã rời nhóm), không thêm người gia nhập sau. Gợi ý @All mới có dấu ResolveAtSend trong bản nháp; Normalize giải quyết tập đích ở commit và xóa dấu trước khi lưu event.

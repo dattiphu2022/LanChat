@@ -124,3 +124,13 @@ public static class HybridClock
         return (physical, logical);
     }
 }
+
+public sealed class MessageMentionProjection
+{
+    public Guid Id { get; set; }
+    public Guid MessageId { get; set; }
+    public Guid UserId { get; set; }
+    public int Start { get; set; }
+    public int Length { get; set; }
+    public bool IsAll { get; set; }
+}

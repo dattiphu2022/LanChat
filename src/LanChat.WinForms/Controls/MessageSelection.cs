@@ -38,6 +38,8 @@ internal sealed class MessageSelection
     internal int Available => _messages.Count;
     internal bool IsSelected(Guid id) => _selected.Contains(id);
     internal bool CanSelect(Guid id) => _messages.TryGetValue(id, out var message) && !message.IsRecalled;
+    internal Guid[] ForwardIds => _selected.Where(id => _messages.TryGetValue(id, out var m) && !m.IsRecalled && !m.IsDeletedLocal)
+        .Select(id => _messages[id]).OrderBy(m => m.PhysicalTicks).ThenBy(m => m.LogicalCounter).ThenBy(m => m.OriginNodeId).ThenBy(m => m.Id).Select(m => m.Id).ToArray();
     internal QrText Text => QrText.From(_selected.Where(_messages.ContainsKey).Select(id => _messages[id]));
     internal void Bind(IEnumerable<Message> messages, bool changedConversation)
     {

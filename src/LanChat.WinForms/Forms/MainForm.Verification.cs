@@ -11,7 +11,7 @@ namespace LanChat.WinForms.Forms;
 public sealed partial class MainForm
 {
     // Explicit debug-only integration harness: uses two separate processes and isolated data directories.
-    internal async Task VerifyUiAsync(string reportPath, UpdateService? updates = null, bool legacyPeer = false)
+    internal async Task VerifyUiAsync(string reportPath, UpdateService? updates = null, bool legacyPeer = false, bool legacyMentions = false)
     {
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(110));
         var captures = new List<string>();
@@ -190,6 +190,14 @@ public sealed partial class MainForm
                 VerifyNoPeerIp(diagnostics.BuildReport(), contacts);
                 var path = Path.ChangeExtension(reportPath, "diagnostics.png"); CaptureForm(diagnostics, path); captures.Add(path); diagnostics.Close();
             }
+            if (legacyMentions)
+            {
+                var info = await _services.GetRequiredService<IPeerTransport>().GetNodeInfoAsync(other.IPAddress, other.ServicePort, deadline.Token);
+                if (info.ApplicationVersion != "1.2.7") throw new InvalidOperationException("Cần máy nền v1.2.7 cho ca tương thích.");
+                var compatible = await Distributed.SendToConversationAsync(group.Id, "@All metadata mới đọc trên v1.2.7", ct: deadline.Token, mentions: [new(0, 4, true, group.Members)]);
+                while ((await Distributed.GetMessageDetailsAsync(compatible.Id, deadline.Token)).ReceivedCount == 0) await Task.Delay(100, deadline.Token);
+            }
+            if (!legacyPeer && !legacyMentions) await VerifyMentionsAndForwardingAsync(conversation, group, other, reportPath, deadline.Token);
             await VerifyRepliesAsync(conversation, theirs, firstInstance, deadline.Token);
             await VerifyClipboardImagesAsync(conversation, group.Id, profile.DisplayName, otherName.Name, firstInstance, deadline.Token);
             await VerifyGroupMembersPanelAsync(conversation, group.Id, other.UserId, firstInstance, deadline.Token);
@@ -202,6 +210,8 @@ public sealed partial class MainForm
                 GroupId = group.Id, GroupMessageIds = groupMessages.Select(x => x.Id).ToArray(), VerifiedFiles = attachments.Length, VerifiedOpenRequests = openedPaths.Count,
                 VerifiedGalleries = verifiedGalleries, InlineImagesLoaded = inlineImagesLoaded, VerifiedSourceChanges = 3,
                 VerifiedReplies = true, VerifiedClipboard = true, VerifiedGroupMembers = true, VerifiedSavedAttachments = 2,
+                VerifiedMentionsAndForwarding = !legacyPeer && !legacyMentions,
+                VerifiedLegacyMentionCompatibility = legacyMentions,
                 VerifiedLanUpdate = updates is not null,
                 VerifiedLegacyUpdateUnsupported = legacyPeer,
                 Consensus = await Consensus.GetStatusAsync(deadline.Token), Captures = captures }, new JsonSerializerOptions { WriteIndented = true }), deadline.Token);
@@ -214,6 +224,32 @@ public sealed partial class MainForm
             await FrameworkIO.WriteTextAsync(reportPath, JsonSerializer.Serialize(new { Success = false, Error = ex.ToString(), Captures = captures }));
         }
         finally { Close(); }
+    }
+
+    private async Task VerifyMentionsAndForwardingAsync(Guid direct, GroupSummary group, UserSummary other, string report, CancellationToken ct)
+    {
+        await SelectConversationAsync(group.Id);
+        var composer = Descendants(_chat).OfType<ChatInputControl>().Single();
+        var text = "@" + other.DisplayName + " được nhắc từ " + (await _store.GetProfileAsync(ct)).DisplayName;
+        composer.RestoreDraft(new(text, [], null, null, "") { Mentions = [new(0, other.DisplayName.Length + 1, false, [other.UserId])] });
+        await _chat.SubmitForVerificationAsync(text);
+        var own = (await _store.GetMessagesAsync(group.Id, ct: ct)).Last(m => m.SenderUserId == _localUser);
+        var all = await Distributed.SendToConversationAsync(group.Id, "@All thông báo thử", ct: ct, mentions: [new(0, 4, true, group.Members)]);
+        var received = await WaitForMessageAsync(group.Id, m => m.SenderUserId == other.UserId && m.Text.Contains("được nhắc từ"), ct);
+        if (!(await Distributed.GetMessageDetailsAsync(received.Id, ct)).Mentions.Any(m => m.UserIds.Contains(_localUser)))
+            throw new InvalidOperationException("Lời nhắc không đi qua TCP hoặc không giữ UserId.");
+        await RefreshAsync();
+        CaptureForm(this, Path.ChangeExtension(report, "mentions.png"));
+        using (var picker = new ForwardRecipientsForm(await _store.GetUsersAsync(ct: ct), await _store.GetConversationsAsync(ct: ct)))
+        { picker.Show(this); await Task.Delay(200, ct); CaptureForm(picker, Path.ChangeExtension(report, "forward-picker.png")); picker.Close(); }
+        var targets = new[] { new ForwardDestination(other.UserId, false, other.DisplayName), new ForwardDestination(group.Id, true, group.Name) };
+        var requests = new[] { own.Id, all.Id }.SelectMany(id => targets.Select(target => new ForwardRequest(id, target))).ToArray();
+        var results = await _services.GetRequiredService<IChatService>().ForwardBatchAsync(requests, ct: ct);
+        if (results.Length != 4 || results.Any(r => r.Outcome != ForwardOutcome.Queued)) throw new InvalidOperationException("Chuyển tiếp nhiều tin/nhiều đích chưa hoàn tất.");
+        foreach (var result in results)
+            if ((await Distributed.GetMessageDetailsAsync(result.CreatedMessageId!.Value, ct)).Mentions.Length != 0)
+                throw new InvalidOperationException("Tin chuyển tiếp còn metadata gây nhắc lại.");
+        await SelectConversationAsync(direct);
     }
 
     private async Task VerifyLanUpdateAsync(UpdateService publisher, UserSummary other, CancellationToken ct)

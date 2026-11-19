@@ -32,11 +32,13 @@ internal sealed class AttachmentSaveForm : DpiForm
             var progress = new Progress<AttachmentSaveProgress>(p =>
             {
                 if (IsDisposed || !_running || cancellation.IsCancellationRequested) return;
-                _state.Text = $"Đang lưu {p.Index}/{p.Count}: {p.FileName}";
-                if (p.Bytes is { Total: > 0 } bytes)
+                _state.Text = $"{p.Index}/{p.Count}: {p.FileName}";
+                if (p.Bytes is { } current) _state.Text += " · " + AttachmentProgressText.Describe(current);
+                else _state.Text += " · Đang lưu…";
+                if (p.Bytes is { Total: > 0, Phase: AttachmentPhase.Downloading or AttachmentPhase.Saving } bytes)
                 {
                     _progress.Style = ProgressBarStyle.Continuous; _progress.Value = (int)Math.Max(0, Math.Min(1000, bytes.Completed * 1000d / bytes.Total));
-                    _state.Text += $" · {bytes.Completed / 1024d:N0}/{bytes.Total / 1024d:N0} KB";
+
                 }
                 else _progress.Style = ProgressBarStyle.Marquee;
             });

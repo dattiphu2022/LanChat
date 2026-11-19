@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
+using Microsoft.Extensions.Logging;
 using LanChat.Application;
 
 namespace LanChat.Infrastructure;
@@ -8,6 +9,7 @@ public sealed partial class PeerFileTransferService
 {
     private sealed record LocationRecord(string Path, bool UserSelected, string Hash, string? PendingDestination = null);
     private readonly ConcurrentDictionary<Guid, SemaphoreSlim> _localGates = new();
+    internal Func<CancellationToken, Task>? PreparationCheckpoint { get; set; }
     internal bool ForceLocalCopy { get; set; }
     internal Action<string>? LocalSaveCheckpoint { get; set; }
 
@@ -68,22 +70,31 @@ public sealed partial class PeerFileTransferService
         return paths;
     }
 
-    public async Task<LocalAttachmentLocation> GetLocalLocationAsync(AttachmentDto file, CancellationToken ct = default)
+    public Task<LocalAttachmentLocation> GetLocalLocationAsync(AttachmentDto file, CancellationToken ct = default)
     {
-        var gate = LocalGate(file); await gate.WaitAsync(ct).ConfigureAwait(false);
+        // Location files are published atomically. A read must never queue behind a download.
+        ct.ThrowIfCancellationRequested();
+        if (file.Id == Guid.Empty) throw new ArgumentException("Định danh tệp không hợp lệ.");
+        _ = BlobPath(file.Sha256);
+        var record = ReadLocation(file);
+        var path = record?.Path ?? OpenPath(file);
+        if (record?.PendingDestination is { } destination && !Exists(file, path) && Exists(file, destination)) path = destination;
+        return Task.FromResult(new LocalAttachmentLocation(path, record?.UserSelected == true || record?.PendingDestination is not null, Exists(file, path)));
+    }
+    public Task<string> PrepareOpenAsync(AttachmentDto file, IProgress<FileProgress>? progress = null, CancellationToken ct = default)
+        => JoinPreparationAsync(file, progress, ct);
+    private async Task<string> PrepareExclusiveAsync(AttachmentDto file, IProgress<FileProgress>? progress, CancellationToken ct)
+    {
+        var started = System.Diagnostics.Stopwatch.StartNew();
+        var gate = LocalGate(file);
+        progress?.Report(new(0, file.FileSize, AttachmentPhase.Waiting));
+        await gate.WaitAsync(ct).ConfigureAwait(false);
         try
         {
-            var record = await RecoverLocationAsync(file, ct).ConfigureAwait(false);
-            var path = record?.PendingDestination ?? record?.Path ?? OpenPath(file);
-            return new(path, record?.UserSelected == true || record?.PendingDestination is not null, Exists(file, path));
+            if (PreparationCheckpoint is { } checkpoint) await checkpoint(ct).ConfigureAwait(false);
+            return await PrepareLocalCoreAsync(file, progress, ct).ConfigureAwait(false);
         }
-        finally { gate.Release(); }
-    }
-    public async Task<string> PrepareOpenAsync(AttachmentDto file, IProgress<FileProgress>? progress = null, CancellationToken ct = default)
-    {
-        var gate = LocalGate(file); await gate.WaitAsync(ct).ConfigureAwait(false);
-        try { return await PrepareLocalCoreAsync(file, progress, ct).ConfigureAwait(false); }
-        finally { gate.Release(); }
+        finally { gate.Release(); logger.LogDebug("Attachment {Attachment} preparation ended after {Milliseconds} ms", file.Id, started.ElapsedMilliseconds); }
     }
     private async Task<string> PrepareLocalCoreAsync(AttachmentDto file, IProgress<FileProgress>? progress, CancellationToken ct)
     {
@@ -126,6 +137,9 @@ public sealed partial class PeerFileTransferService
     public async Task<string> SaveLocalAsync(AttachmentDto file, string destination, bool overwrite = false,
         IProgress<FileProgress>? progress = null, CancellationToken ct = default)
     {
+        // Join any background preparation before acquiring the writer gate for the save.
+        await PrepareOpenAsync(file, progress, ct).ConfigureAwait(false);
+        progress?.Report(new(0, file.FileSize, AttachmentPhase.Saving));
         var gate = LocalGate(file); await gate.WaitAsync(ct).ConfigureAwait(false);
         try
         {
@@ -251,11 +265,11 @@ public sealed partial class PeerFileTransferService
                 while ((count = await input.ReadAsync(buffer, 0, buffer.Length, ct).ConfigureAwait(false)) > 0)
                 {
                     await output.WriteAsync(buffer, 0, count, ct).ConfigureAwait(false); completed += count;
-                    progress?.Report(new(completed, total));
+                    progress?.Report(new(completed, total, AttachmentPhase.Saving));
                 }
             }
             File.SetLastWriteTimeUtc(destination, File.GetLastWriteTimeUtc(file));
         }
-        progress?.Report(new(completed, total));
+        progress?.Report(new(completed, total, AttachmentPhase.Saving));
     }
 }

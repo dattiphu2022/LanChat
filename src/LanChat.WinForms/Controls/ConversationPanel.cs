@@ -88,16 +88,23 @@ internal sealed class ConversationPanel : UserControl
         void Command(AttachmentCommand command) { if (list.SelectedItem is FileRow row) AttachmentCommandRequested?.Invoke(row.Item, command); }
         open.Click += (_, _) => Command(AttachmentCommand.Open); save.Click += (_, _) => Command(AttachmentCommand.Save);
         more.Click += (_, _) => menu.Show(more, new Point(0, more.Height)); all.Click += (_, _) => Command(AttachmentCommand.SaveMessage);
-        var generation = 0;
+        var generation = 0; Guid? watched = null;
+        layout.Disposed += (_, _) => { if (watched is Guid id) _attachmentActions?.Unwatch(id); };
         async void Update()
         {
             if (_stopped) return;
             var request = ++generation;
             var file = (list.SelectedItem as FileRow)?.Item;
+            if (watched != file?.Id)
+            {
+                if (watched is Guid previous) _attachmentActions?.Unwatch(previous);
+                watched = file?.Id; if (watched is Guid next) _attachmentActions?.Watch(next);
+            }
             open.Enabled = save.Enabled = more.Enabled = file is not null && _attachmentActions?.IsBusy(file.Id) != true;
             location.Text = "";
             if (file is null || _attachmentActions is null || IsDisposed) return;
-            if (!open.Enabled) { location.Text = "Đang xử lý…"; return; }
+            if (!open.Enabled) { location.Text = _attachmentActions.State(file.Id); return; }
+            if (_attachmentActions.BackgroundState(file.Id) is { } state) { location.Text = state; return; }
             try
             {
                 var local = await _attachmentActions.LocationAsync(file, _lifetime.Token);

@@ -199,7 +199,7 @@ public sealed class FileTransferTests
             lock (faults.BlockedNodes) faults.BlockedNodes.Clear();
             using var cancel = new CancellationTokenSource();
             await Assert.ThrowsAnyAsync<OperationCanceledException>(() => chat.ForwardAsync(original.Id, destination,
-                new CaptureProgress(_ => cancel.Cancel()), cancel.Token));
+                new CaptureProgress(p => { if (p.Phase == AttachmentPhase.Downloading && p.Completed > 0) cancel.Cancel(); }), cancel.Token));
             Assert.Empty(await b.Store.GetMessagesAsync(destination));
         }
         var forwarded = await chat.ForwardAsync(original.Id, destination);
@@ -401,7 +401,7 @@ public sealed class FileTransferTests
         await a.InitializeAsync(true); await b.InitializeAsync(); await b.Store.RememberPeerAsync(await a.Store.GetNodeInfoAsync(), "127.0.0.1");
         var source = Path.Combine(a.Options.DataDirectory, "large.bin"); await FrameworkIO.WriteBytesAsync(source, FrameworkIO.RandomBytes(4 * 1024 * 1024)); var metadata = await Files(a).ImportLocalAsync(source);
         using var cancel = new CancellationTokenSource();
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => Files(b).PrepareOpenAsync(metadata, new CaptureProgress(_ => cancel.Cancel()), cancel.Token));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => Files(b).PrepareOpenAsync(metadata, new CaptureProgress(p => { if (p.Phase == AttachmentPhase.Downloading && p.Completed > 0) cancel.Cancel(); }), cancel.Token));
         Assert.Null(await Files(b).GetLocalPathAsync(metadata.Sha256)); Assert.Empty(Directory.GetFiles(Path.Combine(b.Options.DataDirectory, "Attachments"), "*.part", SearchOption.AllDirectories));
     }
     [Fact]

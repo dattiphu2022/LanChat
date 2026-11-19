@@ -1,0 +1,21 @@
+{
+  "success": true,
+  "distinctIdentity": true,
+  "files": [
+    6,
+    6
+  ],
+  "saved": [
+    2,
+    2
+  ],
+  "mentionsAndForwarding": [
+    false,
+    false
+  ],
+  "legacyMentionCompatibility": true,
+  "dpi": [
+    120,
+    120
+  ]
+}

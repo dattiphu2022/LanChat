@@ -8,23 +8,71 @@ namespace LanChat.WinForms.Controls;
 internal enum AttachmentCommand { Open, Save, SaveMessage, SaveMessageImages }
 
 /// <summary>Shared by chat, the information panel and viewers within one network.</summary>
-internal sealed class AttachmentActions(IFileTransferService files)
+internal sealed class AttachmentActions : IDisposable
 {
+    private readonly IFileTransferService files;
+    private readonly System.Windows.Forms.Timer _watchTimer = new() { Interval = 500 };
+    private readonly Dictionary<Guid, int> _watched = [];
+    private readonly Dictionary<Guid, FileProgress?> _snapshots = [];
+    private bool _disposed;
+    public AttachmentActions(IFileTransferService files)
+    {
+        this.files = files;
+        _watchTimer.Tick += (_, _) =>
+        {
+            foreach (var id in _watched.Keys.ToArray())
+            {
+                var snapshot = files.GetPreparationState(id);
+                _snapshots.TryGetValue(id, out var previous);
+                if (snapshot == previous) continue;
+                _snapshots[id] = snapshot; Notify(id);
+            }
+        };
+    }
+    internal void Watch(Guid id)
+    {
+        if (_disposed) return;
+        _watched.TryGetValue(id, out var count); _watched[id] = count + 1; _watchTimer.Start();
+    }
+    internal void Unwatch(Guid id)
+    {
+        if (_disposed || !_watched.TryGetValue(id, out var count)) return;
+        if (count > 1) _watched[id] = count - 1;
+        else { _watched.Remove(id); _snapshots.Remove(id); }
+        if (_watched.Count == 0) _watchTimer.Stop();
+    }
+    internal string? BackgroundState(Guid id) => files.GetPreparationState(id) is { } progress ? AttachmentProgressText.Describe(progress) : null;
+    public void Dispose() { _disposed = true; _watchTimer.Stop(); _watchTimer.Dispose(); _watched.Clear(); _snapshots.Clear(); }
+
     private readonly HashSet<Guid> _busy = [];
     public event Action<Guid>? Changed;
+    private readonly Dictionary<Guid, string> _states = [];
     public bool IsBusy(Guid id) => _busy.Contains(id);
+    public string State(Guid id) => _states.TryGetValue(id, out var state) ? state : "Đang chờ tác vụ…";
+    private void Notify(Guid id)
+    {
+        if (Changed is null) return;
+        foreach (Action<Guid> listener in Changed.GetInvocationList())
+            try { listener(id); } catch (ObjectDisposedException) { } catch (InvalidOperationException) { } catch (Exception ex) { Debug.WriteLine(ex.GetType().Name); }
+    }
+    private void Report(Guid id, FileProgress value)
+    {
+        var state = AttachmentProgressText.Describe(value);
+        if (_states.TryGetValue(id, out var old) && old == state) return;
+        _states[id] = state; Notify(id);
+    }
     public Task<LocalAttachmentLocation> LocationAsync(AttachmentDto file, CancellationToken ct) =>
         Task.Run(() => files.GetLocalLocationAsync(file, ct), ct);
 
     public async Task OpenAsync(Control owner, AttachmentDto file, CancellationToken lifetime, Action<string>? launch = null)
     {
         if (!_busy.Add(file.Id)) return;
-        Changed?.Invoke(file.Id);
+        Notify(file.Id);
         using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(lifetime);
         using var progress = new AttachmentOpenProgressForm(file.FileName, cancellation, file.MimeType == FolderAttachment.MimeType);
         try
         {
-            var report = new Progress<FileProgress>(p => { if (!progress.IsDisposed && !cancellation.IsCancellationRequested) progress.Report(p); });
+            var report = new Progress<FileProgress>(p => { if (!progress.IsDisposed && !cancellation.IsCancellationRequested) { progress.Report(p); Report(file.Id, p); } });
             var prepare = Task.Run(() => files.PrepareOpenAsync(file, report, cancellation.Token));
             if (await Task.WhenAny(prepare, Task.Delay(350, cancellation.Token)) != prepare && !cancellation.IsCancellationRequested)
                 progress.Show(UiInteraction.Owner(owner));
@@ -38,26 +86,48 @@ internal sealed class AttachmentActions(IFileTransferService files)
             cancellation.Token.ThrowIfCancellationRequested();
             if (owner.IsDisposed) return;
             if (launch is not null) launch(path);
-            else Process.Start(new ProcessStartInfo(path) { UseShellExecute = true, Verb = "open", WorkingDirectory = Path.GetDirectoryName(path) });
+            else
+            {
+                var launching = new FileProgress(0, 0, AttachmentPhase.Launching);
+                progress.Report(launching); Report(file.Id, launching);
+                await LaunchAsync(path);
+            }
         }
         catch (OperationCanceledException) { }
         catch (Win32Exception ex) when (ex.NativeErrorCode is 1155 or 31)
         { progress.Hide(); UiInteraction.Warn(owner, "Windows chưa có ứng dụng mặc định để mở loại tệp này. Hãy chọn ứng dụng phù hợp rồi bấm Mở lại."); }
         catch (Exception ex) { progress.Hide(); UiInteraction.Warn(owner, ex.Message, "Chưa mở được đính kèm"); }
-        finally { progress.Close(); _busy.Remove(file.Id); Changed?.Invoke(file.Id); }
+        finally { progress.Close(); _busy.Remove(file.Id); _states.Remove(file.Id); Notify(file.Id); }
+    }
+
+    private async Task<LocalAttachmentLocation> ReadLocationWithProgressAsync(Control owner, AttachmentDto file, CancellationToken lifetime)
+    {
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(lifetime);
+        using var form = new AttachmentOpenProgressForm(file.FileName, cancellation);
+        form.Report(new(0, file.FileSize, AttachmentPhase.Waiting));
+        try
+        {
+            var read = LocationAsync(file, cancellation.Token);
+            if (await Task.WhenAny(read, Task.Delay(350, cancellation.Token)) != read && !cancellation.IsCancellationRequested && !owner.IsDisposed)
+                form.Show(UiInteraction.Owner(owner));
+            var location = await read;
+            cancellation.Token.ThrowIfCancellationRequested();
+            return location;
+        }
+        finally { form.Close(); }
     }
 
     public async Task SaveAsync(Control owner, AttachmentDto file, CancellationToken lifetime)
     {
         if (!_busy.Add(file.Id)) return;
-        Changed?.Invoke(file.Id);
+        Notify(file.Id);
         try
         {
-            var location = await LocationAsync(file, lifetime);
+            var location = await ReadLocationWithProgressAsync(owner, file, lifetime);
             if (location.UserSelected && !location.Exists)
             {
                 await RecoverAsync(owner, file, new LocalAttachmentMissingException(location.Path), lifetime);
-                location = await LocationAsync(file, lifetime);
+                location = await ReadLocationWithProgressAsync(owner, file, lifetime);
             }
             lifetime.ThrowIfCancellationRequested(); if (owner.IsDisposed) return;
             string target;
@@ -90,20 +160,20 @@ internal sealed class AttachmentActions(IFileTransferService files)
         }
         catch (OperationCanceledException) { }
         catch (Exception ex) { UiInteraction.Warn(owner, ex.Message, "Chưa lưu được đính kèm"); }
-        finally { _busy.Remove(file.Id); Changed?.Invoke(file.Id); }
+        finally { _busy.Remove(file.Id); _states.Remove(file.Id); Notify(file.Id); }
     }
 
     public async Task SaveBatchAsync(Control owner, AttachmentDto[] attachments, CancellationToken lifetime)
     {
         if (attachments.Length == 0 || attachments.Any(f => _busy.Contains(f.Id))) return;
-        foreach (var file in attachments) { _busy.Add(file.Id); Changed?.Invoke(file.Id); }
+        foreach (var file in attachments) { _busy.Add(file.Id); Notify(file.Id); }
         try
         {
             // Resolve missing working copies explicitly before starting the batch.
             foreach (var file in attachments)
             {
                 LocalAttachmentLocation location;
-                try { location = await LocationAsync(file, lifetime); }
+                try { location = await ReadLocationWithProgressAsync(owner, file, lifetime); }
                 catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { continue; } // Report this item in the batch results.
                 if (location.UserSelected && !location.Exists) await RecoverAsync(owner, file, new LocalAttachmentMissingException(location.Path), lifetime);
             }
@@ -116,7 +186,7 @@ internal sealed class AttachmentActions(IFileTransferService files)
         }
         catch (OperationCanceledException) { }
         catch (Exception ex) { UiInteraction.Warn(owner, ex.Message, "Chưa lưu được đính kèm"); }
-        finally { foreach (var file in attachments) { _busy.Remove(file.Id); Changed?.Invoke(file.Id); } }
+        finally { foreach (var file in attachments) { _busy.Remove(file.Id); _states.Remove(file.Id); Notify(file.Id); } }
     }
 
     private async Task<string> RecoverAsync(Control owner, AttachmentDto file, LocalAttachmentMissingException missing, CancellationToken ct)
@@ -152,6 +222,17 @@ internal sealed class AttachmentActions(IFileTransferService files)
             if (restored is not null) return restored;
         }
         throw new OperationCanceledException("Đã hủy tìm lại đính kèm.");
+    }
+
+    private static Task LaunchAsync(string path)
+    {
+        var result = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var thread = new Thread(() =>
+        {
+            try { Process.Start(new ProcessStartInfo(path) { UseShellExecute = true, Verb = "open", WorkingDirectory = Path.GetDirectoryName(path) }); result.TrySetResult(true); }
+            catch (Exception ex) { result.TrySetException(ex); }
+        }) { IsBackground = true };
+        thread.SetApartmentState(ApartmentState.STA); thread.Start(); return result.Task;
     }
 
     private sealed class InlineProgress<T>(Action<T> action) : IProgress<T> { public void Report(T value) => action(value); }

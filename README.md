@@ -1,4 +1,4 @@
-# LanChat v1.2.7 — Chat nội bộ cho Windows
+# LanChat v1.2.8 — Chat nội bộ cho Windows
 
 LanChat hỗ trợ chat riêng, chat nhóm và truyền ảnh, tệp, thư mục giữa các máy Windows trên mạng LAN. Mỗi máy lưu dữ liệu trong SQLite. Tin nhắn và tệp được mã hóa đầu cuối. Cập nhật hỗ trợ GitHub, máy cùng mạng chat trong LAN hoặc bộ cài cục bộ; LAN và bộ cài cục bộ hoạt động không cần Internet.
 
@@ -29,6 +29,14 @@ Mạng có ba voter đang hoạt động ổn định chịu được một máy
 Khi chỉ còn hai máy kết nối trong mạng thiếu phiếu, LanChat chọn một máy điều phối. Hai máy chạy v1.2.3 trở lên có thể tạo nhóm mới cho hai người và dùng ngay. Sửa nhóm đã có vẫn cần đủ phiếu. Các máy v1.2.2 tiếp tục nhắn tin, gửi tệp và nhận nhóm mới khi nhóm được xác nhận trong nhật ký chung.
 
 Trong **Cài đặt**, bật **Khởi động cùng hệ thống** để mở LanChat khi đăng nhập Windows. Nhấn **Thu nhỏ** hoặc **X** để đưa LanChat xuống khay hệ thống. Nhấp đúp biểu tượng để mở lại, hoặc bấm chuột phải và chọn **Thoát LanChat** để dừng ứng dụng.
+
+## Nhắc tên và chuyển tiếp nhiều người
+
+Trong nhóm, gõ **@** rồi chọn người hoặc **@All** từ gợi ý; dùng mũi tên và Enter để chọn, Esc để đóng. Có thể tìm tên không dấu. Chỉ tên đã chọn mới tạo lời nhắc; email hoặc chữ @ tự dán vẫn là văn bản thường. Người được nhắc thấy tên mình tô xanh và thông báo **đã nhắc tới bạn**, kể cả khi nhóm im lặng. Mọi thành viên được dùng @All. Sửa tin cập nhật lời nhắc nhưng không phát lại toast.
+
+Menu **Chuyển tiếp** cho phép tích nhiều người trong toàn bộ danh bạ của mạng hiện tại, gồm người chưa từng nhắn hoặc đang offline, và các nhóm đang tham gia. Trong **Chọn nhiều**, bấm **Chuyển tiếp** để gửi nhiều tin theo thứ tự lịch sử. Danh sách giữ dấu tích khi tìm kiếm. Kết quả cho biết từng mục đã lưu chờ gửi, lỗi hoặc hủy; **Thử lại mục chưa gửi** giữ phần thành công. Chuyển tiếp giữ chữ @ nhưng không nhắc lại người nhận. Giới hạn QR không áp dụng cho chuyển tiếp.
+
+Khi mở/lưu đính kèm, tiến độ phân biệt chờ tác vụ, chờ nguồn, tải, kiểm tra và chuẩn bị. Đóng/hủy một cửa sổ không hủy lượt chuẩn bị còn người khác đang dùng. Nguồn không trả lời sẽ hết hạn và có thể thử lại; không cần chờ 30 phút.
 
 ## Chọn nhiều tin và chia sẻ QR
 
@@ -136,6 +144,7 @@ Bản v1.2.7 có EXE ứng dụng và bộ cài Inno Setup ký Authenticode bằ
 ## Tài liệu
 
 - [Hướng dẫn sử dụng](docs/HUONG_DAN_SU_DUNG.md)
+- [Kiểm chứng v1.2.8: đính kèm, nhắc tên và chuyển tiếp](docs/VERIFICATION_MENTIONS_FORWARDING.md)
 - [Kiểm chứng v1.2.7: QR và ký số](docs/VERIFICATION_QR_SIGNING.md)
 - [Kiểm chứng ô soạn, tên tệp và cập nhật LAN](docs/VERIFICATION_LAN_UPDATE.md)
 - [Kiểm chứng lưu đính kèm](docs/VERIFICATION_ATTACHMENT_SAVE.md)

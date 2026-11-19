@@ -67,9 +67,10 @@ public sealed partial class MainForm : DpiForm
     private IReadOnlyList<UserSummary> _contacts = [];
     private IReadOnlyList<ConversationSummary> _summaries = [];
     private readonly NotifyIcon _notification = new() { Icon = AppIcon.Value, Text = "LanChat", Visible = true };
-    private Action<Guid, string, string>? _showNotification;
+    private Action<Guid, Guid, string, string>? _showNotification;
     private Func<bool>? _isSelectedNetwork;
     private Guid? _notificationConversation;
+    private Guid? _notificationMessage;
     private long? _incomingPosition;
     internal int UnreadCount { get; private set; }
     internal bool HasUnsentDrafts => _chat.Draft().HasContent || _drafts.Values.Any(draft => draft.HasContent) || _info.HasMemberDrafts;
@@ -187,6 +188,7 @@ public sealed partial class MainForm : DpiForm
             await RefreshAsync();
         });
         _chat.SendRequested += SendSubmissionAsync;
+        _chat.ForwardRequested += async ids => await RunUiAsync(() => RunDialogAsync("forward", () => ForwardMessagesAsync(ids)), userOperation: true);
         _chat.ActionRequested += async (m, action) => await RunUiAsync(() => MessageActionAsync(m, action), userOperation: true);
         _chat.QuoteRequested += async (conversation, message) => await RunUiAsync(() => JumpToMessageAsync(conversation, message, useLoadedHistory: true));
         _chat.FileRequested += async file => await RunUiAsync(() => OpenAttachmentAsync(file), userOperation: true);
@@ -213,13 +215,14 @@ public sealed partial class MainForm : DpiForm
         _notification.BalloonTipClicked += async (_, _) =>
         {
             Show(); WindowState = FormWindowState.Normal; Activate();
-            if (_notificationConversation is Guid id) await OpenNotificationAsync(id);
+            if (_notificationConversation is Guid id) await OpenNotificationAsync(id, _notificationMessage);
         };
         Disposed += (_, _) =>
         {
             _timer.Stop(); _timer.Dispose(); _lifetime.Cancel(); _scanCancellation?.Cancel();
             _historyRead?.Cancel(); _historyRead?.Dispose(); _historyRead = null;
             CancelPanelSearch();
+            _attachmentActions.Dispose();
             _draftImages.Dispose();
             _notification.Dispose();
         };
@@ -244,7 +247,7 @@ public sealed partial class MainForm : DpiForm
         if (value) { _people.BringToFront(); BindPeople(); }
         else _conversations.BringToFront();
     }
-    internal void EmbedInWorkspace(Action<Guid, string, string> notify, Func<bool> isSelectedNetwork)
+    internal void EmbedInWorkspace(Action<Guid, Guid, string, string> notify, Func<bool> isSelectedNetwork)
     {
         TopLevel = false; FormBorderStyle = FormBorderStyle.None; ShowInTaskbar = false; MinimumSize = Size.Empty;
         _notification.Visible = false;
@@ -262,10 +265,10 @@ public sealed partial class MainForm : DpiForm
         if (!IsDisposed) _timer.Start();
     });
 
-    internal Task OpenNotificationAsync(Guid id) => RunUiAsync(async () =>
+    internal Task OpenNotificationAsync(Guid id, Guid? messageId = null) => RunUiAsync(async () =>
     {
         await RefreshAsync();
-        if (_summaries.Any(c => c.Id == id)) await SelectConversationAsync(id);
+        if (_summaries.Any(c => c.Id == id)) { await SelectConversationAsync(id); if (messageId is Guid anchor) await JumpToMessageAsync(id, anchor); }
     });
 
     internal Task MarkReadOnActivationAsync() => RunUiAsync(MarkActiveReadAsync);
@@ -292,6 +295,7 @@ public sealed partial class MainForm : DpiForm
             _drafts.TryGetValue(id, out var draft);
             _drafts.Remove(id);
             _chat.RestoreDraft(draft);
+            _chat.ConfigureMentions([], []);
             _boundConversation = null;
             _olderMessages = _visibleMessages = []; _searchAnchor = null; _jumpedInLatest = false; _hasOlder = true;
             _historyRequest++;
@@ -403,6 +407,18 @@ public sealed partial class MainForm : DpiForm
                         try
                         {
                             data = await ReadHistoryAsync(id.Value, anchor, previous, historyToken);
+                            if (current.Kind == ConversationKind.Group)
+                            {
+                                var groups = await Task.Run(() => Distributed.GetGroupsAsync(historyToken), historyToken);
+                                var own = await Task.Run(() => _store.GetProfileAsync(historyToken), historyToken);
+                                if (id != _activeConversation) return;
+                                var members = groups.FirstOrDefault(g => g.Id == id)?.Members ?? [];
+                                var choices = _contacts.Where(u => members.Contains(u.UserId)).Select(u => new MentionCandidate(u.UserId, u.DisplayName, u.Department, u.DeviceName)).ToList();
+                                if (members.Contains(own.Id)) choices.Add(new(own.Id, own.DisplayName, own.Department, Environment.MachineName));
+                                choices.Insert(0, new(Guid.Empty, "All", null, "", true));
+                                _chat.ConfigureMentions(choices.ToArray(), members);
+                            }
+                            else _chat.ConfigureMentions([], []);
                             if (id != _activeConversation || anchor != _searchAnchor || previous != _olderMessages) return;
                             await _chat.PrepareHistoryAsync(data.Messages.Length, historyToken);
                         }
@@ -465,19 +481,20 @@ public sealed partial class MainForm : DpiForm
     {
         if (messages.Length == 0) return;
         var reading = IsReadingActiveConversation;
-        var available = _summaries.Where(c => !c.IsMuted).ToDictionary(c => c.Id);
-        var pending = messages.Where(m => available.ContainsKey(m.ConversationId) && (m.ConversationId != _activeConversation || !reading)).ToArray();
+        var available = _summaries.ToDictionary(c => c.Id);
+        var pending = messages.Where(m => available.ContainsKey(m.ConversationId) && (!available[m.ConversationId].IsMuted || m.Mentioned) && (m.ConversationId != _activeConversation || !reading)).ToArray();
         if (pending.Length == 0) return;
-        var latest = pending[pending.Length - 1];
+        var latest = pending.LastOrDefault(m => m.Mentioned) ?? pending[pending.Length - 1];
         var conversation = available[latest.ConversationId];
         var preview = latest.Preview.NormalizeLines(" ").Trim();
         if (preview.Length > 160) preview = preview.Substring(0, 160) + "…";
         var body = pending.Length > 1 ? $"{pending.Length} tin nhắn mới · {preview}" : preview;
+        if (latest.Mentioned) body = latest.SenderName + " đã nhắc tới bạn · " + body;
         var title = new PersonName(conversation.DisplayName, conversation.Department).ToString();
-        if (_showNotification is not null) _showNotification(conversation.Id, title, body);
+        if (_showNotification is not null) _showNotification(conversation.Id, latest.MessageId, title, body);
         else
         {
-            _notificationConversation = conversation.Id;
+            _notificationConversation = conversation.Id; _notificationMessage = latest.MessageId;
             _notification.ShowBalloonTip(3000, title, body, ToolTipIcon.Info);
         }
     }

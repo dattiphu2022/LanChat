@@ -50,6 +50,16 @@ public sealed partial class ChatStore(ChatDatabase database, NodeOptions options
         }, ct);
         await InitializeDeviceAsync(ct);
         await InitializeDistributedAsync(ct);
+        await WriteAsync(async db =>
+        {
+            if (db.Scalar("SELECT COUNT(*) FROM LocalProjectionVersions WHERE Name='mentions-v1'") == 0)
+            {
+                foreach (var id in db.Rows<ReplicationEvent>("Type=$0", ReplicationEventType.MessageCreated).Select(e => e.EntityId).Distinct())
+                    await ProjectEntityAsync(db, id, ct);
+                db.Execute("INSERT INTO LocalProjectionVersions(Name) VALUES ('mentions-v1')");
+            }
+            return true;
+        }, ct);
     }
 
     public async Task<NodeIdentity> GetIdentityAsync(CancellationToken ct = default)
@@ -137,6 +147,7 @@ public sealed partial class ChatStore(ChatDatabase database, NodeOptions options
         var conversation = LocalConversation(db, id);
         conversation.IsHiddenLocal = true;
         conversation.IsPinned = false;
+        db.Execute("DELETE FROM MessageMentions WHERE MessageId IN (SELECT Id FROM Messages WHERE ConversationId=$0)", id);
         db.Execute("UPDATE Messages SET IsDeletedLocal=1 WHERE ConversationId=$0 AND IsDeletedLocal=0", id);
         return Task.FromResult(true);
     }, ct);
@@ -159,9 +170,9 @@ public sealed partial class ChatStore(ChatDatabase database, NodeOptions options
 
         var local = db.Required<LocalSettings>().UserId;
         using var command = db.Command(
-            "SELECT m.ConversationId,m.Text,m.Kind FROM Messages m JOIN Conversations c ON c.Id=m.ConversationId " +
+            "SELECT m.ConversationId,m.Text,m.Kind,m.Id,COALESCE(u.DisplayName,'Người dùng'),EXISTS(SELECT 1 FROM MessageMentions mm WHERE mm.MessageId=m.Id AND mm.UserId=$2) FROM Messages m JOIN Conversations c ON c.Id=m.ConversationId LEFT JOIN Users u ON u.Id=m.SenderUserId " +
             "WHERE m.rowid>$0 AND m.rowid<=$1 AND m.SenderUserId<>$2 AND m.IsRead=0 AND m.IsDeletedLocal=0 AND m.IsRecalled=0 " +
-            "AND m.Kind<>$3 AND c.IsMuted=0 AND c.IsHiddenLocal=0 " +
+            "AND m.Kind<>$3 AND (c.IsMuted=0 OR EXISTS(SELECT 1 FROM MessageMentions mm WHERE mm.MessageId=m.Id AND mm.UserId=$2)) AND c.IsHiddenLocal=0 " +
             "AND EXISTS(SELECT 1 FROM ConversationMembers cm WHERE cm.ConversationId=c.Id AND cm.UserId=$2) " +
             "ORDER BY m.rowid", after.Value, position, local, MessageKind.System);
         using var reader = command.ExecuteReader();
@@ -172,7 +183,7 @@ public sealed partial class ChatStore(ChatDatabase database, NodeOptions options
             var preview = reader.GetString(1);
             if (string.IsNullOrWhiteSpace(preview))
                 preview = (MessageKind)reader.GetInt32(2) == MessageKind.Image ? "Đã gửi ảnh" : "Đã gửi tệp";
-            messages.Add(new IncomingMessageNotice(Guid.Parse(reader.GetString(0)), preview));
+            messages.Add(new IncomingMessageNotice(Guid.Parse(reader.GetString(0)), preview) { MessageId = Guid.Parse(reader.GetString(3)), SenderName = reader.GetString(4), Mentioned = reader.GetInt64(5) != 0 });
         }
         return Task.FromResult(new IncomingMessageBatch(position, messages.ToArray()));
     }
@@ -194,7 +205,8 @@ public sealed partial class ChatStore(ChatDatabase database, NodeOptions options
                 var groupLast = db.One<Message>("ConversationId=$0 AND IsDeletedLocal=0" + NewestFirst + " LIMIT 1", c.Id);
                 var groupUnread = (int)db.Count<Message>("ConversationId=$0 AND SenderUserId<>$1 AND IsRead=0 AND IsDeletedLocal=0", c.Id, local);
                 result.Add(new(c.Id, Guid.Empty, group.Name, groupLast?.Text ?? "Nhóm mới", groupLast?.CreatedAtTicks ?? 0, groupUnread,
-                    c.IsPinned, c.IsMuted, PresenceStatus.Unknown, ConversationKind.Group, group.AvatarBase64)); continue;
+                    c.IsPinned, c.IsMuted, PresenceStatus.Unknown, ConversationKind.Group, group.AvatarBase64)
+                    { UnreadMentionCount = (int)db.Scalar("SELECT COUNT(*) FROM Messages m WHERE m.ConversationId=$0 AND m.SenderUserId<>$1 AND m.IsRead=0 AND m.IsDeletedLocal=0 AND m.IsRecalled=0 AND EXISTS(SELECT 1 FROM MessageMentions mm WHERE mm.MessageId=m.Id AND mm.UserId=$1)", c.Id, local) }); continue;
             }
             var otherId = members[c.Id].FirstOrDefault(x => users.ContainsKey(x.UserId))?.UserId;
             if (otherId is null) continue;

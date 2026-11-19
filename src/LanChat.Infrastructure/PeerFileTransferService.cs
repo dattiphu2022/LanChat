@@ -156,10 +156,14 @@ public sealed partial class PeerFileTransferService(NodeOptions options, IDistri
         var temp = Path.Combine(directory, LanChat.Domain.AppIdentity.NewId() + ".part");
         try
         {
+            progress?.Report(new(0, file.FileSize, AttachmentPhase.Preparing));
             using (var source = new FileStream(blob, FileMode.Open, FileAccess.Read, FileShare.Read, 65536, FileOptions.Asynchronous | FileOptions.SequentialScan))
             using (var destination = new FileStream(temp, FileMode.CreateNew, FileAccess.Write, FileShare.None, 65536, FileOptions.Asynchronous))
-                await source.CopyToAsync(destination, ct);
-            if (!await VerifyAsync(temp, file, ct)) throw new IOException("Bản lưu tệp đã thay đổi trong lúc mở. Hãy bấm lại để tải bản đúng.");
+            {
+                var hash = await FrameworkIO.CopyAndHashAsync(source, destination, ct);
+                if (destination.Length != file.FileSize || !string.Equals(FrameworkIO.Hex(hash), file.Sha256, StringComparison.OrdinalIgnoreCase))
+                    throw new IOException("Bản lưu tệp đã thay đổi trong lúc mở. Hãy bấm lại để tải bản đúng.");
+            }
             ct.ThrowIfCancellationRequested();
             try { if (force && File.Exists(target)) File.Replace(temp, target, null); else File.Move(temp, target); }
             catch (IOException) when (!force && File.Exists(target)) { /* Another click already prepared this attachment. */ }
@@ -207,47 +211,111 @@ public sealed partial class PeerFileTransferService(NodeOptions options, IDistri
     {
         var target = BlobPath(file.Sha256);
         var transferId = FileTransferCrypto.TransferId(fileKey);
+        progress?.Report(new(0, file.FileSize, AttachmentPhase.Verifying));
         using (var local = await OpenVerifiedLocalAsync(file.Sha256, ct))
             if (local is not null && local.Length == file.FileSize) { progress?.Report(new(file.FileSize, file.FileSize)); return target; }
         Directory.CreateDirectory(Path.GetDirectoryName(target)!);
         var peers = await store.GetPeerEndpointsAsync(ct);
-        foreach (var peer in peers)
+        var remaining = peers.ToList();
+        while (remaining.Count > 0)
         {
-            ct.ThrowIfCancellationRequested(); var temp = target + "." + LanChat.Domain.AppIdentity.NewId() + ".part";
+            using var selected = await SelectDownloadSourceAsync(remaining, file, transferId, progress, ct).ConfigureAwait(false);
+            if (selected is null) break;
+            remaining.RemoveAll(p => p.NodeId == selected.Peer.NodeId);
+            var temp = target + "." + Guid.NewGuid().ToString("N") + ".part";
             try
             {
-                faults.ThrowIfBlocked(peer.NodeId);
-                using var client = new TcpClient(AddressFamily.InterNetwork);
-                using var handshake = CancellationTokenSource.CreateLinkedTokenSource(ct); handshake.CancelAfter(TimeSpan.FromSeconds(5));
-                await client.ConnectAsync(IPAddress.Parse(peer.Address), peer.Port, handshake.Token);
-                using var abortHandshake = handshake.Token.Register(() => client.Close());
-                using var abortTransfer = ct.Register(() => client.Close());
-                using var stream = await tls.ConnectAsync(client.GetStream(), handshake.Token);
-                var identity = await chatStore.GetIdentityAsync(ct); var requestId = LanChat.Domain.AppIdentity.NewId();
-                await WireProtocol.WriteAsync(stream, wire.Encode(identity.NodeId, "FileDownload", new FileRequest(transferId), requestId), handshake.Token);
-                // Source verification/recovery may scan a large file after the connection is established.
-                handshake.CancelAfter(TimeSpan.FromMinutes(30));
-                var response = await wire.ReadTcpResponseAsync(stream, identity.NodeId, requestId, "FileDownloadResponse", handshake.Token, peer.NodeId);
-                var header = WireProtocol.Payload<FileAvailability>(response);
-                if (!header.Available || header.Length != file.FileSize) continue;
-                abortHandshake.Dispose();
+                using var abort = ct.Register(() => selected.Client.Close());
                 using (var output = new FileStream(temp, FileMode.CreateNew, FileAccess.Write, FileShare.None, 65536, FileOptions.Asynchronous))
                 {
-                    await FileTransferCrypto.ReadAsync(stream, output, file.FileSize, file.Sha256, fileKey, progress, client.Close, ct);
-                    await output.FlushAsync(ct);
+                    await FileTransferCrypto.ReadAsync(selected.Stream, output, file.FileSize, file.Sha256, fileKey, progress, selected.Client.Close, ct).ConfigureAwait(false);
+                    await output.FlushAsync(ct).ConfigureAwait(false);
                 }
-                if (!await VerifyAsync(temp, file, ct)) throw new InvalidDataException("File tải về không khớp SHA256.");
-                await PublishSnapshotAsync(temp, target, file.Sha256, ct);
-                // Metadata and a matching local hash alone do not authorize serving that blob under a new key.
-                await chatStore.RegisterFileKeyAsync(file.Sha256.ToLowerInvariant(), file.FileKey, ct);
-                logger.LogInformation("Attachment downloaded and verified: {Bytes} bytes", file.FileSize); return target;
+                // Decryption checks SHA-256 in the same pass, before publishing the complete file.
+                await PublishSnapshotAsync(temp, target, file.Sha256, ct).ConfigureAwait(false);
+                await chatStore.RegisterFileKeyAsync(file.Sha256.ToLowerInvariant(), file.FileKey, ct).ConfigureAwait(false);
+                logger.LogInformation("Attachment {Attachment} downloaded and verified: {Bytes} bytes", file.Id, file.FileSize);
+                return target;
             }
             catch (Exception) when (ct.IsCancellationRequested) { throw new OperationCanceledException(ct); }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException or SocketException or OperationCanceledException or ObjectDisposedException or System.Security.Authentication.AuthenticationException)
-            { logger.LogWarning("File source unavailable/invalid on {Node}: {Type}", peer.NodeId, ex.GetType().Name); }
+            catch (Exception ex) when (SourceFailure(ex))
+            { logger.LogWarning("File transfer unavailable/invalid on {Node}: {Type}", selected.Peer.NodeId, ex.GetType().Name); }
             finally { if (File.Exists(temp)) File.Delete(temp); }
         }
+        ct.ThrowIfCancellationRequested();
         throw new IOException("Không tìm được bản gốc còn nguyên vẹn trên các máy đang trực tuyến. Hãy bật máy đã gửi/đã tải tệp rồi thử lại. Nếu bản gốc đã bị sửa hoặc mất, người gửi cần gửi lại tệp thành tin nhắn mới.");
+    }
+    internal static TimeSpan SourceResponseTimeout(long bytes) => TimeSpan.FromSeconds(Math.Min(300, Math.Max(30, 30 + bytes / (16d * 1024 * 1024))));
+    private static bool SourceFailure(Exception ex) => ex is IOException or UnauthorizedAccessException or InvalidDataException or SocketException or OperationCanceledException or ObjectDisposedException or System.Security.Authentication.AuthenticationException;
+    private sealed class DownloadSource(PeerEndpoint peer, TcpClient client, Stream stream) : IDisposable
+    {
+        internal PeerEndpoint Peer => peer;
+        internal TcpClient Client => client;
+        internal Stream Stream => stream;
+        public void Dispose() { stream.Dispose(); client.Close(); }
+    }
+    private async Task<DownloadSource?> SelectDownloadSourceAsync(List<PeerEndpoint> remaining, AttachmentDto file, string transferId,
+        IProgress<FileProgress>? progress, CancellationToken ct)
+    {
+        using var race = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        var queue = new Queue<PeerEndpoint>(remaining);
+        var active = new Dictionary<Task<DownloadSource?>, PeerEndpoint>();
+        void StartNext()
+        {
+            if (queue.Count == 0) return;
+            var peer = queue.Dequeue(); active.Add(OpenDownloadSourceAsync(peer, file, transferId, progress, race.Token), peer);
+        }
+        DownloadSource? selected = null;
+        StartNext(); StartNext();
+        try
+        {
+            while (active.Count > 0)
+            {
+                var completed = await Task.WhenAny(active.Keys).ConfigureAwait(false);
+                var peer = active[completed]; active.Remove(completed);
+                selected = await completed.ConfigureAwait(false);
+                if (selected is not null) return selected;
+                remaining.RemoveAll(p => p.NodeId == peer.NodeId);
+                StartNext();
+            }
+            return null;
+        }
+        finally
+        {
+            race.Cancel();
+            foreach (var pending in active.Keys)
+                try { (await pending.ConfigureAwait(false))?.Dispose(); } catch (OperationCanceledException) when (race.IsCancellationRequested) { }
+            if (ct.IsCancellationRequested) { selected?.Dispose(); ct.ThrowIfCancellationRequested(); }
+        }
+    }
+    private async Task<DownloadSource?> OpenDownloadSourceAsync(PeerEndpoint peer, AttachmentDto file, string transferId,
+        IProgress<FileProgress>? progress, CancellationToken ct)
+    {
+        TcpClient? client = null; Stream? stream = null;
+        try
+        {
+            faults.ThrowIfBlocked(peer.NodeId);
+            progress?.Report(new(0, file.FileSize, AttachmentPhase.Connecting));
+            client = new TcpClient(AddressFamily.InterNetwork);
+            var connection = client;
+            using var abort = ct.Register(() => connection.Close());
+            using var handshake = CancellationTokenSource.CreateLinkedTokenSource(ct); handshake.CancelAfter(TimeSpan.FromSeconds(5));
+            using var abortHandshake = handshake.Token.Register(() => connection.Close());
+            await client.ConnectAsync(IPAddress.Parse(peer.Address), peer.Port, handshake.Token).ConfigureAwait(false);
+            stream = await tls.ConnectAsync(client.GetStream(), handshake.Token).ConfigureAwait(false);
+            var identity = await chatStore.GetIdentityAsync(ct).ConfigureAwait(false); var requestId = Guid.NewGuid();
+            await WireProtocol.WriteAsync(stream, wire.Encode(identity.NodeId, "FileDownload", new FileRequest(transferId), requestId), handshake.Token).ConfigureAwait(false);
+            handshake.CancelAfter(SourceResponseTimeout(file.FileSize));
+            var response = await wire.ReadTcpResponseAsync(stream, identity.NodeId, requestId, "FileDownloadResponse", handshake.Token, peer.NodeId).ConfigureAwait(false);
+            var header = WireProtocol.Payload<FileAvailability>(response);
+            if (!header.Available || header.Length != file.FileSize) return null;
+            ct.ThrowIfCancellationRequested();
+            var result = new DownloadSource(peer, client, stream); client = null; stream = null;
+            return result;
+        }
+        catch (Exception ex) when (SourceFailure(ex))
+        { logger.LogWarning("File source unavailable/invalid on {Node}: {Type}", peer.NodeId, ex.GetType().Name); return null; }
+        finally { stream?.Dispose(); client?.Close(); }
     }
     private static async Task<bool> VerifyAsync(string path, AttachmentDto file, CancellationToken ct)
     {

@@ -51,13 +51,13 @@ internal sealed class AttachmentItemControl : UserControl
         _open.Click += (_, _) => CommandRequested?.Invoke(file, AttachmentCommand.Open);
         _save.Click += (_, _) => CommandRequested?.Invoke(file, AttachmentCommand.Save);
         _tips.SetToolTip(_save, "Lưu bản đang làm việc, gồm các chỉnh sửa cục bộ");
-        if (actions is not null) actions.Changed += OnChanged;
+        if (actions is not null) { actions.Watch(file.Id); actions.Changed += OnChanged; }
         HandleCreated += async (_, _) => await RefreshLocationAsync();
         DpiChangedAfterParent += (_, _) => FitWidth(Width);
         Disposed += (_, _) =>
         {
             if (_stopped) return; _stopped = true;
-            if (actions is not null) actions.Changed -= OnChanged;
+            if (actions is not null) { actions.Unwatch(file.Id); actions.Changed -= OnChanged; }
             _lifetime.Cancel(); _lifetime.Dispose(); _tips.Dispose();
         };
         _ready = true; FitWidth(_image is null ? 380 : 180);
@@ -149,7 +149,8 @@ internal sealed class AttachmentItemControl : UserControl
         if (_actions is null || IsDisposed || _stopped) return;
         var request = ++_locationRequest;
         _open.Enabled = _save.Enabled = !_actions.IsBusy(_file.Id);
-        if (!_open.Enabled) { _location.Text = "Đang xử lý…"; return; }
+        if (!_open.Enabled) { _location.Text = _actions.State(_file.Id); return; }
+        if (_actions.BackgroundState(_file.Id) is { } state) { _location.Text = state; return; }
         try
         {
             var location = await _actions.LocationAsync(_file, _lifetime.Token);

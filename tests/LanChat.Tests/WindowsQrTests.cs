@@ -32,7 +32,7 @@ public sealed partial class WindowsUiTests
         Assert.Equal("Bản nháp phải giữ", chat.Draft().Text);
         Button(chat, "Chọn tất cả").PerformClick(); Assert.All(boxes, b => Assert.True(b.Checked));
         Assert.Equal(controls, Children(chat).OfType<MessageBubbleControl>().ToArray());
-        foreach (var button in new[] { Button(chat, "Chọn tất cả"), Button(chat, "Bỏ chọn"), Button(chat, "Xuất QR"), Button(chat, "Hủy chọn"), Button(chat, "Gửi") })
+        foreach (var button in new[] { Button(chat, "Chọn tất cả"), Button(chat, "Bỏ chọn"), Button(chat, "Xuất QR"), Button(chat, "Chuyển tiếp"), Button(chat, "Hủy chọn"), Button(chat, "Gửi") })
         {
             var bounds = button.RectangleToScreen(button.ClientRectangle); var visible = bounds;
             for (var parent = button.Parent; parent is not null; parent = parent.Parent) visible = System.Drawing.Rectangle.Intersect(visible, parent.RectangleToScreen(parent.ClientRectangle));
@@ -47,7 +47,7 @@ public sealed partial class WindowsUiTests
         { try { await Until(() => System.Windows.Forms.Application.OpenForms.OfType<QrShareForm>().Any()); var form = System.Windows.Forms.Application.OpenForms.OfType<QrShareForm>().Single(); Assert.True(form.CanExport); Assert.Equal(messages[0].Text, Children(form).OfType<TextBox>().Single().Text); Button(form, "Đóng").PerformClick(); driver.TrySetResult(true); } catch (Exception ex) { driver.TrySetException(ex); } }));
         Button(chat, "Xuất QR").PerformClick(); await driver.Task;
         messages[0].Text = new string('x', 501); chat.Bind(conversation, messages, author, [], false);
-        Assert.False(Button(chat, "Xuất QR").Enabled); Assert.True(boxes[0].Checked);
+        Assert.False(Button(chat, "Xuất QR").Enabled); Assert.True(Button(chat, "Chuyển tiếp").Enabled); Assert.True(boxes[0].Checked);
         Button(chat, "Hủy chọn").PerformClick(); Assert.All(boxes, b => Assert.False(b.Visible));
         Assert.Equal("Bản nháp phải giữ", chat.Draft().Text);
     });

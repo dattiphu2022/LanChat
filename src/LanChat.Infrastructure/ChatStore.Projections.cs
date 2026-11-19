@@ -23,6 +23,7 @@ public sealed partial class ChatStore
         var content = ReadEncryptedEvent<MessageContent>(db, created, local.UserId);
         if (content is null) return;
         var source = content.Message;
+        var mentionAudience = envelope.Recipients.Select(x => x.UserId).ToArray();
         var audience = envelope.Recipients.Select(x => x.UserId).ToArray();
         if (source.Id != entityId || source.SenderUserId != created.ActorUserId || content.Sender.Id != source.SenderUserId ||
             source.OriginNodeId != created.OriginNodeId || source.ConversationId != created.ConversationId ||
@@ -63,7 +64,9 @@ public sealed partial class ChatStore
             throw new InvalidDataException("Xung đột MessageCreated.");
         m.Text = source.Text; m.Kind = source.Kind; m.ReplyToMessageId = content.ReplyToMessageId; m.ForwardedFromMessageId = content.ForwardedFromMessageId;
         var edits = events.Where(x => x.Type == ReplicationEventType.MessageEdited && x.ActorUserId == m.SenderUserId && x.ConversationId == m.ConversationId);
-        var edit = edits.Reverse().Select(x => ReadEncryptedEvent<MessageEdit>(db, x, local.UserId)).FirstOrDefault(x => x is not null);
+        var latestEdit = edits.Reverse().Select(x => (Event: x, Value: ReadEncryptedEvent<MessageEdit>(db, x, local.UserId))).FirstOrDefault(x => x.Value is not null);
+        var edit = latestEdit.Value;
+        if (edit is not null) mentionAudience = DeviceIdentity.ParseEnvelope(latestEdit.Event.PayloadJson).Recipients.Select(x => x.UserId).ToArray();
         if (edit is not null)
         {
             var text = edit.Text;
@@ -73,6 +76,16 @@ public sealed partial class ChatStore
         m.IsRecalled = events.Any(x => x.Type == ReplicationEventType.MessageRecalled && x.ActorUserId == m.SenderUserId &&
             x.ConversationId == m.ConversationId && ReadEncryptedEvent<object>(db, x, local.UserId) is not null);
         if (m.IsRecalled) m.Text = "Tin nhắn đã được thu hồi";
+        var mentionValues = m.IsRecalled || m.IsDeletedLocal ? [] : Mentions.Normalize(m.Text, edit?.Mentions ?? (edit is null ? content.Mentions : null),
+            mentionAudience, source.RecipientUserId == Guid.Empty);
+        var projected = db.Rows<MessageMentionProjection>("MessageId=$0", m.Id);
+        var desired = mentionValues.SelectMany(value => value.UserIds.Select(user => (value.Start, value.Length, value.All, User: user))).ToArray();
+        foreach (var row in projected)
+            if (!desired.Any(value => value.Start == row.Start && value.Length == row.Length && value.All == row.IsAll && value.User == row.UserId))
+                db.Delete<MessageMentionProjection>("Id=$0", row.Id);
+        foreach (var value in desired)
+            if (!projected.Any(row => row.Start == value.Start && row.Length == value.Length && row.IsAll == value.All && row.UserId == value.User))
+                db.Insert(new MessageMentionProjection { Id = Guid.NewGuid(), MessageId = m.Id, UserId = value.User, Start = value.Start, Length = value.Length, IsAll = value.All });
         var reactions = events.Where(x => x.Type == ReplicationEventType.ReactionChanged && x.ConversationId == m.ConversationId && audience.Contains(x.ActorUserId))
             .Select(x => (Event: x, Change: ReadEncryptedEvent<ReactionChange>(db, x, local.UserId))).Where(x => x.Change is not null)
             .Select(x => (x.Event, Change: x.Change!)).GroupBy(x => (x.Event.ActorUserId, x.Change.Emoji)).Select(x => x.Last())
@@ -126,7 +139,7 @@ public sealed partial class ChatStore
     private static readonly string[] AllowedReactions = ["👍", "❤️", "😂", "😮", "😢"];
 
     public Task<Message> SendToConversationAsync(Guid conversationId, string text, Guid? replyTo = null, Guid? forwardedFrom = null,
-        AttachmentDto[]? attachments = null, CancellationToken ct = default) => WriteAsync(async db =>
+        AttachmentDto[]? attachments = null, CancellationToken ct = default, MessageMention[]? mentions = null) => WriteAsync(async db =>
     {
         if (text.Length > 16000 || (string.IsNullOrWhiteSpace(text) && (attachments is null || attachments.Length == 0)) || attachments?.Length > 20)
             throw new ArgumentException("Nhập nội dung hoặc chọn tối đa 20 file.");
@@ -135,6 +148,7 @@ public sealed partial class ChatStore
         if (!db.Exists<ConversationMember>("ConversationId=$0 AND UserId=$1", conversationId, s.UserId)) throw new InvalidOperationException("Bạn không còn là thành viên cuộc trò chuyện.");
         if (conversation.Kind == ConversationKind.Group && db.Exists<Group>("Id=$0 AND IsDeleted=1", conversationId)) throw new InvalidOperationException("Nhóm đã bị xóa.");
         if (replyTo.HasValue && !db.Exists<Message>("Id=$0 AND ConversationId=$1", replyTo, conversationId)) throw new ArgumentException("Tin được trả lời không thuộc cuộc trò chuyện.");
+        var normalizedMentions = Mentions.Normalize(text, mentions, db.Rows<ConversationMember>("ConversationId=$0", conversationId).Select(x => x.UserId).ToArray(), conversation.Kind == ConversationKind.Group, trim: true);
         conversation.IsHiddenLocal = false;
         var other = conversation.Kind == ConversationKind.Direct ? db.Required<ConversationMember>("ConversationId=$0 AND UserId<>$1", conversationId, s.UserId).UserId : Guid.Empty;
         (s.PhysicalTicks, s.LogicalCounter) = HybridClock.Advance(s.PhysicalTicks, s.LogicalCounter);
@@ -144,10 +158,18 @@ public sealed partial class ChatStore
             CreatedAtTicks = DateTime.UtcNow.Ticks, PhysicalTicks = s.PhysicalTicks, LogicalCounter = s.LogicalCounter, IsRead = true,
             ReplyToMessageId = replyTo, ForwardedFromMessageId = forwardedFrom, Status = MessageStatus.LocalPending };
         db.Insert(message); db.SaveChanges();
-        await EmitMessageAsync(db, s, message, attachments?.Select(x => x with { MessageId = message.Id }).ToArray(), ct); return message;
+        await EmitMessageAsync(db, s, message, attachments?.Select(x => x with { MessageId = message.Id }).ToArray(), ct, normalizedMentions); return message;
     }, ct);
-    public Task EditMessageAsync(Guid messageId, string text, CancellationToken ct = default) => MutateMessageAsync(messageId,
-        ReplicationEventType.MessageEdited, new MessageEdit(text.Trim()), true, ct);
+    public Task EditMessageAsync(Guid messageId, string text, CancellationToken ct = default, MessageMention[]? mentions = null) => WriteAsync(async db =>
+    {
+        var s = db.Required<LocalSettings>(); var m = db.Required<Message>("Id=$0", messageId);
+        if (m.SenderUserId != s.UserId || m.IsRecalled || m.IsDeletedLocal || string.IsNullOrWhiteSpace(text) || text.Length > 16000 ||
+            !db.Exists<ConversationMember>("ConversationId=$0 AND UserId=$1", m.ConversationId, s.UserId)) throw new InvalidOperationException("Không được phép sửa tin nhắn này.");
+        var audience = db.Rows<ConversationMember>("ConversationId=$0", m.ConversationId).Select(x => x.UserId).ToArray();
+        var normalized = Mentions.Normalize(text, mentions, audience, m.RecipientUserId == Guid.Empty, trim: true, resolveAll: false);
+        await EmitAsync(db, s, ReplicationEventType.MessageEdited, m.Id, m.ConversationId, new MessageEdit(text.Trim(), normalized), ct);
+        return true;
+    }, ct);
     public Task RecallMessageAsync(Guid messageId, CancellationToken ct = default) => MutateMessageAsync(messageId, ReplicationEventType.MessageRecalled, new { }, true, ct);
     public Task ReactAsync(Guid messageId, string emoji, bool active, CancellationToken ct = default)
     {
@@ -165,7 +187,7 @@ public sealed partial class ChatStore
         }, ct);
     }
     public async Task DeleteLocalAsync(Guid messageId, CancellationToken ct = default) => await WriteAsync(async db =>
-    { var m = db.Required<Message>("Id=$0", messageId); m.IsDeletedLocal = true; return true; }, ct);
+    { var m = db.Required<Message>("Id=$0", messageId); m.IsDeletedLocal = true; db.Delete<MessageMentionProjection>("MessageId=$0", messageId); return true; }, ct);
     public async Task<MessageDetails> GetMessageDetailsAsync(Guid messageId, CancellationToken ct = default)
         => (await GetMessageDetailsBatchAsync([messageId], ct)).Single();
     public async Task<MessageDetails[]> GetMessageDetailsBatchAsync(Guid[] messageIds, CancellationToken ct = default)
@@ -181,6 +203,7 @@ public sealed partial class ChatStore
         using var db = database.Open(ct);
         var messages = db.Rows<Message>(In("Id", messageIds), Args(messageIds));
         var attachments = db.Rows<Attachment>(In("MessageId", messageIds), Args(messageIds)).Select(ToAttachment).ToLookup(x => x.MessageId);
+        var mentions = db.Rows<MessageMentionProjection>(In("MessageId", messageIds), Args(messageIds)).ToLookup(x => x.MessageId);
         var reactions = db.Rows<MessageReaction>(In("MessageId", messageIds), Args(messageIds)).ToLookup(x => x.MessageId);
         var receipts = db.Rows<MessageReceipt>(In("MessageId", messageIds), Args(messageIds)).ToLookup(x => x.MessageId);
         var sources = messages.Where(m => !m.IsRecalled && m.ReplyToMessageId.HasValue).Select(m => m.Id).ToArray();
@@ -204,7 +227,7 @@ public sealed partial class ChatStore
             var quote = m.IsRecalled || m.ReplyToMessageId is not Guid replyId ? null : DescribeQuote(m.ConversationId, replyId);
             return new MessageDetails(m, m.IsRecalled ? [] : attachments[m.Id].ToArray(), reactions[m.Id].Select(x => x.Emoji).ToArray(),
                 receipts[m.Id].Count(x => x.UserId != m.SenderUserId), receipts[m.Id].Count(x => x.IsRead && x.UserId != m.SenderUserId),
-                quote?.Preview, sender?.DisplayName) { SenderDepartment = sender?.Department, Quote = quote };
+                quote?.Preview, sender?.DisplayName) { SenderDepartment = sender?.Department, Quote = quote, Mentions = m.IsRecalled || m.IsDeletedLocal ? [] : mentions[m.Id].GroupBy(x => (x.Start, x.Length, x.IsAll)).Select(g => new MessageMention(g.Key.Start, g.Key.Length, g.Key.IsAll, g.Select(x => x.UserId).ToArray())).ToArray() };
         }).ToArray();
 
         ReplyQuote DescribeQuote(Guid conversation, Guid id)

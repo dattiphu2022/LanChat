@@ -17,10 +17,13 @@ internal sealed class PromptTextBox : TextBox
     }
 
     internal bool IsComposing { get; private set; }
+    internal bool IsUndoing { get; private set; }
+    internal Func<Keys, bool>? InterceptKey { get; set; }
     internal Func<bool>? TryPasteImage { get; set; }
 
     protected override bool ProcessCmdKey(ref System.Windows.Forms.Message msg, Keys keyData)
     {
+        if (InterceptKey?.Invoke(keyData) == true) return true;
         if ((keyData == (Keys.Control | Keys.V) || keyData == (Keys.Shift | Keys.Insert)) && TryPasteImage?.Invoke() == true)
             return true;
         return base.ProcessCmdKey(ref msg, keyData);
@@ -31,7 +34,9 @@ internal sealed class PromptTextBox : TextBox
         if (m.Msg == PasteMessage && TryPasteImage?.Invoke() == true) return;
         if (m.Msg == StartComposition) IsComposing = true;
         if (m.Msg == EndComposition) IsComposing = false;
-        base.WndProc(ref m);
+        var previousUndo = IsUndoing;
+        IsUndoing = previousUndo || m.Msg is 0x0304 or 0x00C7;
+        try { base.WndProc(ref m); } finally { IsUndoing = previousUndo; }
         if (m.Msg == PaintMessage && Multiline && !Focused && TextLength == 0 && _placeholderText.Length > 0)
         {
             using var graphics = Graphics.FromHwnd(Handle);
@@ -48,6 +53,7 @@ internal sealed class PromptTextBox : TextBox
     {
         if (IsHandleCreated && !Multiline) SendMessage(Handle, SetCueBanner, IntPtr.Zero, _placeholderText);
     }
+    internal void ReplaceSelectionWithUndo(string text) => SendMessage(Handle, 0x00C2, new IntPtr(1), text);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     private static extern IntPtr SendMessage(IntPtr window, int message, IntPtr parameter, string text);
 }

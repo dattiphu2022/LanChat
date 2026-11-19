@@ -229,6 +229,6 @@ public sealed partial class PeerFileTransferService
 
     private sealed class FolderProgress(IProgress<FileProgress> progress, long offset, long total) : IProgress<FileProgress>
     {
-        public void Report(FileProgress value) => progress.Report(new(offset + value.Completed, total));
+        public void Report(FileProgress value) => progress.Report(new(offset + value.Completed, total, value.Phase));
     }
 }

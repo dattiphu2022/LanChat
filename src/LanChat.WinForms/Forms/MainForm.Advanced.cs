@@ -23,7 +23,7 @@ public sealed partial class MainForm
     private async Task SendSubmissionAsync(ComposerSubmission submission)
     {
         if (_activeConversation is not { } conversation) throw new InvalidOperationException("Hãy chọn cuộc trò chuyện.");
-        if (submission.EditId is { } edit) await Distributed.EditMessageAsync(edit, submission.Text, _lifetime.Token);
+        if (submission.EditId is { } edit) await Distributed.EditMessageAsync(edit, submission.Text, _lifetime.Token, submission.Mentions);
         else
         {
             var attachments = new List<AttachmentDto>();
@@ -46,7 +46,7 @@ public sealed partial class MainForm
                 if (preparingFolder && !IsDisposed) _scanState.Text = "";
                 preparingFolder = false;
             }
-            await Distributed.SendToConversationAsync(conversation, submission.Text, submission.ReplyTo, attachments: attachments.ToArray(), ct: _lifetime.Token);
+            await Distributed.SendToConversationAsync(conversation, submission.Text, submission.ReplyTo, attachments: attachments.ToArray(), ct: _lifetime.Token, mentions: submission.Mentions);
         }
         if (_activeConversation != conversation)
         {
@@ -66,7 +66,9 @@ public sealed partial class MainForm
         catch (Exception ex) { if (!IsDisposed && !_lifetime.IsCancellationRequested) { _scanState.Text = UiText.HideIpAddresses(ex.Message); _scanState.ToolTipText = _scanState.Text; } }
     }
     private static bool MatchesSubmission(ComposerDraft draft, ComposerSubmission submission) =>
-        draft.Text == submission.Text && draft.Reply == submission.ReplyTo && draft.Edit == submission.EditId && draft.Files.SequenceEqual(submission.Files);
+        draft.Text == submission.Text && draft.Reply == submission.ReplyTo && draft.Edit == submission.EditId && draft.Files.SequenceEqual(submission.Files) &&
+        draft.Mentions.Length == submission.Mentions.Length && draft.Mentions.Zip(submission.Mentions, (a, b) =>
+            a.Start == b.Start && a.Length == b.Length && a.All == b.All && a.ResolveAtSend == b.ResolveAtSend && a.UserIds.SequenceEqual(b.UserIds)).All(equal => equal);
     private async Task MessageActionAsync(LanChat.Domain.Message message, string action)
     {
         switch (action)
@@ -74,38 +76,34 @@ public sealed partial class MainForm
             case "save-all":
                 await SaveMessageAttachmentsAsync(message.Id); return;
             case "reply": _chat.SetContext(message, false); break;
-            case "edit": _chat.SetContext(message, true); break;
+            case "edit": _chat.SetContext(message, true, (await Distributed.GetMessageDetailsAsync(message.Id, _lifetime.Token)).Mentions); break;
             case "recall": await Distributed.RecallMessageAsync(message.Id, _lifetime.Token); break;
             case "delete": await Distributed.DeleteLocalAsync(message.Id, _lifetime.Token); break;
             case "unreact": foreach (var emoji in new[] { "👍", "❤️", "😂", "😮", "😢" }) await Distributed.ReactAsync(message.Id, emoji, false, _lifetime.Token); break;
-            case "forward":
-                var conversations = await _store.GetConversationsAsync(ct: _lifetime.Token);
-                using (var select = new SelectionForm("Chuyển tiếp đến", conversations.Select(x => new SelectionItem(x.Id, x.DisplayName, x.Department))))
-                {
-                    if (UiInteraction.ShowDialog(select, this) != DialogResult.OK || select.SelectedId is not { } destination) return;
-                    await ForwardMessageAsync(message.Id, destination);
-                }
-                break;
+            case "forward": await RunDialogAsync("forward", () => ForwardMessagesAsync([message.Id])); break;
             default: if (action.StartsWith("react:", StringComparison.Ordinal)) await Distributed.ReactAsync(message.Id, action.Substring(6), true, _lifetime.Token); break;
         }
         await RefreshAsync();
     }
 
-    private async Task ForwardMessageAsync(Guid messageId, Guid destination)
+    private async Task ForwardMessagesAsync(Guid[] messageIds)
     {
-        if (!_forwardingMessages.Add(messageId)) return;
-        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
-        using var progressForm = new AttachmentOpenProgressForm("Tin nhắn đang chuyển tiếp", cancellation, forwarding: true);
+        if (messageIds.Length == 0 || messageIds.Any(_forwardingMessages.Contains)) return;
+        foreach (var id in messageIds) _forwardingMessages.Add(id);
         try
         {
-            var forward = _services.GetRequiredService<IChatService>().ForwardAsync(messageId, destination,
-                new Progress<FileProgress>(progressForm.Report), cancellation.Token);
-            if (await Task.WhenAny(forward, Task.Delay(350, cancellation.Token)) != forward && !cancellation.IsCancellationRequested)
-                progressForm.Show(UiInteraction.Owner(this));
-            await forward;
+            var contacts = await _store.GetUsersAsync(ct: _lifetime.Token);
+            var conversations = await _store.GetConversationsAsync(ct: _lifetime.Token);
+            var groups = await Distributed.GetGroupsAsync(_lifetime.Token);
+            var destinations = conversations.Concat(groups.Where(g => !conversations.Any(c => c.Id == g.Id)).Select(g =>
+                new ConversationSummary(g.Id, Guid.Empty, g.Name, "", 0, 0, false, false, PresenceStatus.Unknown, ConversationKind.Group))).ToArray();
+            using var select = new ForwardRecipientsForm(contacts, destinations);
+            if (UiInteraction.ShowDialog(select, this) != DialogResult.OK) return;
+            var requests = messageIds.SelectMany(id => select.Selected.Select(destination => new ForwardRequest(id, destination))).ToArray();
+            using var form = new ForwardBatchForm(_services.GetRequiredService<IChatService>(), requests, _lifetime.Token);
+            UiInteraction.ShowDialog(form, this);
         }
-        catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { }
-        finally { progressForm.Close(); _forwardingMessages.Remove(messageId); }
+        finally { foreach (var id in messageIds) _forwardingMessages.Remove(id); }
     }
 
     private async Task OpenAttachmentAsync(AttachmentDto file)

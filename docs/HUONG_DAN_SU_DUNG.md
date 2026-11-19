@@ -25,6 +25,20 @@ Từ v1.2.5, các máy thành viên tự đồng bộ lịch sử nhóm sau khi 
 
 Nhấp phải hội thoại để ghim, tắt thông báo hoặc **Xóa hội thoại phía tôi**. Thay đổi này áp dụng trên máy của bạn. Bấm thông báo Windows để mở hội thoại tương ứng.
 
+## Nhắc tên trong nhóm
+
+- Gõ **@**, tìm theo tên có hoặc không dấu rồi chọn từ gợi ý. Đơn vị và tên máy giúp phân biệt người trùng tên. Mũi tên di chuyển; **Enter** chọn gợi ý trước khi gửi; **Esc** đóng gợi ý.
+- Chọn **@All** để nhắc tất cả thành viên tại lúc gửi. Mọi thành viên nhóm đều được dùng. Người được nhắc thấy tên mình tô xanh và thông báo **đã nhắc tới bạn**, kể cả khi nhóm đã tắt thông báo; hội thoại có dấu **@** cho lời nhắc chưa đọc.
+- Chữ @ tự nhập/dán mà không chọn gợi ý chỉ là văn bản. Sửa vào bên trong tên đã chọn làm mất liên kết; hãy chọn lại từ gợi ý. Email không tạo lời nhắc.
+- Bấm thông báo để đến đúng tin. Đang đọc ở cuối hội thoại sẽ không bật toast; sửa tin cập nhật phần tô xanh nhưng không thông báo lần nữa. Các máy cũ vẫn đọc chữ @ nhưng cần v1.2.8 để nhận thông báo nhắc tên.
+
+## Chuyển tiếp nhiều tin đến nhiều người
+
+- Menu **Chuyển tiếp** mở toàn bộ danh bạ của mạng đang chọn, kể cả người chưa từng nhắn và đang offline. Có tab **Nhóm** để chọn nhóm hiện có. Tích nhiều người/nhóm; tìm theo tên, đơn vị hoặc máy vẫn giữ dấu tích.
+- Muốn chuyển tiếp nhiều tin, bấm **Chọn nhiều** trên tiêu đề chat, tích tin rồi bấm **Chuyển tiếp**. Tin gửi theo thứ tự lịch sử. Giới hạn 500 byte chỉ áp dụng cho QR.
+- Danh sách kết quả cho biết từng người/từng tin **Đã lưu chờ gửi**, lỗi hoặc đã hủy. Ngoại tuyến có thể chờ gửi; trạng thái này chưa xác nhận người nhận đã nhận. Nếu thiếu khóa, cần người nhận mở LanChat để đồng bộ khóa.
+- **Hủy lượt** dừng phần chưa gửi và giữ phần đã lưu. **Thử lại mục chưa gửi** chỉ gửi phần chưa hoàn tất. Bản nháp và hội thoại đang xem được giữ. Chuyển tiếp chữ @ không tạo lời nhắc mới.
+
 ## Trả lời và tìm tin cũ
 
 - Bấm biểu tượng dấu trích dẫn trên tin nhắn để trả lời. Bấm biểu tượng trái tim để chọn cảm xúc. Menu chuột phải có thêm các thao tác như sao chép, chuyển tiếp, sửa và thu hồi.
@@ -41,6 +55,7 @@ Nhấp phải hội thoại để ghim, tắt thông báo hoặc **Xóa hội th
 - Chọn **Chụp vùng** để tạm ẩn LanChat. Kéo chuột chọn vùng, rồi nhả chuột để chụp. Nhấn **Esc** để hủy. LanChat hiện lại sau cả hai thao tác.
 - Ảnh dán hoặc chụp xuất hiện dưới dạng PNG trong bản nháp. Kiểm tra bản xem trước, gỡ tệp nếu cần, rồi bấm **Gửi**. Mỗi tin có thể đính kèm tối đa 20 mục.
 - Khi gửi hoặc nhận tin, LanChat tự tải ảnh, tệp và toàn bộ nội dung thư mục về nền, kể cả khi bạn đang xem hội thoại khác. Bấm tên tệp hoặc thư mục để mở bản đã chuẩn bị trên máy. Nếu máy giữ tệp đang ngoại tuyến, ứng dụng tự thử lại và tiếp tục kiểm tra tệp còn thiếu khi mở lại LanChat.
+- Khi Mở/Lưu mất thời gian, hộp tiến độ phân biệt chờ tác vụ, chờ máy nguồn, tải, kiểm tra và chuẩn bị. Có thể Hủy; nếu còn người khác chờ, lượt chuẩn bị chung vẫn tiếp tục. Nguồn không trả lời sẽ hết hạn để thử nguồn khác; không thay đổi phần mềm bảo vệ Windows.
 - Bấm ảnh trong tin nhắn để xem lớn. Dùng phím mũi tên để chuyển ảnh, cuộn chuột để phóng to và nhấn **Esc** để đóng.
 
 ## Lưu đính kèm và mở lại bản đã sửa

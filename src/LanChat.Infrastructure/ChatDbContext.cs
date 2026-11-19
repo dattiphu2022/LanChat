@@ -10,7 +10,7 @@ public sealed class ChatDatabase
     {
         "20260921071741_InitialPhase1", "20260921072743_LocalReadState", "20260921081251_DistributedPhases",
         "20261113093000_LocalConversationVisibility", "20261116100000_PeerAddresses", "20261116130000_EndToEndEncryption",
-        "20261117150000_PendingPairGroups", "20261118100000_GroupHistoryKeys"
+        "20261117150000_PendingPairGroups", "20261118100000_GroupHistoryKeys", "20261119090000_MessageMentions"
     });
     private readonly string _connectionString;
     public ChatDatabase(string dataDirectory)
@@ -201,6 +201,7 @@ public sealed class ChatDbContext : IDisposable
         [typeof(Conversation)] = Map<Conversation>("Conversations"),
         [typeof(ConversationMember)] = Map<ConversationMember>("ConversationMembers"),
         [typeof(Message)] = Map<Message>("Messages"),
+        [typeof(MessageMentionProjection)] = Map<MessageMentionProjection>("MessageMentions"),
         [typeof(LocalSettings)] = Map<LocalSettings>("LocalSettings"),
         [typeof(ReplicationEvent)] = Map<ReplicationEvent>("ReplicationEvents"),
         [typeof(ReplicationCursor)] = Map<ReplicationCursor>("ReplicationCursors"),

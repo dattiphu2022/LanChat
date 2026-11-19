@@ -30,6 +30,12 @@ internal sealed class AttachmentOpenProgressForm : DpiForm
     public void Report(FileProgress progress)
     {
         if (IsDisposed) return;
+        if (progress.Phase != AttachmentPhase.Downloading)
+        {
+            _progress.Style = ProgressBarStyle.Marquee;
+            _state.Text = AttachmentProgressText.Describe(progress);
+            return;
+        }
         if (progress.Completed >= progress.Total)
         { _progress.Style = ProgressBarStyle.Marquee; _state.Text = _forwarding ? "Đang kiểm tra và chuẩn bị chuyển tiếp…" : "Đang kiểm tra và chuẩn bị mở…"; }
         else

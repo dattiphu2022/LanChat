@@ -45,6 +45,7 @@ internal static class Program
 #if DEBUG
         string? verificationUpdate = null;
         var verificationLegacy = false;
+        var verificationLegacyMentions = false;
 #endif
         var startup = false;
         for (var i = 0; i < args.Length; i++)
@@ -62,6 +63,7 @@ internal static class Program
                 case "--verify-ui": verification = Path.GetFullPath(Value()); break;
                 case "--verify-update-package": verificationUpdate = Path.GetFullPath(Value()); break;
                 case "--verify-legacy-peer": verificationLegacy = true; break;
+                case "--verify-legacy-mentions": verificationLegacyMentions = true; break;
 #endif
                 default: throw new ArgumentException("Tham số không hỗ trợ: " + args[i]);
             }
@@ -82,7 +84,7 @@ internal static class Program
 #if DEBUG
         if (verification is not null)
         {
-            System.Windows.Forms.Application.Run(new VerificationStartup(options, verification, verificationUpdate, verificationLegacy));
+            System.Windows.Forms.Application.Run(new VerificationStartup(options, verification, verificationUpdate, verificationLegacy, verificationLegacyMentions));
             return null;
         }
 #endif
@@ -130,7 +132,7 @@ internal static class Program
 #if DEBUG
 internal sealed class VerificationStartup : Form
 {
-    public VerificationStartup(NodeOptions options, string report, string? updatePackage, bool legacyPeer)
+    public VerificationStartup(NodeOptions options, string report, string? updatePackage, bool legacyPeer, bool legacyMentions)
     {
         Shown += async (_, _) =>
         {
@@ -147,7 +149,7 @@ internal sealed class VerificationStartup : Form
                 }
                 var network = await catalog.StartAsync(catalog.Entries.Single(e => e.Primary), false, this);
                 var main = ActivatorUtilities.CreateInstance<MainForm>(network.Services);
-                main.Shown += async (_, _) => await main.VerifyUiAsync(report, updates, legacyPeer);
+                main.Shown += async (_, _) => await main.VerifyUiAsync(report, updates, legacyPeer, legacyMentions);
                 main.FormClosed += async (_, _) => { try { await network.StopAsync(); } finally { updates?.Dispose(); Close(); } };
                 main.Show(); Hide();
             }
