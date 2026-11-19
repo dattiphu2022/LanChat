@@ -25,6 +25,7 @@ public sealed partial class MainForm : DpiForm
     private readonly DraftImageStore _draftImages;
     private readonly PersonNameLabel _profile = Theme.NameLabel("LanChat", 10, true);
     private readonly Label _initial = Theme.Label("", 20, true);
+    private readonly NavigationItemControl _scanNav = new() { Caption = "Quét lại", Icon = UiIcon.Scan };
     private readonly NavigationItemControl _networkNav = new() { Caption = "Mạng chat", Icon = UiIcon.Network };
     private readonly ToolStripStatusLabel _status = new() { Spring = true, TextAlign = ContentAlignment.MiddleLeft };
     private readonly ToolStripStatusLabel _scanState = new();
@@ -120,7 +121,7 @@ public sealed partial class MainForm : DpiForm
         }
         var groups = new NavigationItemControl { Caption = "Nhóm", Icon = UiIcon.People };
         var files = new NavigationItemControl { Caption = "Tệp", Icon = UiIcon.File };
-        var scan = new NavigationItemControl { Caption = "Quét lại", Icon = UiIcon.Scan };
+        var scan = _scanNav;
         foreach (var item in new[] { _messageNav, _usersNav, groups, files, scan, _networkNav })
         {
             item.Dock = DockStyle.Fill; item.MinimumSize = new Size(0, 54); item.Margin = Padding.Empty;
@@ -178,6 +179,7 @@ public sealed partial class MainForm : DpiForm
                 if (MessageBox.Show(UiInteraction.Owner(this), $"Xóa hội thoại “{new PersonName(c.DisplayName, c.Department)}” trên máy này?\n\nLịch sử trên máy khác vẫn được giữ. Hội thoại sẽ hiện lại khi có tin mới.",
                     "Xóa hội thoại phía tôi", MessageBoxButtons.YesNo, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2) != DialogResult.Yes) return;
                 await _store.DeleteConversationLocalAsync(c.Id, _lifetime.Token);
+                _historyCache.Remove(c.Id); _historyRecency.Remove(c.Id);
                 _drafts.Remove(c.Id);
                 if (_activeConversation == c.Id) ClearActiveConversation();
                 else CleanupDraftImages();
@@ -254,6 +256,7 @@ public sealed partial class MainForm : DpiForm
         _showNotification = notify;
         _isSelectedNetwork = isSelectedNetwork;
         _networkNav.Visible = false;
+        _scanNav.Visible = false; _scanNav.MinimumSize = Size.Empty;
     }
 
     internal Task StartViewAsync() => RunUiAsync(async () =>
@@ -306,9 +309,11 @@ public sealed partial class MainForm : DpiForm
         var selected = _summaries.FirstOrDefault(item => item.Id == id);
         if (selected is not null) _chat.SelectConversation(new PersonName(selected.DisplayName, selected.Department),
             selected.Presence == PresenceStatus.Online, selected.Kind == ConversationKind.Group);
-        _chat.SetLoading(true);
+        var restored = RestoreHistory(id);
+        _chat.SetLoading(!restored);
         try { await RefreshAsync(); }
-        catch { if (!IsDisposed && _activeConversation == id) _chat.ShowHistoryError(); throw; }
+        catch { if (!IsDisposed && _activeConversation == id && !restored) _chat.ShowHistoryError(); throw; }
+        if (restored && !IsDisposed && _activeConversation == id) await MarkActiveReadAsync();
         if (!IsDisposed && _activeConversation == id && (_isSelectedNetwork?.Invoke() ?? true)) _chat.FocusComposer();
     }
 
@@ -399,7 +404,7 @@ public sealed partial class MainForm : DpiForm
                 else
                 {
                     _chat.SelectConversation(new PersonName(current.DisplayName, current.Department), current.Presence == PresenceStatus.Online, current.Kind == ConversationKind.Group);
-                    var refreshHistory = changed || _boundConversation != id || _boundSearch != anchor || _boundOlder != previous;
+                    var refreshHistory = _boundRevision != revision || _boundConversation != id || _boundSearch != anchor || _boundOlder != previous;
                     if (refreshHistory)
                     {
                         var historyToken = _historyRead?.Token ?? ct;
@@ -416,9 +421,10 @@ public sealed partial class MainForm : DpiForm
                                 var choices = _contacts.Where(u => members.Contains(u.UserId)).Select(u => new MentionCandidate(u.UserId, u.DisplayName, u.Department, u.DeviceName)).ToList();
                                 if (members.Contains(own.Id)) choices.Add(new(own.Id, own.DisplayName, own.Department, Environment.MachineName));
                                 choices.Insert(0, new(Guid.Empty, "All", null, "", true));
-                                _chat.ConfigureMentions(choices.ToArray(), members);
+                                _mentionChoices = choices.ToArray(); _mentionAudience = members;
+                                _chat.ConfigureMentions(_mentionChoices, _mentionAudience);
                             }
-                            else _chat.ConfigureMentions([], []);
+                            else { _mentionChoices = []; _mentionAudience = []; _chat.ConfigureMentions([], []); }
                             if (id != _activeConversation || anchor != _searchAnchor || previous != _olderMessages) return;
                             await _chat.PrepareHistoryAsync(data.Messages.Length, historyToken);
                         }
@@ -427,6 +433,8 @@ public sealed partial class MainForm : DpiForm
                         if (id == _activeConversation && anchor == _searchAnchor && previous == _olderMessages)
                         {
                             BindHistory(id.Value, anchor, previous, data);
+                            _boundRevision = revision;
+                            if (!anchor.HasValue) RememberHistory(id.Value, revision, data);
                             await MarkActiveReadAsync();
                         }
                     }
@@ -645,6 +653,8 @@ public sealed partial class MainForm : DpiForm
     private void LayoutWorkspace()
     {
         var width = _workspace.ClientSize.Width;
+        var railWidth = this.ScalePixels(width < this.ScalePixels(1000) ? 80 : 104);
+        if (_workspace.ColumnStyles[0].Width != railWidth) _workspace.ColumnStyles[0].Width = railWidth;
         var preferredListWidth = this.ScalePixels(width < this.ScalePixels(1000) ? 248 : 292);
         var listWidth = Math.Min(preferredListWidth, width * 3 / 10);
         if (_workspace.ColumnStyles[1].Width != listWidth) _workspace.ColumnStyles[1].Width = listWidth;

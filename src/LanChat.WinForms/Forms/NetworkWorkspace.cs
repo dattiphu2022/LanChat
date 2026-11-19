@@ -14,6 +14,8 @@ internal sealed partial class NetworkWorkspace : DpiForm
     private readonly Dictionary<Guid, (RunningNetwork Network, MainForm View, TabPage Tab)> _running = new();
     private readonly System.Collections.Concurrent.ConcurrentDictionary<Guid, IServiceProvider> _updateNetworks = new();
     private readonly IconButton _scanButton = Theme.Secondary("Quét tất cả", UiIcon.Scan);
+    private IconButton? _aboutButton;
+    private readonly System.Windows.Forms.Timer _updateTimer = new() { Interval = 60 * 1000 };
     private readonly Button _restoreDefaultButton;
     private readonly Label _feedback = Theme.Label("");
     private readonly NotifyIcon _tray = new() { Icon = AppIcon.Value, Text = "LanChat", Visible = true };
@@ -30,7 +32,8 @@ internal sealed partial class NetworkWorkspace : DpiForm
         _updates = new UpdateCoordinator(updates);
         updates.ResolveNetwork = id => _updateNetworks.TryGetValue(id, out var services) ? services : null;
         Icon = AppIcon.Value;
-        Text = "LanChat";
+        _updates.Changed += RefreshWindowTitle;
+        RefreshWindowTitle();
         ClientSize = new Size(1260, 840); MinimumSize = new Size(660, 450);
         StartPosition = FormStartPosition.CenterScreen;
         var root = Theme.Stack(4);
@@ -39,12 +42,21 @@ internal sealed partial class NetworkWorkspace : DpiForm
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         var actions = Theme.Toolbar();
-        actions.Padding = new Padding(8, 0, 0, 0);
+        actions.Padding = new Padding(6, 2, 6, 2); actions.Margin = Padding.Empty;
+        void Compact(Button button)
+        { button.Font = Theme.GetFont(9, false); button.MinimumSize = new Size(0, 28); button.Padding = new Padding(6, 1, 6, 1); button.Margin = new Padding(2, 1, 2, 1); }
+        Compact(_scanButton);
+        var actionTips = new ToolTip();
+        actionTips.SetToolTip(_scanButton, "Tìm lại máy trên tất cả mạng chat đang mở; bấm lần nữa để dừng quét.");
+        Disposed += (_, _) => actionTips.Dispose();
+        _feedback.Visible = false; _feedback.Margin = new Padding(8, 0, 8, 2);
+        _feedback.TextChanged += (_, _) => _feedback.Visible = _feedback.Text.Length > 0;
         _feedback.UseMnemonic = false;
         actions.SizeChanged += (_, _) => _feedback.MaximumSize = new Size(Math.Max(1, actions.ClientSize.Width - 16), 0);
         Button AddAction(string label, UiIcon icon, Func<Task> action, bool changesNetworks = false)
         {
             var button = Theme.Secondary(label, icon);
+            Compact(button);
             button.Click += async (_, _) => await RunAsync(action);
             actions.Controls.Add(button);
             _actions.Add(button);
@@ -57,7 +69,7 @@ internal sealed partial class NetworkWorkspace : DpiForm
         _restoreDefaultButton = AddAction("Khôi phục mạng mặc định", UiIcon.Restore, RestoreDefaultNetworkAsync, changesNetworks: true);
         _restoreDefaultButton.Visible = _catalog.CanRestoreDefaultNetwork;
         AddAction("Cài đặt", UiIcon.Settings, SettingsAsync);
-        AddAction("Giới thiệu", UiIcon.Info, ShowAboutAsync);
+        _aboutButton = (IconButton)AddAction("Giới thiệu", UiIcon.Info, ShowAboutAsync);
         root.Controls.Add(actions, 0, 0); root.Controls.Add(_feedback, 0, 1);
         root.Controls.Add(CreateUpdateBar(), 0, 2); root.Controls.Add(_tabs, 0, 3);
         Controls.Add(root);
@@ -83,7 +95,8 @@ internal sealed partial class NetworkWorkspace : DpiForm
             if (WindowState == FormWindowState.Minimized) Hide();
             else _restoreState = WindowState;
         };
-        FormClosed += (_, _) => { trayMenu.Dispose(); _updates.Dispose(); };
+        _updateTimer.Tick += async (_, _) => { if (!_exiting && !_installing) await _updates.CheckAsync(manual: false); };
+        FormClosed += (_, _) => { _updateTimer.Stop(); _updateTimer.Dispose(); trayMenu.Dispose(); _updates.Changed -= RefreshWindowTitle; _updates.Dispose(); };
         FormClosing += ClosingAsync;
     }
 
@@ -121,6 +134,7 @@ internal sealed partial class NetworkWorkspace : DpiForm
         try { await LoadNetworksAsync(); }
         finally { _busy = false; UpdateActionState(); }
         _ = _updates.CheckAsync(manual: false);
+        _updateTimer.Start();
     }
 
     private async Task LoadNetworksAsync()

@@ -10,9 +10,25 @@ internal sealed partial class NetworkWorkspace
 
     private Control CreateUpdateBar()
     {
-        var panel = new UpdatePanel(_updates, showCheck: false) { Padding = new Padding(8, 4, 8, 4) };
+        var panel = new UpdatePanel(_updates, showCheck: false, compact: true) { Padding = new Padding(6, 0, 6, 0) };
         panel.InstallRequested += async () => await InstallUpdateAsync();
         return panel;
+    }
+
+    private void RefreshWindowTitle()
+    {
+        if (IsDisposed) return;
+        var state = _updates.State;
+        if (_aboutButton is not null)
+        {
+            _aboutButton.ShowBadge = state.Release is not null;
+            _aboutButton.AccessibleDescription = state.Ready ? "Bản cập nhật đã tải xong, sẵn sàng cài đặt." :
+                state.Release is not null ? "Có bản cập nhật mới. " + state.Message : "Thông tin LanChat và cập nhật tự động.";
+        }
+        var progress = state.Downloading && state.Release is { Size: > 0 } item
+            ? $" · {Math.Min(100, 100d * state.Received / item.Size):N0}%" : "";
+        Text = $"LanChat v{LanChat.Application.NodeInfoDto.CurrentApplicationVersion} · {_updates.SourceName} · " +
+            (state.Release is { } release ? $"{release.Version} · " : "") + state.Message + progress;
     }
 
     private bool HasActiveWork => _busy || _scan is not null || UiInteraction.ForegroundDialog(this) is not null ||

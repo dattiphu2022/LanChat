@@ -1,6 +1,7 @@
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using LanChat.Infrastructure;
+using LanChat.Domain;
 using LanChat.WinForms.Controls;
 using QRCoder;
 
@@ -37,7 +38,9 @@ internal sealed class QrShareForm : DpiForm
         body.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50)); body.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
         var preview = new QrPreview(_image, Version == 0 ? 0 : 17 + 4 * Version + 8) { Dock = DockStyle.Fill, AccessibleName = "Bản xem trước QR" };
         var content = new TextBox { Dock = DockStyle.Fill, Multiline = true, ReadOnly = true, WordWrap = true, ScrollBars = ScrollBars.Vertical,
-            Text = text.Text, MaxLength = int.MaxValue, AccessibleName = "Văn bản nguyên gốc trong QR" };
+            // Native multiline TextBox needs CRLF to display the LF separators used by QR.
+            Text = text.Text.NormalizeLines(Environment.NewLine), BackColor = Color.White, ForeColor = Theme.Ink, Font = Theme.DefaultFont,
+            Margin = new Padding(8, 4, 4, 4), MaxLength = int.MaxValue, AccessibleName = "Văn bản nguyên gốc trong QR" };
         body.Controls.Add(preview, 0, 0); body.Controls.Add(content, 1, 0);
         var footer = Theme.Toolbar(); var save = Theme.Button("Xuất PNG…", UiIcon.Save); save.Enabled = CanExport;
         save.Click += (_, _) =>
@@ -52,7 +55,7 @@ internal sealed class QrShareForm : DpiForm
         };
         footer.Controls.Add(save); footer.Controls.Add(UiInteraction.CloseButton(this));
         root.Controls.Add(status, 0, 0); root.Controls.Add(body, 0, 1); root.Controls.Add(footer, 0, 2); Controls.Add(root);
-        Disposed += (_, _) => _image?.Dispose(); Shown += (_, _) => content.Focus();
+        Disposed += (_, _) => _image?.Dispose(); Shown += (_, _) => { content.Focus(); content.Select(0, 0); };
     }
     internal void SavePng(string path)
     {

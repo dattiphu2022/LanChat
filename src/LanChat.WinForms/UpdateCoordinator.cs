@@ -16,7 +16,7 @@ internal sealed class UpdateCoordinator(UpdateService service) : IDisposable
     private CancellationTokenSource? _download;
     private Task _operation = Task.CompletedTask;
     private bool _stopped, _disposed;
-    public UpdateState State { get; private set; } = new(null, "Chọn Kiểm tra cập nhật để tìm phiên bản mới.");
+    public UpdateState State { get; private set; } = new(null, "LanChat sẽ tự kiểm tra và tải bản cập nhật.");
     public event Action? Changed;
     public UpdateService Service => service;
     public string SourceName => service.SourceName;
@@ -55,12 +55,23 @@ internal sealed class UpdateCoordinator(UpdateService service) : IDisposable
     private async Task CheckCoreAsync(bool manual)
     {
         var ct = _lifetime.Token;
+        var verifiedRelease = State.Ready ? State.Release : null;
         await Task.Yield();
         try
         {
             var result = await Task.Run(() => service.CheckAsync(manual, ct), ct);
             if (!_stopped) Set(new(result.Release, result.Message,
                 Ready: result.Release is { } release && service.HasDownloaded(release)));
+            // Keep checking and downloading in the same tracked operation so shutdown
+            // waits for both. Installation still requires an explicit user action.
+            if (!_stopped && State.Release is { } available && available != verifiedRelease)
+            {
+                _download = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
+                Set(State with { Downloading = true, Ready = false, Received = 0, Message = "Đang tải bản cập nhật…" });
+                await DownloadCoreAsync(available, _download);
+            }
+            else if (!_stopped && State.Ready)
+                Set(State with { Message = "Đã tải. Chọn Cài đặt ngay khi bạn sẵn sàng." });
         }
         catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { }
         catch (Exception ex)

@@ -88,12 +88,12 @@ Muốn một máy cung cấp cập nhật cho các máy khác, bật **Máy này
 
 Máy nhận tin cậy bộ cài do máy nguồn đã chọn cung cấp. Chữ ký thiết bị xác minh đúng máy nguồn, còn SHA-256 kiểm tra tệp truyền nguyên vẹn; chúng không xác nhận bộ cài có nguồn gốc GitHub. Tối đa bốn máy tải cùng lúc. Khi thay bộ cài, lượt tải đang chạy tiếp tục dùng bản cũ; lượt chưa bắt đầu cần kiểm tra lại. Máy nguồn phải chờ tải xong trước khi tự cài hoặc thoát. Khi đang kiểm tra, tải hoặc xác minh, hoàn tất/hủy tác vụ trước khi lưu thay đổi nguồn.
 
-1. Mở **Giới thiệu → Kiểm tra cập nhật**. Nếu có bản mới hơn, chọn **Tải bản cập nhật** ngay tại đây. Kết quả, tiến độ và các nút cập nhật luôn đồng bộ với cửa sổ chính.
+1. LanChat tự kiểm tra cập nhật khi khởi động và tiếp tục kiểm tra trong lúc chạy. Khi có bản mới hơn, ứng dụng tự tải nền và hiện chấm badge trên nút **Giới thiệu**. Bạn vẫn có thể mở **Giới thiệu → Kiểm tra cập nhật** để kiểm tra ngay. Kết quả, tiến độ và các nút cập nhật luôn đồng bộ với cửa sổ chính.
 2. Bạn có thể đóng Giới thiệu để tiếp tục chat trong lúc tải nền, hoặc chọn **Hủy tải**. Mở lại Giới thiệu sẽ thấy tiến độ hiện tại. Nếu tải lỗi hoặc đã hủy, có thể tải lại.
 3. Tải xong, LanChat kiểm tra kích thước và SHA-256 rồi chờ bạn chọn **Cài đặt ngay**. Hoàn tất hoặc hủy tác vụ đang chạy, xử lý bản nháp theo lời nhắc để tiếp tục. Ứng dụng xác minh lại bộ cài trước khi thoát để cài đặt.
 4. Mở lại **Giới thiệu** sau khi cài để đối chiếu phiên bản. Có thể cài thủ công EXE từ GitHub Releases bằng cùng tài khoản Windows đang dùng LanChat.
 
-LAN và bộ cài cục bộ được kiểm tra khi khởi động, sau khi áp dụng cấu hình hoặc khi bấm kiểm tra. Bộ cài đã tải và xác minh vẫn có thể cài khi nguồn ngoại tuyến. Không tự tải, tự cài hoặc tự đổi nguồn. Nhắn tin và truyền tệp giữa những máy đã kết nối sử dụng mạng nội bộ. Nút **X** hoặc **Thu nhỏ** đưa ứng dụng xuống khay hệ thống. Nhấp đúp biểu tượng để mở lại hoặc nhấp phải rồi chọn **Thoát LanChat**.
+LAN và bộ cài cục bộ được kiểm tra mỗi phút, khi khởi động, sau khi áp dụng cấu hình hoặc khi bấm kiểm tra. GitHub được kiểm tra tự động tối đa một lần trong 24 giờ. Bộ cài đã tải và xác minh vẫn có thể cài khi nguồn ngoại tuyến. Ứng dụng chỉ cài khi bạn nhấn **Cài đặt ngay** và giữ nguyên nguồn cập nhật đã chọn. Nhắn tin và truyền tệp giữa những máy đã kết nối sử dụng mạng nội bộ. Nút **X** hoặc **Thu nhỏ** đưa ứng dụng xuống khay hệ thống. Nhấp đúp biểu tượng để mở lại hoặc nhấp phải rồi chọn **Thoát LanChat**.
 
 Các hộp thoại có nút **Hủy/Đóng** và hỗ trợ **Esc**. Khi có tác vụ ghi đang chạy, chờ hoàn tất trước khi đóng. Ứng dụng hỏi trước khi bỏ nội dung chưa lưu; bản nháp chỉ được giữ trong phiên làm việc hiện tại. Nếu bấm thông báo tin nhắn lúc đang mở hộp thoại, LanChat đưa hộp thoại lên trước và chuyển tới tin nhắn sau khi bạn đóng hộp thoại đó.
 

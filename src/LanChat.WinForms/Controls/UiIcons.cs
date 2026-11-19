@@ -137,6 +137,23 @@ internal static class UiIcons
 
 internal sealed class IconButton : Button
 {
+    private bool _showBadge;
+    internal bool ShowBadge
+    {
+        get => _showBadge;
+        set { if (_showBadge == value) return; _showBadge = value; Invalidate(); }
+    }
+
+    protected override void OnPaint(PaintEventArgs e)
+    {
+        base.OnPaint(e);
+        if (_showBadge)
+        {
+            var size = this.ScalePixels(7);
+            UnreadBadge.PaintDot(e.Graphics, new Rectangle(Width - size - this.ScalePixels(4), this.ScalePixels(3), size, size), true);
+        }
+    }
+
     private readonly int _iconSize;
     private UiIcon _icon;
 

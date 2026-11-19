@@ -11,15 +11,16 @@ internal sealed class UpdatePanel : UserControl
     private readonly ToolTip _messageTip = new();
     private readonly TableLayoutPanel _actions = new() { Dock = DockStyle.Top, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink,
         ColumnCount = 2, RowCount = 4, Margin = Padding.Empty };
-    private readonly bool _showCheck, _canConfigure;
+    private readonly bool _showCheck, _canConfigure, _compact;
     private readonly ProgressBar _progress = new() { Dock = DockStyle.Top, Height = 18, Maximum = 1000,
         AccessibleName = "Tiến độ tải bản cập nhật" };
     public event Action? InstallRequested;
     internal IEnumerable<Button> ActionButtons => new Button[] { _check, _apply, _cancel, _settings };
 
-    public UpdatePanel(UpdateCoordinator updates, bool showCheck = true, Action? configure = null)
+    public UpdatePanel(UpdateCoordinator updates, bool showCheck = true, Action? configure = null, bool compact = false)
     {
-        _updates = updates;
+        _updates = updates; _compact = compact;
+        _message.Visible = !compact;
         _showCheck = showCheck; _canConfigure = configure is not null;
         AutoSize = true; AutoSizeMode = AutoSizeMode.GrowAndShrink; Dock = DockStyle.Top;
         Margin = Padding.Empty;
@@ -44,6 +45,8 @@ internal sealed class UpdatePanel : UserControl
         _cancel.Click += (_, _) => _updates.CancelDownload();
         layout.Controls.Add(_message, 0, 0); layout.Controls.Add(_progress, 0, 1); layout.Controls.Add(_actions, 0, 2);
         Controls.Add(layout);
+        if (compact) foreach (var button in ActionButtons)
+        { button.Font = Theme.GetFont(9, false); button.MinimumSize = new Size(0, 28); button.Padding = new Padding(6, 1, 6, 1); button.Margin = new Padding(2, 1, 2, 1); }
         SizeChanged += (_, _) => FitMessage();
         _message.FontChanged += (_, _) => FitMessage();
         _updates.Changed += RefreshState;
@@ -78,10 +81,12 @@ internal sealed class UpdatePanel : UserControl
         var hidden = ActionButtons.Except(visible).ToArray();
         for (var i = 0; i < hidden.Length; i++) _actions.SetCellPosition(hidden[i], new(i % 2, 2 + i / 2));
         _actions.ResumeLayout(true);
+        if (_compact) Visible = state.Release is not null || state.Downloading;
     }
 
     private void FitMessage()
     {
+        if (_compact) return;
         var width = Math.Max(1, ClientSize.Width - Padding.Horizontal - _message.Margin.Horizontal);
         var measured = TextRenderer.MeasureText(_message.Text, _message.Font, new Size(width, int.MaxValue),
             TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix);

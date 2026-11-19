@@ -371,6 +371,8 @@ public sealed class MessageListControl : UserControl
     private readonly ToolTip _actionToolTips = new();
     private readonly Dictionary<Guid, MessageBubbleControl> _bubbles = [];
     private readonly Queue<MessageBubbleControl> _prepared = new();
+    private bool IsBoundBubble(MessageBubbleControl bubble) =>
+        _bubbles.TryGetValue(bubble.MessageId, out var current) && ReferenceEquals(current, bubble);
     private Guid? _conversation;
     private bool _resizing, _resizeQueued, _binding;
     private Guid? _firstNewMessage;
@@ -389,7 +391,7 @@ public sealed class MessageListControl : UserControl
     private void RefreshSelection(bool preserveViewport)
     {
         var followEnd = AtBottom;
-        var anchor = _flow.Controls.OfType<MessageBubbleControl>().FirstOrDefault(c => c.Bottom > 0);
+        var anchor = _flow.Controls.OfType<MessageBubbleControl>().FirstOrDefault(c => IsBoundBubble(c) && c.Bottom > 0);
         var top = anchor?.Top ?? 0;
         _flow.SuspendLayout();
         try { foreach (var pair in _bubbles) pair.Value.SetSelection(_selection.Active, _selection.IsSelected(pair.Key), _selection.CanSelect(pair.Key)); }
@@ -463,7 +465,7 @@ public sealed class MessageListControl : UserControl
         try
         {
             var followEnd = !_binding && AtBottom;
-            var anchor = !_binding && !followEnd ? _flow.Controls.OfType<MessageBubbleControl>().FirstOrDefault(c => c.Bottom > 0) : null;
+            var anchor = !_binding && !followEnd ? _flow.Controls.OfType<MessageBubbleControl>().FirstOrDefault(c => IsBoundBubble(c) && c.Bottom > 0) : null;
             var anchorTop = anchor?.Top ?? 0;
             var width = ItemWidth;
             _flow.SuspendLayout();
@@ -530,7 +532,7 @@ public sealed class MessageListControl : UserControl
         var changedConversation = _conversation != conversation;
         _selection.Bind(messages, changedConversation);
         var followEnd = changedConversation || AtBottom;
-        var firstVisible = _flow.Controls.OfType<MessageBubbleControl>().FirstOrDefault(c => c.Bottom > 0);
+        var firstVisible = _flow.Controls.OfType<MessageBubbleControl>().FirstOrDefault(c => IsBoundBubble(c) && c.Bottom > 0);
         var anchorId = firstVisible?.MessageId;
         var anchorTop = firstVisible?.Top ?? 0;
         var last = messages.Count == 0 ? (Guid?)null : messages[messages.Count - 1].Id;
@@ -558,7 +560,7 @@ public sealed class MessageListControl : UserControl
             // Reuse in visual order; dictionary slot reuse can reverse the rows
             // and otherwise force a native z-order change for every message.
             foreach (var removed in _flow.Controls.OfType<MessageBubbleControl>()
-                .Where(bubble => _bubbles.ContainsKey(bubble.MessageId) && !ids.Contains(bubble.MessageId)).ToArray())
+                .Where(bubble => IsBoundBubble(bubble) && !ids.Contains(bubble.MessageId)).ToArray())
             { reusable.Enqueue(removed); _bubbles.Remove(removed.MessageId); }
 
             ChatMessage? previous = null;
@@ -586,8 +588,14 @@ public sealed class MessageListControl : UserControl
                 SetPosition(bubble, index++);
                 previous = m;
             }
-            while (reusable.Count > 0) reusable.Dequeue().Dispose();
-            while (_prepared.Count > 0) _prepared.Dequeue().Dispose();
+            // Keep one page of native controls warm when switching from a long
+            // conversation to a short one, rather than rebuilding them on return.
+            while (reusable.Count > 0)
+            {
+                var unused = reusable.Dequeue(); unused.Visible = false;
+                if (_prepared.Count < 80) _prepared.Enqueue(unused); else unused.Dispose();
+            }
+            while (_prepared.Count > 80) _prepared.Dequeue().Dispose();
             ResizeItems();
             _flow.ResumeLayout(true);
 
@@ -1064,6 +1072,8 @@ public sealed class ChatViewControl : UserControl
         _find.AccessibleName = "Tìm tin";
         _info.AccessibleName = "Thông tin";
         _selectMessages.AccessibleName = "Chọn nhiều";
+        foreach (var button in new[] { _find, _info, _selectMessages })
+        { button.Font = Theme.GetFont(9, false); button.Margin = new Padding(3, 2, 3, 2); }
         var headerTips = new ToolTip();
         headerTips.SetToolTip(_find, _find.AccessibleName);
         headerTips.SetToolTip(_info, _info.AccessibleName);
@@ -1076,9 +1086,9 @@ public sealed class ChatViewControl : UserControl
             _find.Text = compact ? "" : _find.AccessibleName;
             _info.Text = compact ? "" : _info.AccessibleName;
             _selectMessages.Text = compact ? "" : _selectMessages.AccessibleName;
-            _find.MinimumSize = _info.MinimumSize = new Size(this.ScalePixels(compact ? 32 : 78), this.ScalePixels(30));
-            _selectMessages.MinimumSize = new Size(this.ScalePixels(compact ? 32 : 92), this.ScalePixels(30));
-            var inset = this.ScalePixels(compact ? 3 : 8);
+            _find.MinimumSize = _info.MinimumSize = new Size(this.ScalePixels(compact ? 32 : 78), this.ScalePixels(28));
+            _selectMessages.MinimumSize = new Size(this.ScalePixels(compact ? 32 : 84), this.ScalePixels(28));
+            var inset = this.ScalePixels(compact ? 3 : 5);
             _find.Padding = _info.Padding = _selectMessages.Padding = new Padding(inset, this.ScalePixels(3), inset, this.ScalePixels(3));
         }
         header.SizeChanged += (_, _) => FitHeaderActions();
@@ -1135,7 +1145,7 @@ public sealed class ChatViewControl : UserControl
         _messages.NewMessages += value => _new.Visible = value || _returnToLatest;
         _messages.ReachedBottom += () => ReadRequested?.Invoke();
         _new.LinkClicked += async (_, _) => { if (_returnToLatest && OlderRequested is not null) await OlderRequested(); else { _messages.ScrollToEnd(); ReadRequested?.Invoke(); } };
-        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 42)); layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 22));
+        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 36)); layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 22));
         layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100)); layout.RowStyles.Add(new RowStyle(SizeType.Absolute, ChatInputControl.BaseHeight));

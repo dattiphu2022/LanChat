@@ -37,10 +37,8 @@ public sealed partial class WindowsUiTests
             about.Show(host);
             var first = fixture.Controller.CheckAsync(true);
             Assert.Same(first, fixture.Controller.CheckAsync(true));
-            await first;
-            Assert.Equal(1, checks);
-            Button(about, "Tải bản cập nhật").PerformClick();
             await requested.Task;
+            Assert.Equal(1, checks);
             Assert.True(fixture.Controller.State.Downloading);
             Assert.True(Button(about, "Hủy tải").Visible);
             about.Close();
@@ -79,7 +77,6 @@ public sealed partial class WindowsUiTests
             return Payload();
         });
         await fixture.Controller.CheckAsync(true);
-        await fixture.Controller.DownloadAsync();
         Assert.False(fixture.Controller.State.Busy);
         Assert.False(fixture.Controller.State.Ready);
         Assert.Contains("Chưa tải", fixture.Controller.State.Message);
@@ -110,8 +107,6 @@ public sealed partial class WindowsUiTests
             {
                 await Until(() => (about = System.Windows.Forms.Application.OpenForms.OfType<AboutForm>().FirstOrDefault()) is not null);
                 Button(about!, "Kiểm tra cập nhật").PerformClick();
-                await Until(() => Children(about!).OfType<Button>().Any(b => b.Text == "Tải bản cập nhật" && b.Visible));
-                Button(about!, "Tải bản cập nhật").PerformClick();
                 await Until(() => Children(about!).OfType<Button>().Any(b => b.Text == "Cài đặt ngay" && b.Enabled));
                 Assert.Null(workspace.PendingInstaller);
                 Button(about!, "Cài đặt ngay").PerformClick();
@@ -773,7 +768,7 @@ public sealed partial class WindowsUiTests
             if (request.RequestUri!.Host == "api.github.com") return Manifest();
             started.SetResult(true); await Wait(finish.Task, ct); return Payload();
         });
-        await fixture.Controller.CheckAsync(true); var download = fixture.Controller.DownloadAsync(); await started.Task;
+        var download = fixture.Controller.CheckAsync(true); await started.Task;
         await Assert.ThrowsAsync<InvalidOperationException>(() => fixture.Controller.ConfigureAsync(new()));
         finish.SetResult(true); await download; Assert.True(fixture.Controller.State.Ready);
         var service = fixture.Controller.Service; service.Packages.InspectForTesting = _ => "v1.0.0";

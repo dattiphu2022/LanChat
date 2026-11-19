@@ -10,6 +10,18 @@ namespace LanChat.Tests;
 
 public sealed class QrSharingTests
 {
+    [Fact]
+    public void PreviewDisplaysMessageSeparatorsAndParagraphsAsWindowsLines()
+    {
+        var text = QrText.From([Message("Đoạn một\nĐoạn hai", 1), Message("Tin tiếp theo", 2)]);
+        using var form = new QrShareForm(text);
+        static IEnumerable<System.Windows.Forms.Control> Children(System.Windows.Forms.Control parent) =>
+            parent.Controls.Cast<System.Windows.Forms.Control>().SelectMany(c => Children(c).Prepend(c));
+        var preview = Children(form).OfType<System.Windows.Forms.TextBox>().Single();
+        Assert.Equal("Đoạn một\r\nĐoạn hai\r\n\r\nTin tiếp theo", preview.Text);
+        Assert.Equal(new[] { "Đoạn một", "Đoạn hai", "", "Tin tiếp theo" }, preview.Lines);
+        Assert.Equal("Đoạn một\nĐoạn hai\n\nTin tiếp theo", text.Text);
+    }
     private static Message Message(string text, long ticks) => new() { Id = Guid.NewGuid(), Text = text, CreatedAtTicks = ticks };
     [Fact]
     public void SelectionOrdersByTimePreservesOriginalTextAndAddsOnlyTwoLfSeparators()
