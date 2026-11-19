@@ -18,6 +18,29 @@ internal sealed class UpdateCoordinator(UpdateService service) : IDisposable
     private bool _stopped, _disposed;
     public UpdateState State { get; private set; } = new(null, "Chọn Kiểm tra cập nhật để tìm phiên bản mới.");
     public event Action? Changed;
+    public UpdateService Service => service;
+    public string SourceName => service.SourceName;
+
+    public async Task ConfigureAsync(UpdateSettings settings, CancellationToken cancellationToken = default)
+    {
+        if (_stopped || State.Busy) throw new InvalidOperationException("Hãy hoàn tất hoặc hủy tác vụ cập nhật trước khi đổi nguồn.");
+        var before = State;
+        Set(State with { Verifying = true, Message = "Đang xác minh và lưu nguồn cập nhật…" });
+        var task = ConfigureCoreAsync(settings, before, cancellationToken); _operation = task;
+        await task;
+        if (!_stopped) await CheckAsync(true);
+    }
+    private async Task ConfigureCoreAsync(UpdateSettings settings, UpdateState before, CancellationToken cancellationToken)
+    {
+        await Task.Yield();
+        try
+        {
+            using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token, cancellationToken);
+            await Task.Run(() => service.ConfigureAsync(settings, cancellation.Token));
+            if (!_stopped) Set(new(null, "Đã lưu nguồn cập nhật."));
+        }
+        catch { if (!_stopped) Set(before with { Message = "Chưa lưu được nguồn cập nhật. Bạn có thể thử lại." }); throw; }
+    }
 
     private void Set(UpdateState state) { State = state; Changed?.Invoke(); }
     public void Notify(string message) { if (!_stopped) Set(State with { Message = message }); }

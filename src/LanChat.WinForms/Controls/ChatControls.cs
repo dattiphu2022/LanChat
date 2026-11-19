@@ -631,7 +631,8 @@ public sealed class ChatInputControl : UserControl
     private Guid? _replyTo, _editId;
     private ComposerDraft? _beforeEdit;
     private int _draftGeneration;
-    private bool _sending, _processingImage;
+    private bool _sending, _processingImage, _heightQueued;
+    private int _requestedHeight, _editorHeight = EditorHeight;
     public event Func<ComposerSubmission, Task>? SendRequested;
     public event Action<int>? HeightRequested;
     internal event Action? DraftFilesChanged;
@@ -685,7 +686,7 @@ public sealed class ChatInputControl : UserControl
                 button.Padding = new Padding(this.ScalePixels(compact ? 3 : 6), 0, this.ScalePixels(compact ? 3 : 6), 0);
             }
         }
-        _root.SizeChanged += (_, _) => { FitButtons(); FitPreviews(); };
+        _root.SizeChanged += (_, _) => { FitButtons(); FitPreviews(); QueueHeight(); };
         DpiChangedAfterParent += (_, _) => { FitButtons(); UpdateLayoutHeight(); };
         var attachments = new ContextMenuStrip();
         attachments.Items.Add("Thêm tệp…", UiIcons.ForMenu(UiIcon.File), (_, _) =>
@@ -706,7 +707,10 @@ public sealed class ChatInputControl : UserControl
         _text.Margin = new Padding(3, 4, 3, 5);
         _text.AccessibleName = "Nhập tin nhắn";
         _text.TryPasteImage = TryPasteImage;
-        _text.TextChanged += (_, _) => UpdateButtons();
+        _text.TextChanged += (_, _) => { UpdateButtons(); QueueHeight(); };
+        _text.SizeChanged += (_, _) => QueueHeight();
+        _text.FontChanged += (_, _) => QueueHeight();
+        _text.HandleCreated += (_, _) => QueueHeight();
         _text.KeyDown += async (_, e) => { if (e.KeyCode == Keys.Enter && !e.Shift && !_text.IsComposing) { e.SuppressKeyPress = true; await SendAsync(); } };
         FitButtons();
         UpdateButtons();
@@ -888,16 +892,30 @@ public sealed class ChatInputControl : UserControl
         UpdateButtons();
         DraftFilesChanged?.Invoke();
     }
+    private void QueueHeight()
+    {
+        if (_heightQueued || IsDisposed || !IsHandleCreated) return;
+        _heightQueued = true;
+        BeginInvoke((Action)(() => { _heightQueued = false; if (!IsDisposed) UpdateLayoutHeight(); }));
+    }
     private void UpdateLayoutHeight()
     {
-        _root.RowStyles[0].Height = this.ScalePixels(_context.Text.Length > 0 ? ContextHeight : 0);
-        _root.RowStyles[2].Height = this.ScalePixels(_feedback.Text.Length > 0 ? ContextHeight : 0);
-        HeightRequested?.Invoke(MinimumHeight + (_paths.Count > 0 ? PreviewHeight : 0));
+        var contextHeight = this.ScalePixels(_context.Text.Length > 0 ? ContextHeight : 0);
+        var feedbackHeight = this.ScalePixels(_feedback.Text.Length > 0 ? ContextHeight : 0);
+        if (_root.RowStyles[0].Height != contextHeight) _root.RowStyles[0].Height = contextHeight;
+        if (_root.RowStyles[2].Height != feedbackHeight) _root.RowStyles[2].Height = feedbackHeight;
+        var lines = _text.IsHandleCreated ? Math.Max(1, _text.GetLineFromCharIndex(_text.TextLength) + 1) : 1;
+        var lineHeight = (int)Math.Ceiling(_text.Font.GetHeight() * 96d / this.LayoutDpi());
+        _editorHeight = EditorHeight + Math.Max(0, Math.Min(8, lines) - 2) * lineHeight;
+        var requested = MinimumHeight + (_editorHeight - EditorHeight) + (_paths.Count > 0 ? PreviewHeight : 0);
+        if (_requestedHeight != requested) { _requestedHeight = requested; HeightRequested?.Invoke(requested); }
         FitPreviews();
     }
 
     private void FitPreviews()
     {
+        // When the chat caps our height, keep the attachments reachable and let
+        // the text scroll instead of squeezing the preview strip down to zero.
         var available = Math.Max(0, _root.ClientSize.Height - (int)(_root.RowStyles[0].Height + _root.RowStyles[2].Height) - this.ScalePixels(EditorHeight));
         var height = _paths.Count > 0 ? Math.Min(this.ScalePixels(PreviewHeight), available) : 0;
         if (_root.RowStyles[1].Height != height) _root.RowStyles[1].Height = height;
@@ -1027,9 +1045,8 @@ public sealed class ChatViewControl : UserControl
             var available = Math.Max(0, layout.ClientSize.Height - headerHeight);
             var preferred = this.ScalePixels(requestedInputHeight);
             // Keep some history visible on short screens. The preview strip can scroll.
-            var minimum = Math.Min(preferred, this.ScalePixels(ChatInputControl.BaseHeight + 62));
-            var limit = Math.Max(minimum, available - this.ScalePixels(76));
-            limit = Math.Min(limit, Math.Max(this.ScalePixels(_input.MinimumHeight), available - this.ScalePixels(24)));
+            var minimum = this.ScalePixels(_input.MinimumHeight);
+            var limit = Math.Max(minimum, (int)(available * .45));
             var height = Math.Min(preferred, Math.Min(available, limit));
             if (layout.RowStyles[4].Height != height) layout.RowStyles[4].Height = height;
         }

@@ -125,6 +125,33 @@ public sealed class WindowsUiTests
         workspace.PendingInstaller!.Dispose();
     });
 
+    [Fact]
+    public Task InstallingPublisherWaitsForReadersAndResumesSharingAfterVerificationFailure() => OnUi(async host =>
+    {
+        var directory = Temp(); using var service = new UpdateService(directory);
+        service.Packages.InspectForTesting = _ => "v9.12.3";
+        var file = Path.Combine(directory, "fixture.exe"); File.WriteAllText(file, "fixture");
+        var package = await service.Packages.ImportAsync(file); var network = Guid.NewGuid();
+        await service.ConfigureAsync(new(UpdateSourceKind.Local, Package: package, Sharing: true, Networks: [network]), default);
+        using var workspace = new NetworkWorkspace(new NetworkCatalog(new NodeOptions { DataDirectory = directory }, service.Packages), new WindowsStartup(directory), service);
+        workspace.Show(host);
+        var controller = (UpdateCoordinator)typeof(NetworkWorkspace).GetField("_updates", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(workspace)!;
+        await controller.CheckAsync(true); await controller.DownloadAsync(); Assert.True(controller.State.Ready);
+        using (var reader = service.Packages.OpenPackage(network, package.Id))
+        {
+            Button(workspace, "Cài đặt ngay").PerformClick(); await Task.Delay(50);
+            Assert.Null(workspace.PendingInstaller); Assert.Contains("đang cung cấp", controller.State.Message);
+        }
+        string cache;
+        using (var verified = await service.DownloadAsync(controller.State.Release!, new Progress<long>(), default)) cache = verified.Path;
+        File.WriteAllText(cache, "bad"); File.WriteAllText(service.Packages.PackagePath(package), "bad");
+        Button(workspace, "Cài đặt ngay").PerformClick(); await Until(() => !controller.State.Busy && !controller.State.Ready);
+        Assert.Null(workspace.PendingInstaller); Assert.Equal(package, service.Packages.GetPackage(network));
+        File.WriteAllText(service.Packages.PackagePath(package), "fixture"); await controller.DownloadAsync(); Assert.True(controller.State.Ready);
+        Button(workspace, "Cài đặt ngay").PerformClick(); await Until(() => workspace.PendingInstaller is not null);
+        Assert.Null(service.Packages.GetPackage(network)); workspace.PendingInstaller!.Dispose();
+    });
+
     [Theory]
     [InlineData(96)]
     [InlineData(144)]
@@ -134,7 +161,7 @@ public sealed class WindowsUiTests
         using var fixture = new Updates((_, _) => Task.FromResult(Manifest()));
         await fixture.Controller.CheckAsync(true);
         fixture.Controller.Notify("Đã có phiên bản mới. Đóng Giới thiệu vẫn tiếp tục tải nền; bạn có thể cài sau khi hoàn tất công việc.");
-        using var about = new AboutForm(fixture.Controller, () => true);
+        using var about = new AboutForm(fixture.Controller, () => true, () => { });
         about.Show(host);
         using var fonts = SimulateDpi(about, dpi);
         about.MinimumSize = new System.Drawing.Size(500 * dpi / 96, 450 * dpi / 96);
@@ -641,6 +668,166 @@ public sealed class WindowsUiTests
         await actions.OpenAsync(host, file, default, launched.Add); await driver.Task;
         Assert.Equal("original", File.ReadAllText(Assert.Single(launched))); Assert.False((await files.GetLocalLocationAsync(file)).UserSelected);
     });
+
+    [Theory]
+    [InlineData(96)]
+    [InlineData(144)]
+    [InlineData(192)]
+    public Task ComposerGrowsForVisualLinesCapsAtEightAndShrinksWithoutLosingCaret(int dpi) => OnUi(async host =>
+    {
+        using var chat = new ChatViewControl(); host.Controls.Add(chat); chat.SelectConversation("A", true);
+        var input = Children(chat).OfType<ChatInputControl>().Single();
+        var editor = Children(input).OfType<TextBox>().Single(t => t.AccessibleName == "Nhập tin nhắn");
+        using var fonts = SimulateDpi(host, dpi); host.ClientSize = new System.Drawing.Size(800 * dpi / 96, 700 * dpi / 96);
+        await Task.Delay(60); var empty = input.Height; editor.Focus();
+        editor.Text = string.Join(Environment.NewLine, Enumerable.Range(1, 6).Select(i => "Dòng " + i));
+        editor.SelectionStart = 4; await Task.Delay(100);
+        var six = input.Height; Assert.True(six > empty, $"Expected growth: empty {empty}, six {six}"); Assert.Equal(4, editor.SelectionStart);
+        editor.Text = string.Join(Environment.NewLine, Enumerable.Repeat("Dòng", 8)); await Task.Delay(80); var eight = input.Height;
+        editor.Text += string.Concat(Enumerable.Repeat(Environment.NewLine + "Thêm dòng", 20)); await Task.Delay(80); Assert.Equal(eight, input.Height);
+        editor.Text = ""; await Task.Delay(80); Assert.Equal(empty, input.Height);
+        editor.Text = string.Join(" ", Enumerable.Repeat("Nội dung tự quấn theo chiều rộng", 10)); await Task.Delay(80);
+        Assert.True(input.Height > empty); var text = editor.Text;
+        chat.Width = 400; await Task.Delay(80); Assert.Equal(text, editor.Text);
+        input.RestoreDraft(new("Dòng một\r\nDòng hai\r\nDòng ba\r\n", [], null, null, "")); await Task.Delay(80);
+        Assert.True(input.Height > empty); input.ResetDraft(); await Task.Delay(80); Assert.Equal(empty, input.Height);
+    });
+
+    [Fact]
+    public Task ComposerGrowthKeepsHistoryAnchorAndAttachmentsReachableAfterSendFailure() => OnUi(async host =>
+    {
+        using var chat = new ChatViewControl(); host.Controls.Add(chat); chat.SelectConversation("A", true);
+        var conversation = Guid.NewGuid(); var author = Guid.NewGuid();
+        var messages = Enumerable.Range(0, 40).Select(i => new ChatMessage { Id = Guid.NewGuid(), ConversationId = conversation,
+            SenderUserId = author, Text = "Tin nhắn " + i, CreatedAtTicks = DateTime.UtcNow.Ticks, IsRead = true }).ToArray();
+        chat.Bind(conversation, messages, author, [], false); await Task.Delay(80);
+        var history = Children(chat).OfType<MessageListControl>().Single();
+        var flow = history.Controls.OfType<FlowLayoutPanel>().Single(); flow.AutoScrollPosition = new System.Drawing.Point(0, 300);
+        await Task.Delay(50); var anchor = flow.Controls.OfType<MessageBubbleControl>().First(b => b.Bottom > 0); var top = anchor.Top;
+        var input = Children(chat).OfType<ChatInputControl>().Single();
+        var editor = Children(input).OfType<TextBox>().Single(t => t.AccessibleName == "Nhập tin nhắn");
+        editor.Text = string.Join("\r\n", Enumerable.Repeat("Nội dung đang soạn", 12)); await Task.Delay(100);
+        Assert.Equal(top, anchor.Top); Assert.False(history.AtBottom);
+        var file = Path.Combine(Temp(), "draft.txt"); File.WriteAllText(file, "draft"); input.AddFiles([file]);
+        host.ClientSize = new System.Drawing.Size(660, 450); await Task.Delay(80);
+        var previews = Children(input).OfType<FlowLayoutPanel>().Single(p => p.AutoScroll);
+        Assert.True(previews.Height > 0); Assert.True(Button(input, "Gửi").Bottom <= Button(input, "Gửi").Parent!.ClientSize.Height);
+        chat.SendRequested += _ => throw new IOException("Lỗi gửi thử nghiệm");
+        var text = editor.Text; Button(input, "Gửi").PerformClick(); await Until(() => !input.IsWorking);
+        Assert.Equal(text, editor.Text); Assert.Equal(new[] { file }, input.Draft().Files);
+        Assert.Contains(Children(input).OfType<Label>(), label => label.Text.Contains("Lỗi gửi thử nghiệm"));
+        var captures = Environment.GetEnvironmentVariable("LANCHAT_UI_CAPTURE_DIR");
+        if (!string.IsNullOrEmpty(captures)) { Directory.CreateDirectory(captures); using var image = new System.Drawing.Bitmap(chat.Width, chat.Height); chat.DrawToBitmap(image, chat.ClientRectangle); image.Save(Path.Combine(captures, "composer-small-failed-send.png")); }
+    });
+
+    [Theory]
+    [InlineData(96)]
+    [InlineData(144)]
+    [InlineData(192)]
+    public Task UpdateSettingsLayoutKeepsFooterAccessibleAtHighDpi(int dpi) => OnUi(async host =>
+    {
+        using var fixture = new Updates((_, _) => Task.FromResult(Manifest()));
+        using var settings = new UpdateSettingsForm(fixture.Controller, [], null); settings.Show(host);
+        Children(settings).OfType<ComboBox>().Single(c => c.AccessibleName == "Nguồn cập nhật").SelectedIndex = 2;
+        using var fonts = SimulateDpi(settings, dpi); settings.Size = new System.Drawing.Size(520 * dpi / 96, 450 * dpi / 96);
+        await Task.Delay(60);
+        foreach (var button in Children(settings).OfType<Button>().Where(b => b.Text is "Lưu" or "Hủy"))
+        {
+            var bounds = button.RectangleToScreen(button.ClientRectangle); var visible = bounds;
+            for (var parent = button.Parent; parent is not null; parent = parent.Parent) visible = System.Drawing.Rectangle.Intersect(visible, parent.RectangleToScreen(parent.ClientRectangle));
+            Assert.Equal(bounds, visible);
+        }
+        var captures = Environment.GetEnvironmentVariable("LANCHAT_UI_CAPTURE_DIR");
+        if (!string.IsNullOrWhiteSpace(captures))
+        { Directory.CreateDirectory(captures); using var image = new System.Drawing.Bitmap(settings.Width, settings.Height); settings.DrawToBitmap(image, new System.Drawing.Rectangle(System.Drawing.Point.Empty, settings.Size)); image.Save(Path.Combine(captures, $"update-settings-{dpi}.png")); }
+        Children(settings).OfType<ComboBox>().Single(c => c.AccessibleName == "Nguồn cập nhật").SelectedIndex = 1;
+        Children(settings).OfType<CheckBox>().Single(c => c.Text.Contains("nâng cao")).Checked = true;
+        Children(settings).OfType<CheckBox>().Single(c => c.Text.StartsWith("Máy này")).Checked = true;
+        await Task.Delay(50);
+        if (!string.IsNullOrWhiteSpace(captures))
+        { using var image = new System.Drawing.Bitmap(settings.Width, settings.Height); settings.DrawToBitmap(image, new System.Drawing.Rectangle(System.Drawing.Point.Empty, settings.Size)); image.Save(Path.Combine(captures, $"update-settings-lan-{dpi}.png")); }
+        Assert.True(Button(settings, "Lưu").Visible); Assert.True(Button(settings, "Hủy").Visible);
+        // Restore selection before disposal; no unsaved-changes confirmation is needed in this layout check.
+    });
+
+    [Fact]
+    public Task UpdateSettingsSaveFailureKeepsSourceAndEnteredAddress() => OnUi(async host =>
+    {
+        using var fixture = new Updates((_, _) => Task.FromResult(Manifest()));
+        using var settings = new UpdateSettingsForm(fixture.Controller, [new(Guid.NewGuid(), "Mạng offline", null, 54546)], null); settings.Show(host);
+        Children(settings).OfType<ComboBox>().Single(c => c.AccessibleName == "Nguồn cập nhật").SelectedIndex = 1;
+        Children(settings).OfType<CheckBox>().Single(c => c.Text.Contains("nâng cao")).Checked = true;
+        var address = Children(settings).OfType<TextBox>().Single(c => c.AccessibleName == "IP máy nguồn"); address.Text = "192.168.1.20";
+        Button(settings, "Lưu").PerformClick(); await Task.Delay(100);
+        Assert.False(settings.IsDisposed); Assert.Equal("192.168.1.20", address.Text); Assert.True(Button(settings, "Lưu").Enabled);
+        Assert.Equal(UpdateSourceKind.GitHub, fixture.Controller.Service.Settings.Kind);
+        Assert.Contains(Children(settings).OfType<Label>(), label => label.Text.Contains("đang kết nối"));
+    });
+
+    [Fact]
+    public Task SourceChangeIsBlockedDuringDownloadAndResetsReadyStateAfterward() => OnUi(async host =>
+    {
+        var started = Signal(); var finish = Signal();
+        using var fixture = new Updates(async (request, ct) =>
+        {
+            if (request.RequestUri!.Host == "api.github.com") return Manifest();
+            started.SetResult(true); await Wait(finish.Task, ct); return Payload();
+        });
+        await fixture.Controller.CheckAsync(true); var download = fixture.Controller.DownloadAsync(); await started.Task;
+        await Assert.ThrowsAsync<InvalidOperationException>(() => fixture.Controller.ConfigureAsync(new()));
+        finish.SetResult(true); await download; Assert.True(fixture.Controller.State.Ready);
+        var service = fixture.Controller.Service; service.Packages.InspectForTesting = _ => "v1.0.0";
+        var source = Path.Combine(Temp(), "old.exe"); File.WriteAllText(source, "old"); var old = await service.Packages.ImportAsync(source);
+        await fixture.Controller.ConfigureAsync(new(UpdateSourceKind.Local, Package: old));
+        Assert.False(fixture.Controller.State.Ready); Assert.Null(fixture.Controller.State.Release);
+        Assert.Contains("máy này", fixture.Controller.SourceName);
+    });
+
+    [Theory]
+    [InlineData("abc.z.exe", false)]
+    [InlineData("abc.z.exe", true)]
+    [InlineData("Báo.cáo.tháng.11.xlsx", false)]
+    [InlineData("archive.v1.tar.gz", false)]
+    [InlineData("README", false)]
+    public Task NativeSaveDialogReturnsCompleteMultiDotName(string name, bool overwrite) => OnUi(async host =>
+    {
+        var directory = Temp(); var target = Path.Combine(directory, name); if (overwrite) File.WriteAllText(target, "previous");
+        using var picker = AttachmentSaveDialog.Create(name, directory); picker.Title = "LanChat native save verification";
+        using var timer = new System.Windows.Forms.Timer { Interval = 120 }; var started = Stopwatch.StartNew(); var accepted = false;
+        var thread = GetCurrentThreadId();
+        timer.Tick += (_, _) => EnumThreadWindows(thread, (window, _) =>
+        {
+            var title = new System.Text.StringBuilder(260); GetWindowText(window, title, title.Capacity);
+            if (overwrite) EnumChildWindows(window, (child, __) =>
+            {
+                var caption = new System.Text.StringBuilder(100); GetWindowText(child, caption, caption.Capacity);
+                var label = caption.ToString().Replace("&", "").Trim();
+                if (label is "Yes" or "Có") PostMessage(child, 0xF5, IntPtr.Zero, IntPtr.Zero);
+                return true;
+            }, IntPtr.Zero);
+            if (title.ToString() == picker.Title)
+            {
+                if (started.Elapsed > TimeSpan.FromSeconds(8)) PostMessage(window, 0x10, IntPtr.Zero, IntPtr.Zero);
+                else { PostMessage(window, 0x111, new IntPtr(1), IntPtr.Zero); accepted = true; }
+            }
+            else if (overwrite && GetDlgItem(window, 6) != IntPtr.Zero) PostMessage(window, 0x111, new IntPtr(6), IntPtr.Zero);
+            return true;
+        }, IntPtr.Zero);
+        timer.Start(); var result = picker.ShowDialog(host); timer.Stop(); Assert.True(accepted); Assert.Equal(DialogResult.OK, result);
+        Assert.Equal(target, picker.FileName);
+        await using var node = new TestNode(Guid.NewGuid(), FrameworkIO.RandomBytes(32), "A"); await node.InitializeAsync();
+        var source = Path.Combine(node.Options.DataDirectory, name); File.WriteAllText(source, "working contents");
+        var files = (IFileTransferService)node.Host.Services.GetService(typeof(IFileTransferService))!; var file = await files.ImportLocalAsync(source);
+        await files.SaveLocalAsync(file, picker.FileName, overwrite); Assert.Equal(target, await files.PrepareOpenAsync(file)); Assert.Equal("working contents", File.ReadAllText(target));
+    });
+
+    private delegate bool EnumWindow(IntPtr window, IntPtr data);
+    [DllImport("kernel32.dll")] private static extern uint GetCurrentThreadId();
+    [DllImport("user32.dll")] private static extern bool EnumThreadWindows(uint threadId, EnumWindow callback, IntPtr data);
+    [DllImport("user32.dll")] private static extern bool EnumChildWindows(IntPtr parent, EnumWindow callback, IntPtr data);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern int GetWindowText(IntPtr window, System.Text.StringBuilder text, int maximum);
+    [DllImport("user32.dll")] private static extern IntPtr GetDlgItem(IntPtr window, int id);
+    [DllImport("user32.dll")] private static extern bool PostMessage(IntPtr window, uint message, IntPtr wParam, IntPtr lParam);
 
     private static void AssertDraft(ComposerDraft expected, ComposerDraft actual)
     {

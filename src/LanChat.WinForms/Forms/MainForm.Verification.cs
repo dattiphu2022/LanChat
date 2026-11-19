@@ -11,7 +11,7 @@ namespace LanChat.WinForms.Forms;
 public sealed partial class MainForm
 {
     // Explicit debug-only integration harness: uses two separate processes and isolated data directories.
-    internal async Task VerifyUiAsync(string reportPath)
+    internal async Task VerifyUiAsync(string reportPath, UpdateService? updates = null, bool legacyPeer = false)
     {
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(110));
         var captures = new List<string>();
@@ -32,6 +32,16 @@ public sealed partial class MainForm
             foreach (var label in Descendants(_people).OfType<Label>())
                 VerifyNoPeerIp(label.Text, contacts);
             var other = contacts[0];
+            if (updates is not null) await VerifyLanUpdateAsync(updates, other, deadline.Token);
+            if (legacyPeer)
+            {
+                try
+                {
+                    await _services.GetRequiredService<ILanUpdateClient>().CheckAsync(new(other.NodeId, other.IPAddress, other.ServicePort), deadline.Token);
+                    throw new InvalidOperationException("Máy cũ không được báo hỗ trợ cập nhật LAN.");
+                }
+                catch (IOException ex) when (ex.Message.Contains("chưa hỗ trợ")) { }
+            }
             var otherName = new PersonName(other.DisplayName, other.Department);
             var expectedDepartment = firstInstance ? "ĐỘI HẬU CẦN" : "PHÒNG KỸ THUẬT";
             if (!Descendants(_people).OfType<PersonNameLabel>().Any(l => l.Text == $"{expectedDepartment} {other.DisplayName}") ||
@@ -192,6 +202,8 @@ public sealed partial class MainForm
                 GroupId = group.Id, GroupMessageIds = groupMessages.Select(x => x.Id).ToArray(), VerifiedFiles = attachments.Length, VerifiedOpenRequests = openedPaths.Count,
                 VerifiedGalleries = verifiedGalleries, InlineImagesLoaded = inlineImagesLoaded, VerifiedSourceChanges = 3,
                 VerifiedReplies = true, VerifiedClipboard = true, VerifiedGroupMembers = true, VerifiedSavedAttachments = 2,
+                VerifiedLanUpdate = updates is not null,
+                VerifiedLegacyUpdateUnsupported = legacyPeer,
                 Consensus = await Consensus.GetStatusAsync(deadline.Token), Captures = captures }, new JsonSerializerOptions { WriteIndented = true }), deadline.Token);
             var partnerReport = Path.Combine(Path.GetDirectoryName(reportPath)!, firstInstance ? "B.json" : "A.json");
             while (!File.Exists(partnerReport)) await Task.Delay(200, deadline.Token);
@@ -202,6 +214,24 @@ public sealed partial class MainForm
             await FrameworkIO.WriteTextAsync(reportPath, JsonSerializer.Serialize(new { Success = false, Error = ex.ToString(), Captures = captures }));
         }
         finally { Close(); }
+    }
+
+    private async Task VerifyLanUpdateAsync(UpdateService publisher, UserSummary other, CancellationToken ct)
+    {
+        var options = _services.GetRequiredService<NodeOptions>();
+        var package = publisher.Packages.GetPackage(options.ClusterId) ?? throw new IOException("Chưa công bố bộ cài kiểm thử.");
+        // A second service exercises the complete receiving pipeline rather than
+        // reusing the publisher's installer cache. Neither service executes EXEs.
+        using var receiver = new UpdateService(Path.Combine(options.DataDirectory, "VerificationReceiver"));
+        receiver.ResolveNetwork = id => id == options.ClusterId ? _services : null;
+        await receiver.ConfigureAsync(new(UpdateSourceKind.Lan, options.ClusterId, other.NodeId, other.IPAddress,
+            other.ServicePort, other.DisplayName), ct);
+        var release = (await receiver.CheckAsync(true, ct)).Release ?? throw new IOException("Chưa tìm được bản cập nhật LAN kiểm thử.");
+        if (release.Package != package) throw new InvalidDataException("Hai tiến trình nhận sai manifest.");
+        using var installer = await receiver.DownloadAsync(release, new Progress<long>(), ct);
+        using var input = File.OpenRead(installer.Path);
+        if (input.Length != package.Size || !string.Equals(FrameworkIO.Hex(await FrameworkIO.HashAsync(input, ct)), package.Digest.Substring(7), StringComparison.OrdinalIgnoreCase))
+            throw new InvalidDataException("Bộ cài nhận qua LAN không khớp snapshot.");
     }
 
     private async Task VerifySavedAttachmentsAsync(AttachmentDto[] attachments, string reportPath, CancellationToken ct)

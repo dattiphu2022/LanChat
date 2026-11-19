@@ -70,8 +70,8 @@ internal sealed class AttachmentActions(IFileTransferService files)
             }
             else
             {
-                using var dialog = new SaveFileDialog { Title = "Lưu về máy", FileName = Path.GetFileName(location.Path), OverwritePrompt = true,
-                    InitialDirectory = location.UserSelected ? Path.GetDirectoryName(location.Path) : null };
+                using var dialog = AttachmentSaveDialog.Create(Path.GetFileName(location.Path),
+                    location.UserSelected ? Path.GetDirectoryName(location.Path) : null);
                 if (dialog.ShowDialog(UiInteraction.Owner(owner)) != DialogResult.OK) return;
                 target = dialog.FileName;
             }

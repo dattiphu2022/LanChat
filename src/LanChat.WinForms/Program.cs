@@ -42,6 +42,10 @@ internal static class Program
     {
         var options = new NodeOptions();
         string? verification = null;
+#if DEBUG
+        string? verificationUpdate = null;
+        var verificationLegacy = false;
+#endif
         var startup = false;
         for (var i = 0; i < args.Length; i++)
         {
@@ -56,6 +60,8 @@ internal static class Program
                 case "--display-name": options.InitialDisplayName = Value(); break;
 #if DEBUG
                 case "--verify-ui": verification = Path.GetFullPath(Value()); break;
+                case "--verify-update-package": verificationUpdate = Path.GetFullPath(Value()); break;
+                case "--verify-legacy-peer": verificationLegacy = true; break;
 #endif
                 default: throw new ArgumentException("Tham số không hỗ trợ: " + args[i]);
             }
@@ -76,12 +82,12 @@ internal static class Program
 #if DEBUG
         if (verification is not null)
         {
-            System.Windows.Forms.Application.Run(new VerificationStartup(options, verification));
+            System.Windows.Forms.Application.Run(new VerificationStartup(options, verification, verificationUpdate, verificationLegacy));
             return null;
         }
 #endif
         using var updates = new UpdateService(options.DataDirectory);
-        using var window = new NetworkWorkspace(new NetworkCatalog(options), new WindowsStartup(options.DataDirectory), updates);
+        using var window = new NetworkWorkspace(new NetworkCatalog(options, updates.Packages), new WindowsStartup(options.DataDirectory), updates);
         window.Shown += async (_, _) =>
         {
             try { await window.StartAsync(); }
@@ -124,18 +130,25 @@ internal static class Program
 #if DEBUG
 internal sealed class VerificationStartup : Form
 {
-    public VerificationStartup(NodeOptions options, string report)
+    public VerificationStartup(NodeOptions options, string report, string? updatePackage, bool legacyPeer)
     {
         Shown += async (_, _) =>
         {
             try
             {
-                var catalog = new NetworkCatalog(options);
+                var updates = updatePackage is null ? null : new UpdateService(options.DataDirectory);
+                var catalog = new NetworkCatalog(options, updates?.Packages);
                 await catalog.LoadAsync();
+                if (updates is not null)
+                {
+                    var package = await updates.Packages.ImportAsync(updatePackage!);
+                    await updates.ConfigureAsync(new(UpdateSourceKind.Local, Package: package, Sharing: true,
+                        Networks: [catalog.Entries.Single(e => e.Primary).Id]), default);
+                }
                 var network = await catalog.StartAsync(catalog.Entries.Single(e => e.Primary), false, this);
                 var main = ActivatorUtilities.CreateInstance<MainForm>(network.Services);
-                main.Shown += async (_, _) => await main.VerifyUiAsync(report);
-                main.FormClosed += async (_, _) => { try { await network.StopAsync(); } finally { Close(); } };
+                main.Shown += async (_, _) => await main.VerifyUiAsync(report, updates, legacyPeer);
+                main.FormClosed += async (_, _) => { try { await network.StopAsync(); } finally { updates?.Dispose(); Close(); } };
                 main.Show(); Hide();
             }
             catch (Exception ex)

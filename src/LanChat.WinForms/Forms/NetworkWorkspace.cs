@@ -12,6 +12,7 @@ internal sealed partial class NetworkWorkspace : DpiForm
     private readonly IconTabControl _tabs = new(UiIcon.Network, UiIcon.NetworkUnread)
         { Dock = DockStyle.Fill, ShowToolTips = true };
     private readonly Dictionary<Guid, (RunningNetwork Network, MainForm View, TabPage Tab)> _running = new();
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<Guid, IServiceProvider> _updateNetworks = new();
     private readonly IconButton _scanButton = Theme.Secondary("Quét tất cả", UiIcon.Scan);
     private readonly Button _restoreDefaultButton;
     private readonly Label _feedback = Theme.Label("");
@@ -27,6 +28,7 @@ internal sealed partial class NetworkWorkspace : DpiForm
     {
         _catalog = catalog; _startup = startup;
         _updates = new UpdateCoordinator(updates);
+        updates.ResolveNetwork = id => _updateNetworks.TryGetValue(id, out var services) ? services : null;
         Icon = AppIcon.Value;
         Text = "LanChat";
         ClientSize = new Size(1260, 840); MinimumSize = new Size(660, 450);
@@ -114,11 +116,11 @@ internal sealed partial class NetworkWorkspace : DpiForm
 
     public async Task StartAsync()
     {
-        _ = _updates.CheckAsync(manual: false);
         _busy = true;
         UpdateActionState();
         try { await LoadNetworksAsync(); }
         finally { _busy = false; UpdateActionState(); }
+        _ = _updates.CheckAsync(manual: false);
     }
 
     private async Task LoadNetworksAsync()
@@ -162,10 +164,13 @@ internal sealed partial class NetworkWorkspace : DpiForm
             view.DialogOperationCompleted += async () => await OpenPendingNotificationAsync();
             view.Show();
             await view.StartViewAsync();
+            _updateNetworks[entry.Id] = network.Services;
+            _updates.Service.Packages.ResumeNetwork(entry.Id);
         }
         catch
         {
             _running.Remove(entry.Id);
+            _updateNetworks.TryRemove(entry.Id, out _);
             if (tab is not null) { _tabs.TabPages.Remove(tab); tab.Dispose(); }
             else view?.Dispose();
             UpdateUnreadBadges();
@@ -214,7 +219,7 @@ internal sealed partial class NetworkWorkspace : DpiForm
 
     private Task ShowAboutAsync()
     {
-        using var dialog = new AboutForm(_updates, () => _scan is null && !_running.Values.Any(item => item.View.HasActiveWork));
+        using var dialog = new AboutForm(_updates, () => _scan is null && !_running.Values.Any(item => item.View.HasActiveWork), ShowUpdateSettings);
         UiInteraction.ShowDialog(dialog, this);
         _installRequested = dialog.InstallRequested;
         return Task.CompletedTask;
@@ -265,9 +270,18 @@ internal sealed partial class NetworkWorkspace : DpiForm
                 await _catalog.ApplyProfileAsync(network.Network.Services.GetRequiredService<IChatStore>());
                 await network.View.UpdateProfileAsync();
             }
-        });
+        }, ShowUpdateSettings);
         UiInteraction.ShowDialog(dialog, this);
         return Task.CompletedTask;
+    }
+
+    private void ShowUpdateSettings()
+    {
+        var choices = _catalog.Entries.Select(entry => new UpdateNetworkChoice(entry.Id, entry.Name,
+            _running.TryGetValue(entry.Id, out var running) ? running.Network.Services : null,
+            _running.TryGetValue(entry.Id, out var connected) ? connected.Network.Port : NodeOptions.DefaultServicePort)).ToArray();
+        using var form = new UpdateSettingsForm(_updates, choices, _tabs.SelectedTab?.Tag as Guid?);
+        UiInteraction.ShowDialog(form, this);
     }
 
     private async Task RestoreDefaultNetworkAsync()
@@ -302,12 +316,17 @@ internal sealed partial class NetworkWorkspace : DpiForm
     private async Task RemoveNetworkAsync(NetworkEntry entry)
     {
         EnsureNetworkCanClose(entry);
-        await _catalog.RemoveAsync(entry);
-        await StopNetworkAsync(entry);
+        if (!_updates.Service.Packages.TryPauseNetwork(entry.Id))
+            throw new InvalidOperationException("Mạng đang cung cấp bản cập nhật. Hãy chờ tải xong rồi gỡ mạng.");
+        try { await _catalog.RemoveAsync(entry); await StopNetworkAsync(entry); }
+        catch { _updates.Service.Packages.ResumeNetwork(entry.Id); throw; }
     }
 
     private void EnsureNetworkCanClose(NetworkEntry entry)
     {
+        if ((_updates.State.Busy && _updates.Service.Settings.Kind == UpdateSourceKind.Lan && _updates.Service.Settings.NetworkId == entry.Id) ||
+            _updates.Service.Packages.ActiveTransfersFor(entry.Id) > 0)
+            throw new InvalidOperationException("Mạng này đang tải hoặc cung cấp bản cập nhật. Hãy hoàn tất hoặc hủy tác vụ trước khi gỡ mạng.");
         if (!_running.TryGetValue(entry.Id, out var item)) return;
         if (item.View.HasActiveWork) throw new InvalidOperationException("Hãy hoàn tất hoặc hủy tác vụ trên mạng này trước khi gỡ mạng.");
         if (item.View.HasUnsentDrafts && !UiInteraction.Discard(this,
@@ -319,6 +338,7 @@ internal sealed partial class NetworkWorkspace : DpiForm
     {
         if (!_running.TryGetValue(entry.Id, out var item)) return;
         _running.Remove(entry.Id);
+        _updateNetworks.TryRemove(entry.Id, out _);
         item.View.Close(); _tabs.TabPages.Remove(item.Tab); item.Tab.Dispose();
         UpdateUnreadBadges();
         await _catalog.StopAsync(item.Network);
@@ -334,7 +354,7 @@ internal sealed partial class NetworkWorkspace : DpiForm
             return;
         }
         if (_exiting) return;
-        if (e.CloseReason == CloseReason.UserClosing && (_busy || _installing || _running.Values.Any(item => item.View.HasActiveWork)))
+        if (e.CloseReason == CloseReason.UserClosing && (_busy || _installing || _updates.Service.Packages.Preparing || _updates.Service.Packages.ActiveTransfers > 0 || _running.Values.Any(item => item.View.HasActiveWork)))
         {
             _exitRequested = false;
             RestoreWindow();
@@ -345,6 +365,7 @@ internal sealed partial class NetworkWorkspace : DpiForm
             !UiInteraction.Discard(this, "Bạn còn bản nháp chưa gửi hoặc thay đổi thành viên chưa lưu. Bỏ các bản nháp và thoát LanChat?"))
         { _exitRequested = false; return; }
         _exiting = true;
+        _updateNetworks.Clear();
         UpdateActionState();
         _scan?.Cancel();
         foreach (var item in _running.Values) item.View.Close();

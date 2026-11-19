@@ -1,4 +1,4 @@
-param([string]$OutputDirectory, [switch]$UseBroadcast)
+param([string]$OutputDirectory, [switch]$UseBroadcast, [switch]$WithLanUpdate, [string]$SecondExecutable, [switch]$ExpectLegacyPeer)
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path -Parent $PSScriptRoot
 if (-not $OutputDirectory) { $OutputDirectory = Join-Path $repo ('.codex-temp\two-instances-' + (Get-Date -Format 'yyyyMMdd-HHmmss')) }
@@ -8,7 +8,26 @@ if ((Test-Path -LiteralPath $OutputDirectory) -and (Get-ChildItem -LiteralPath $
 }
 $exe = Join-Path $repo 'src\LanChat.WinForms\bin\Debug\net48\LanChat.WinForms.exe'
 if (-not (Test-Path -LiteralPath $exe)) { throw 'Build Debug trước khi kiểm tra.' }
+if ($SecondExecutable -and -not (Test-Path -LiteralPath $SecondExecutable)) { throw 'Không tìm thấy EXE kiểm tra tương thích.' }
+if ($SecondExecutable -and $WithLanUpdate) { throw 'Kiểm tra tương thích bản cũ và kiểm tra chia sẻ LAN phải chạy riêng.' }
 New-Item -ItemType Directory -Path $OutputDirectory -Force | Out-Null
+if ($WithLanUpdate) {
+    # Metadata-valid fixture only: compilation and reading are allowed; never execute it.
+    $fixtureSource = Join-Path $OutputDirectory 'update-fixture.cs'
+    $fixtureExe = Join-Path $OutputDirectory 'LanChat-test-setup.exe'
+    @'
+using System.Reflection;
+[assembly: AssemblyProduct("LanChat            ")]
+[assembly: AssemblyTitle("LanChat Setup      ")]
+[assembly: AssemblyVersion("9.12.3.0")]
+[assembly: AssemblyFileVersion("9.12.3.0")]
+[assembly: AssemblyInformationalVersion("9.12.3")]
+class Fixture { static void Main() { throw new System.InvalidOperationException("Do not execute test fixtures."); } }
+'@ | Set-Content -LiteralPath $fixtureSource -Encoding utf8
+    $compiler = Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
+    & $compiler /nologo /target:winexe "/out:$fixtureExe" $fixtureSource
+    if ($LASTEXITCODE -ne 0) { throw 'Không tạo được bộ cài giả lập.' }
+}
 Add-Type -AssemblyName System.Security
 $secret = [byte[]]::new(32)
 [Security.Cryptography.RandomNumberGenerator]::Fill($secret)
@@ -39,7 +58,10 @@ foreach ($entry in @(@{Name='A'; Tcp=$tcpA; Udp=$udpA; Target=$udpB}, @{Name='B'
     $arguments = @('--data-dir', ('"' + $data + '"'), '--port', $entry.Tcp, '--discovery-port', $entry.Udp,
         '--display-name', ('"Máy ' + $entry.Name + '"'), '--verify-ui', ('"' + $report + '"'))
     if (-not $UseBroadcast) { $arguments += @('--discovery-target', ('127.0.0.1:' + $entry.Target)) }
-    $processes += Start-Process -FilePath $exe -ArgumentList $arguments -PassThru -WindowStyle Hidden
+    if ($WithLanUpdate) { $arguments += @('--verify-update-package', ('"' + $fixtureExe + '"')) }
+    if ($ExpectLegacyPeer -and $entry.Name -eq 'A') { $arguments += '--verify-legacy-peer' }
+    $launch = if ($entry.Name -eq 'B' -and $SecondExecutable) { $SecondExecutable } else { $exe }
+    $processes += Start-Process -FilePath $launch -ArgumentList $arguments -PassThru -WindowStyle Hidden
 }
 foreach ($process in $processes) {
     if (-not $process.WaitForExit(120000)) { throw "Instance $($process.Id) chưa thoát; kiểm tra cửa sổ lỗi. Script không tự tắt tiến trình." }
@@ -55,4 +77,6 @@ if ($reports[0].GroupId -ne $reports[1].GroupId -or $reports.Where({$_.VerifiedF
 if ($reports.Where({-not $_.VerifiedReplies -or -not $_.VerifiedClipboard}).Count -gt 0) { throw 'Kiểm tra điều hướng trích dẫn hoặc gửi ảnh từ bảng nhớ tạm chưa đạt.' }
 if ($reports.Where({-not $_.VerifiedGroupMembers}).Count -gt 0) { throw 'Kiểm tra thêm và bớt thành viên từ thông tin hội thoại chưa đạt.' }
 if ($reports.Where({$_.VerifiedSavedAttachments -ne 2}).Count -gt 0) { throw 'Kiểm tra lưu và mở lại bản chỉnh sửa của tệp/ảnh chưa đạt.' }
+if ($WithLanUpdate -and $reports.Where({-not $_.VerifiedLanUpdate}).Count -gt 0) { throw 'Kiểm tra cập nhật LAN giữa hai tiến trình chưa đạt.' }
+if ($ExpectLegacyPeer -and -not $reports[0].VerifiedLegacyUpdateUnsupported) { throw 'Chưa kiểm tra thông báo máy cũ không hỗ trợ cập nhật LAN.' }
 Write-Output "PASS: hai tiến trình WinForms, chat trực tiếp và nhóm, tệp và ảnh, trích dẫn, ảnh từ bảng nhớ tạm, quản lý thành viên từ hội thoại. Kết quả: $OutputDirectory"

@@ -15,7 +15,7 @@ internal sealed class TestNode : IAsyncDisposable
     public IHost Host { get; }
     public IChatStore Store => Host.Services.GetRequiredService<IChatStore>();
     public TestNode(Guid cluster, byte[] secret, string? name = null, string? directory = null, DiscoverySockets? discovery = null,
-        Func<long>? utcSeconds = null)
+        Func<long>? utcSeconds = null, IUpdatePackageProvider? updatePackages = null)
     {
         Options = new NodeOptions { ClusterId = cluster, ClusterSecret = secret,
             TlsCertificatePfx = Certificates.GetOrAdd(cluster, ClusterTls.CreateCertificate),
@@ -25,6 +25,7 @@ internal sealed class TestNode : IAsyncDisposable
         Host = ServiceRegistration.BuildHost(Options, services =>
         {
             if (discovery is not null) services.AddSingleton(discovery);
+            if (updatePackages is not null) services.AddSingleton(updatePackages);
             if (utcSeconds is not null) services.AddSingleton(new WireProtocol(Options, utcSeconds));
         });
     }

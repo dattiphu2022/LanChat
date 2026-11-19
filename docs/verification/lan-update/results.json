@@ -1,0 +1,176 @@
+{
+  "date": "2026-11-19",
+  "builds": {
+    "Debug": {
+      "warnings": 0,
+      "errors": 0
+    },
+    "Release": {
+      "warnings": 0,
+      "errors": 0
+    }
+  },
+  "runs": [
+    {
+      "file": "lan-update-release.trx",
+      "finishedAt": "2026-11-19T01:35:24.358Z",
+      "counters": {
+        "total": 170,
+        "executed": 170,
+        "passed": 170,
+        "failed": 0,
+        "error": 0,
+        "timeout": 0,
+        "aborted": 0,
+        "inconclusive": 0,
+        "passedButRunAborted": 0,
+        "notRunnable": 0,
+        "notExecuted": 0,
+        "disconnected": 0,
+        "warning": 0,
+        "completed": 0,
+        "inProgress": 0,
+        "pending": 0
+      }
+    },
+    {
+      "file": "lan-update-final-changes.trx",
+      "finishedAt": "2026-11-19T01:39:53.725Z",
+      "counters": {
+        "total": 18,
+        "executed": 18,
+        "passed": 18,
+        "failed": 0,
+        "error": 0,
+        "timeout": 0,
+        "aborted": 0,
+        "inconclusive": 0,
+        "passedButRunAborted": 0,
+        "notRunnable": 0,
+        "notExecuted": 0,
+        "disconnected": 0,
+        "warning": 0,
+        "completed": 0,
+        "inProgress": 0,
+        "pending": 0
+      }
+    },
+    {
+      "file": "lan-update-source-final.trx",
+      "finishedAt": "2026-11-19T01:42:04.780Z",
+      "counters": {
+        "total": 13,
+        "executed": 13,
+        "passed": 13,
+        "failed": 0,
+        "error": 0,
+        "timeout": 0,
+        "aborted": 0,
+        "inconclusive": 0,
+        "passedButRunAborted": 0,
+        "notRunnable": 0,
+        "notExecuted": 0,
+        "disconnected": 0,
+        "warning": 0,
+        "completed": 0,
+        "inProgress": 0,
+        "pending": 0
+      }
+    },
+    {
+      "file": "lan-update-settings-final.trx",
+      "counters": {
+        "total": 4,
+        "executed": 4,
+        "passed": 4,
+        "failed": 0,
+        "error": 0,
+        "timeout": 0,
+        "aborted": 0,
+        "inconclusive": 0,
+        "passedButRunAborted": 0,
+        "notRunnable": 0,
+        "notExecuted": 0,
+        "disconnected": 0,
+        "warning": 0,
+        "completed": 0,
+        "inProgress": 0,
+        "pending": 0
+      }
+    }
+  ],
+  "pairs": [
+    {
+      "scenario": "two-instances-lan-update-padded",
+      "protocol": 4,
+      "reports": [
+        {
+          "instance": "A",
+          "success": true,
+          "dpi": 120,
+          "messages": 4,
+          "files": 6,
+          "savedAttachments": 2,
+          "lanUpdate": true,
+          "legacyUpdateUnsupported": false,
+          "groupMembers": true
+        },
+        {
+          "instance": "B",
+          "success": true,
+          "dpi": 120,
+          "messages": 4,
+          "files": 6,
+          "savedAttachments": 2,
+          "lanUpdate": true,
+          "legacyUpdateUnsupported": false,
+          "groupMembers": true
+        }
+      ]
+    },
+    {
+      "scenario": "two-instances-lan-update-v126-final",
+      "protocol": 4,
+      "reports": [
+        {
+          "instance": "A",
+          "success": true,
+          "dpi": 120,
+          "messages": 4,
+          "files": 6,
+          "savedAttachments": 2,
+          "lanUpdate": false,
+          "legacyUpdateUnsupported": true,
+          "groupMembers": true
+        },
+        {
+          "instance": "B",
+          "success": true,
+          "dpi": 120,
+          "messages": 4,
+          "files": 6,
+          "savedAttachments": 2,
+          "lanUpdate": false,
+          "legacyUpdateUnsupported": false,
+          "groupMembers": true
+        }
+      ]
+    }
+  ],
+  "installerExecuted": false,
+  "realInstaller": {
+    "version": "1.2.6",
+    "size": 5890830,
+    "sha256": "e7164b602700dbc07f2346920ed86c14f3dd4eaa27a5976135a120d3ce98b87c",
+    "imported": true,
+    "executed": false
+  },
+  "dpi": {
+    "native": 120,
+    "simulated": [
+      96,
+      144,
+      192
+    ]
+  }
+}

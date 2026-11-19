@@ -8,7 +8,7 @@ public sealed class SettingsForm : DpiForm
     private readonly TextBox _department = new() { Dock = DockStyle.Top, MaxLength = 200, AccessibleName = "Đơn vị" };
     private readonly CheckBox _startup = new() { Dock = DockStyle.Fill, Text = "Khởi động cùng hệ thống", AutoSize = true };
 
-    public SettingsForm(string name, string? department, bool startup, Func<string, string, bool, Task> save)
+    public SettingsForm(string name, string? department, bool startup, Func<string, string, bool, Task> save, Action? configureUpdates = null)
     {
         Icon = AppIcon.Value;
         Text = "Cài đặt LanChat";
@@ -45,6 +45,11 @@ public sealed class SettingsForm : DpiForm
         var apply = Theme.Button("Lưu", UiIcon.Save);
         var cancel = Theme.Secondary("Hủy", UiIcon.Close); cancel.DialogResult = DialogResult.Cancel;
         buttons.Controls.Add(apply); buttons.Controls.Add(cancel);
+        if (configureUpdates is not null)
+        {
+            var updates = Theme.Secondary("Cài đặt cập nhật…", UiIcon.Settings);
+            updates.Click += (_, _) => configureUpdates(); buttons.Controls.Add(updates);
+        }
         layout.Controls.Add(buttons, 0, 6); Controls.Add(layout);
         AcceptButton = apply; CancelButton = cancel;
         var saving = false;

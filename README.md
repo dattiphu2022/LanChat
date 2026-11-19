@@ -1,6 +1,6 @@
 # LanChat v1.2.6 — Chat nội bộ cho Windows
 
-LanChat hỗ trợ chat riêng, chat nhóm và truyền ảnh, tệp, thư mục giữa các máy Windows trên mạng LAN. Mỗi máy lưu dữ liệu trong SQLite. Tin nhắn và tệp được mã hóa đầu cuối. Kiểm tra và tải bản cập nhật từ GitHub cần Internet.
+LanChat hỗ trợ chat riêng, chat nhóm và truyền ảnh, tệp, thư mục giữa các máy Windows trên mạng LAN. Mỗi máy lưu dữ liệu trong SQLite. Tin nhắn và tệp được mã hóa đầu cuối. Cập nhật hỗ trợ GitHub, máy cùng mạng chat trong LAN hoặc bộ cài cục bộ; LAN và bộ cài cục bộ hoạt động không cần Internet.
 
 ## Tải và bắt đầu sử dụng
 
@@ -14,6 +14,7 @@ Mở **Giới thiệu → Hướng dẫn sử dụng** để đọc hướng d�
 ## Nhắn tin, gửi ảnh và tệp
 
 - **Enter** gửi tin, **Shift+Enter** xuống dòng, **Ctrl+K** tìm hội thoại và **Ctrl+F** tìm tin. Bấm khung trích dẫn để đến tin gốc, rồi chọn **Quay về tin nhắn mới** để trở lại cuối hội thoại.
+- Ô soạn tự giãn theo các dòng hiển thị, tối đa 8 dòng và khoảng 45% vùng chat; nội dung dài hơn cuộn trong ô nhập. Bản nháp và vị trí đang đọc lịch sử được giữ khi ô soạn đổi chiều cao.
 - Dùng **Dán ảnh**, **Chụp vùng** hoặc kéo tệp vào ô soạn tin. LanChat tạm ẩn khi chụp vùng và hiện lại khi chụp xong hoặc nhấn **Esc**.
 - Nội dung nhập cùng ảnh là chú thích chung cho lần gửi. Bấm ảnh để mở khung xem lớn. Dùng **Trước/Sau** hoặc phím mũi tên để chuyển ảnh, cuộn chuột để phóng to và **Esc** để đóng.
 - Dùng **Đính kèm → Thêm thư mục** để chọn thư mục từ Windows. Mỗi thư mục có thể chứa tối đa 10.000 mục và 20 GB dữ liệu. Khi gửi hoặc nhận tin, ảnh, tệp và toàn bộ nội dung thư mục tự tải về nền và được kiểm tra SHA-256. Bấm tên tệp hoặc thư mục để mở bản đã chuẩn bị trên máy.
@@ -34,6 +35,16 @@ Trong **Cài đặt**, bật **Khởi động cùng hệ thống** để mở La
 Bản phát hành nội bộ tự tham gia mạng mặc định được nhúng trong EXE. Khi cài bản có mã mới, LanChat tự chuyển mạng mặc định đang bật và tiếp tục lưu lịch sử theo từng mã. Nếu đã gỡ mạng mặc định, dùng **Khôi phục mạng mặc định** trên thanh công cụ của cửa sổ chính để bật lại. Xem [hướng dẫn bộ cài](installer/README.md) để cấp hoặc đổi mã cho bản build.
 
 ## Nâng cấp
+
+Mở **Cài đặt → Cài đặt cập nhật** hoặc **Giới thiệu → Cài đặt cập nhật** để chọn nguồn dùng chung cho ứng dụng:
+
+- **Online — GitHub**: mặc định; tự kiểm tra tối đa một lần mỗi 24 giờ, hoặc bấm kiểm tra thủ công.
+- **Máy trong LAN**: chọn mạng đang kết nối và máy theo **Tên · Đơn vị · Tên máy**. Phần nâng cao cho nhập IPv4 và cổng TCP thực tế. LanChat xác minh định danh và khóa thiết bị trước khi lưu; tên hiển thị không phải khóa nhận diện. LAN kiểm tra khi khởi động, khi áp dụng cấu hình và khi bấm kiểm tra. Nếu nguồn lỗi, giữ lựa chọn và cho thử lại, không chuyển sang GitHub.
+- **Bộ cài trên máy này**: chọn EXE bộ cài LanChat để kiểm tra sản phẩm, phiên bản và sao chép vào cache riêng. Không sửa hoặc di chuyển tệp đã chọn. Chỉ cài gói mới hơn phiên bản đang dùng.
+
+Để phân phối offline, bật **Máy này cung cấp cập nhật qua LAN**, chọn bộ cài và xác nhận các mạng được phép nhận. Chia sẻ mặc định tắt, độc lập với nguồn cập nhật của máy chủ; máy chủ có thể tiếp tục dùng GitHub hoặc tự cài chính gói cục bộ. Cần giữ ứng dụng và mạng được chọn đang chạy. Có tối đa bốn lượt tải cùng lúc; đổi hoặc ngừng chia sẻ gói không cắt lượt tải đã bắt đầu. Trước khi tự cài hoặc thoát, chờ các lượt đang phục vụ hoàn tất.
+
+Máy nhận và máy nguồn phải cùng mạng chat và đều hỗ trợ cập nhật LAN. Với máy v1.2.6 trở về trước, cài phiên bản hỗ trợ tính năng này bằng EXE hoặc GitHub trước. Manifest LAN được ký bằng khóa thiết bị đã ghim, xác nhận đúng máy bạn chọn; SHA-256 kiểm tra tính nguyên vẹn, không chứng nhận gói đến từ GitHub. Bộ cài đã tải và xác minh vẫn cài được khi nguồn ngoại tuyến.
 
 Với bản đã có trình cập nhật, mở **Giới thiệu → Kiểm tra cập nhật**. Khi có bản mới hơn, chọn **Tải bản cập nhật** ngay trong Giới thiệu. Đóng Giới thiệu vẫn tiếp tục tải nền; cửa sổ chính hiển thị cùng tiến độ và nút **Hủy tải**. Tải xong, chọn **Cài đặt ngay** khi đã hoàn tất công việc. LanChat xác minh lại bộ cài và nhắc xử lý bản nháp trước khi thoát để cài. Có thể cài thủ công EXE từ GitHub Releases bằng cùng tài khoản Windows. Để thoát trước khi cài thủ công, dùng **Thoát LanChat** ở khay hệ thống.
 
@@ -74,6 +85,8 @@ pwsh -NoProfile -File scripts/Verify-TwoInstances.ps1 -UseBroadcast
 pwsh -NoProfile -File scripts/Verify-TwoInstances.ps1
 ```
 
+Thêm tham số **-WithLanUpdate** để kiểm tra truyền bộ cài giả lập qua LAN giữa hai tiến trình; kiểm thử không chạy bộ cài.
+
 Script cần PowerShell 7. Mỗi lần tạo thư mục `.codex-temp/two-instances-<thời điểm>`, không ghi vào dữ liệu thật. Dữ liệu mẫu gồm hai hồ sơ, chat, nhóm, ảnh và tệp. Muốn bắt đầu lại chỉ cần chạy lại script; không cần xóa/reset database đang dùng. Hook kiểm tra và các nút mô phỏng lỗi chỉ có trong Debug.
 
 ## Mạng
@@ -113,6 +126,7 @@ Khi bật nhiều mạng, xem cổng TCP thực tế trong **Mạng chat → Chi
 ## Tài liệu
 
 - [Hướng dẫn sử dụng](docs/HUONG_DAN_SU_DUNG.md)
+- [Kiểm chứng ô soạn, tên tệp và cập nhật LAN](docs/VERIFICATION_LAN_UPDATE.md)
 - [Kiểm chứng lưu đính kèm](docs/VERIFICATION_ATTACHMENT_SAVE.md)
 - [Đóng gói và phát hành](installer/README.md)
 - [Kiến trúc và luồng dữ liệu](docs/ARCHITECTURE.md)

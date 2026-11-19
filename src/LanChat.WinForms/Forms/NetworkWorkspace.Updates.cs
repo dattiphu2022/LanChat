@@ -12,24 +12,25 @@ internal sealed partial class NetworkWorkspace
     {
         var panel = new UpdatePanel(_updates, showCheck: false) { Padding = new Padding(8, 4, 8, 4) };
         panel.InstallRequested += async () => await InstallUpdateAsync();
-        void Refresh() { if (!panel.IsDisposed) panel.Visible = _updates.State.Release is not null; }
-        _updates.Changed += Refresh;
-        panel.Disposed += (_, _) => _updates.Changed -= Refresh;
-        Refresh();
         return panel;
     }
 
     private bool HasActiveWork => _busy || _scan is not null || UiInteraction.ForegroundDialog(this) is not null ||
+        _updates.Service.Packages.Preparing || _updates.Service.Packages.ActiveTransfers > 0 ||
         _running.Values.Any(item => item.View.HasActiveWork);
 
     private async Task InstallUpdateAsync()
     {
         if (_exiting || _installing) return;
+        if (_updates.Service.Packages.ActiveTransfers > 0)
+        { _updates.Notify("Máy này đang cung cấp bộ cài cho máy khác. Hãy chờ tải xong rồi bấm cài lại."); return; }
         if (HasActiveWork)
         {
             _updates.Notify("Hãy hoàn tất hoặc hủy tác vụ đang chạy rồi chọn Cài đặt ngay.");
             return;
         }
+        if (!_updates.Service.Packages.TryPauseForInstall())
+        { _updates.Notify("Bộ cài đang được chuẩn bị hoặc đang phục vụ máy khác. Hãy bấm cài lại sau."); return; }
         _installing = true;
         UpdateActionState();
         VerifiedInstaller? installer = null;
@@ -45,7 +46,7 @@ internal sealed partial class NetworkWorkspace
             PendingInstaller = installer;
             installer = null;
         }
-        finally { installer?.Dispose(); _installing = false; if (!IsDisposed) UpdateActionState(); }
+        finally { installer?.Dispose(); if (PendingInstaller is null) _updates.Service.Packages.Resume(); _installing = false; if (!IsDisposed) UpdateActionState(); }
         if (PendingInstaller is not null) ExitApplication();
     }
 }

@@ -12,7 +12,7 @@ internal sealed class AboutForm : DpiForm
 
     internal bool InstallRequested { get; private set; }
 
-    public AboutForm(UpdateCoordinator updates, Func<bool> canInstall)
+    public AboutForm(UpdateCoordinator updates, Func<bool> canInstall, Action? configureUpdates = null)
     {
         Text = "Giới thiệu LanChat";
         Icon = AppIcon.Value;
@@ -125,7 +125,7 @@ internal sealed class AboutForm : DpiForm
                 status.Visible = true;
             }
         };
-        var updatePanel = new UpdatePanel(updates);
+        var updatePanel = new UpdatePanel(updates, configure: configureUpdates);
         (int Width, int Dpi, int FontHeight, string Text)? actionLayout = null;
         void AlignActions()
         {

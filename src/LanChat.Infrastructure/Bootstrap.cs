@@ -113,6 +113,8 @@ public static class ServiceRegistration
         builder.Services.AddSingleton<IConsensusService>(x => x.GetRequiredService<ConsensusService>());
         builder.Services.AddSingleton<ReplicationBackgroundService>();
         builder.Services.AddSingleton<PeerFileTransferService>();
+        builder.Services.AddSingleton<IUpdatePackageProvider, NoUpdatePackages>();
+        builder.Services.AddSingleton<ILanUpdateClient, LanUpdateClient>();
         builder.Services.AddSingleton<IFileTransferService>(x => x.GetRequiredService<PeerFileTransferService>());
         builder.Services.AddSingleton<LanScanner>();
         builder.Services.AddSingleton<ILanScanner>(x => x.GetRequiredService<LanScanner>());

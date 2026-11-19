@@ -444,6 +444,48 @@ public sealed class PeerConnectionManager(NodeOptions options, WireProtocol wire
                         }
                         finally { if (transfer is { } file) Array.Clear(file.Key, 0, file.Key.Length); }
                         return;
+                    case "UpdateInfo":
+                        var updateCaller = WireProtocol.Payload<UpdateInfoRequest>(request).Caller;
+                        if (updateCaller.NodeId != request.SourceNodeId) throw new InvalidDataException("Sai định danh máy yêu cầu cập nhật.");
+                        await store.ObservePeerAsync(updateCaller, remoteAddress, ChatStore.PeerObservation.Connection, timeout.Token);
+                        var package = services.GetRequiredService<IUpdatePackageProvider>().GetPackage(options.ClusterId);
+                        response = package is null ? new UpdateReply(Error: "Máy nguồn chưa bật chia sẻ hoặc chưa có bộ cài cho mạng này.") :
+                            new UpdateReply(await store.SignUpdateAsync(package, timeout.Token));
+                        break;
+                    case "UpdateDownload":
+                        timeout.CancelAfter(TimeSpan.FromSeconds(30));
+                        var updateRequest = WireProtocol.Payload<UpdateDownloadRequest>(request);
+                        if (updateRequest.Caller.NodeId != request.SourceNodeId) throw new InvalidDataException("Sai định danh máy yêu cầu cập nhật.");
+                        await store.ObservePeerAsync(updateRequest.Caller, remoteAddress, ChatStore.PeerObservation.Connection, timeout.Token);
+                        Stream? updateInput = null;
+                        UpdateReply downloadReply;
+                        try
+                        {
+                            var provider = services.GetRequiredService<IUpdatePackageProvider>();
+                            var selected = provider.GetPackage(options.ClusterId);
+                            if (selected is null || selected.Id != updateRequest.PackageId) throw new IOException("Bộ cài đã đổi hoặc ngừng chia sẻ. Hãy kiểm tra cập nhật lại.");
+                            updateInput = provider.OpenPackage(options.ClusterId, updateRequest.PackageId);
+                            if (updateInput.Length != selected.Size || !string.Equals(FrameworkIO.Hex(await FrameworkIO.HashAsync(updateInput, timeout.Token)), selected.Digest.Substring(7), StringComparison.OrdinalIgnoreCase))
+                                throw new IOException("Bộ cài trên máy nguồn bị hỏng. Hãy chọn lại bộ cài.");
+                            updateInput.Position = 0;
+                            downloadReply = new(await store.SignUpdateAsync(selected, timeout.Token));
+                        }
+                        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                        { updateInput?.Dispose(); updateInput = null; downloadReply = new(Error: ex.Message); }
+                        catch { updateInput?.Dispose(); throw; }
+                        using (updateInput)
+                        {
+                            await WireProtocol.WriteAsync(stream, wire.Encode(localNodeId, "UpdateDownloadResponse", downloadReply, request.RequestId), timeout.Token);
+                            if (updateInput is not null)
+                            {
+                                var buffer = new byte[65536]; int count;
+                                while ((count = await updateInput.ReadAsync(buffer, 0, buffer.Length, timeout.Token)) != 0)
+                                {
+                                    await stream.WriteAsync(buffer, 0, count, timeout.Token); timeout.CancelAfter(TimeSpan.FromSeconds(30));
+                                }
+                            }
+                        }
+                        return;
                     default: throw new InvalidDataException("Loại gói tin chưa hỗ trợ.");
                 }
                 await WireProtocol.WriteAsync(stream, wire.Encode(localNodeId, request.MessageType + "Response", response, request.RequestId), timeout.Token);

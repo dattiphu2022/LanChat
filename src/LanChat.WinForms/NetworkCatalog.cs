@@ -14,7 +14,7 @@ internal sealed record NetworkEntry(Guid Id, string Name, bool Primary = false);
 internal sealed record DefaultNetworkProvision(string Invitation, bool Creator = false, string? CreatorMachine = null);
 internal sealed record SavedNetworks(NetworkEntry[] Entries, NetworkEntry? DefaultNetwork, bool FirstPrivateCodeHandled);
 
-internal sealed class NetworkCatalog(NodeOptions primary)
+internal sealed class NetworkCatalog(NodeOptions primary, IUpdatePackageProvider? updatePackages = null)
 {
     private readonly DiscoverySockets _sockets = new();
     private readonly List<NetworkEntry> _entries = new();
@@ -189,6 +189,7 @@ internal sealed class NetworkCatalog(NodeOptions primary)
             {
                 services.AddSingleton(_sockets);
                 services.AddSingleton<Controls.ChatImageService>();
+                if (updatePackages is not null) services.AddSingleton(updatePackages);
             });
             _ports.Add(options.ServicePort);
             try
