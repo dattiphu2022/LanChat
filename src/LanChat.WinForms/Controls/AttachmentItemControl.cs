@@ -17,14 +17,18 @@ internal sealed class AttachmentItemControl : UserControl
     private readonly string _metadata;
     private int _locationRequest;
     private bool _stopped, _ready, _arranging;
+    private (int Width, int Dpi) _fitSize;
+    private ButtonMetrics _openMetrics, _saveMetrics;
+    private record struct ButtonMetrics(Font Font, int IconWidth, int Padding, int Dpi, int Width);
     public event Action<AttachmentDto>? Selected;
     public event Action<AttachmentDto, AttachmentCommand>? CommandRequested;
 
     public AttachmentItemControl(AttachmentDto file, ChatImageService? images, AttachmentActions? actions)
     {
         _file = file; _actions = actions;
-        DoubleBuffered = true; SetStyle(ControlStyles.SupportsTransparentBackColor, true);
-        BackColor = Color.Transparent; Margin = new Padding(0, 0, 0, 4);
+        // Inherit the solid bubble color so WinForms can erase this tile directly
+        // instead of asking its parent to paint through a transparent background.
+        DoubleBuffered = true; Margin = new Padding(0, 0, 0, 4);
         var folder = file.MimeType == FolderAttachment.MimeType;
         var extension = Path.GetExtension(file.FileName).TrimStart('.').ToUpperInvariant();
         _metadata = folder ? "Thư mục" : (extension.Length is > 0 and <= 10 ? extension + " · " : "") + FileSize(file.FileSize);
@@ -53,7 +57,6 @@ internal sealed class AttachmentItemControl : UserControl
         _tips.SetToolTip(_save, "Lưu bản đang làm việc, gồm các chỉnh sửa cục bộ");
         if (actions is not null) { actions.Watch(file.Id); actions.Changed += OnChanged; }
         HandleCreated += async (_, _) => await RefreshLocationAsync();
-        DpiChangedAfterParent += (_, _) => FitWidth(Width);
         Disposed += (_, _) =>
         {
             if (_stopped) return; _stopped = true;
@@ -77,36 +80,46 @@ internal sealed class AttachmentItemControl : UserControl
         return button;
     }
     private static string FileSize(long size) => size < 1024 ? $"{size:N0} B" : size < 1024 * 1024 ? $"{size / 1024d:N0} KB" : $"{size / (1024 * 1024d):N1} MB";
-    private int ButtonWidth(Button button) => TextRenderer.MeasureText(button.Text, button.Font).Width +
-        (button.Image?.Width ?? this.ScalePixels(12)) + button.Padding.Horizontal + this.ScalePixels(8);
+    private int ButtonWidth(Button button, ref ButtonMetrics cache)
+    {
+        var dpi = this.LayoutDpi();
+        var icon = button.Image?.Width ?? this.ScalePixels(12);
+        var padding = button.Padding.Horizontal;
+        var font = button.Font;
+        if (cache.Font != font || cache.IconWidth != icon || cache.Padding != padding || cache.Dpi != dpi)
+            cache = new ButtonMetrics(font, icon, padding, dpi,
+                TextRenderer.MeasureText(button.Text, font).Width + icon + padding + this.ScalePixels(8));
+        return cache.Width;
+    }
     private int ButtonHeight => Math.Max(this.ScalePixels(26), Math.Max(_open.Font.Height, _save.Font.Height) + this.ScalePixels(6));
-    internal int ActionWidth => ButtonWidth(_open) + ButtonWidth(_save) + this.ScalePixels(2);
+    internal int ActionWidth => ButtonWidth(_open, ref _openMetrics) + ButtonWidth(_save, ref _saveMetrics) + this.ScalePixels(2);
     internal int PreferredRowWidth => ActionWidth + this.ScalePixels(24) + Math.Max(this.ScalePixels(130),
         Math.Min(this.ScalePixels(260), TextRenderer.MeasureText(_file.FileName, _name?.Font ?? Font).Width + this.ScalePixels(20)));
     private bool Stacked(int width) => width < ActionWidth + this.ScalePixels(_image is null ? 110 : 12);
+    private bool StackButtons(int width) => width < ActionWidth + this.ScalePixels(_image is null ? 16 : 12);
     private int NameHeight => Math.Max(this.ScalePixels(18), (_name?.Font ?? Font).Height + this.ScalePixels(1));
     private int MetadataHeight => Math.Max(this.ScalePixels(14), _location.Font.Height);
     private int PreviewHeight => this.ScalePixels(128);
     internal int HeightForWidth(int width) => _image is not null
         ? PreviewHeight + ButtonHeight * (Stacked(width) ? 2 : 1) + this.ScalePixels(6)
         : Math.Max(NameHeight + MetadataHeight + this.ScalePixels(10), ButtonHeight + this.ScalePixels(10)) +
-            (Stacked(width) ? ButtonHeight + this.ScalePixels(2) : 0);
+            (Stacked(width) ? ButtonHeight + this.ScalePixels(2) : 0) +
+            (StackButtons(width) ? ButtonHeight : 0);
 
     internal void FitWidth(int width)
     {
         if (!_ready || _arranging) return;
+        var size = (Width: width, Dpi: this.LayoutDpi());
+        if (_fitSize == size && Width == width) return;
+        _fitSize = size;
         _arranging = true;
         try { Size = new Size(Math.Max(1, width), HeightForWidth(width)); Arrange(); }
         finally { _arranging = false; }
     }
-    protected override void OnResize(EventArgs e)
-    {
-        base.OnResize(e); if (_ready && !_arranging) Arrange();
-    }
     private void Arrange()
     {
         var inset = this.ScalePixels(_image is null ? 8 : 3); var gap = this.ScalePixels(2);
-        var openWidth = ButtonWidth(_open); var saveWidth = ButtonWidth(_save); var height = ButtonHeight;
+        var openWidth = ButtonWidth(_open, ref _openMetrics); var saveWidth = ButtonWidth(_save, ref _saveMetrics); var height = ButtonHeight;
         var top = _image is null ? (Height - height) / 2 : PreviewHeight + this.ScalePixels(2);
         if (_image is not null) _image.SetBounds(inset, inset, Math.Max(1, Width - inset * 2), PreviewHeight - inset);
         if (_name is not null)
@@ -116,7 +129,7 @@ internal sealed class AttachmentItemControl : UserControl
             _location.SetBounds(inset + this.ScalePixels(19), _name.Bottom, Math.Max(1, textWidth - this.ScalePixels(19)), MetadataHeight);
             if (Stacked(Width)) top = _location.Bottom + this.ScalePixels(2);
         }
-        if (_image is not null && Stacked(Width))
+        if (StackButtons(Width))
         {
             _open.SetBounds(inset, top, Math.Max(1, Width - inset * 2), height);
             _save.SetBounds(inset, top + height, Math.Max(1, Width - inset * 2), height);

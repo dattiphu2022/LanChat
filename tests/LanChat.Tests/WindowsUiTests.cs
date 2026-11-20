@@ -388,6 +388,50 @@ public sealed partial class WindowsUiTests
     }
 
     [Fact]
+    public Task MessageResizeBatchesWidthChangesAndSkipsHeightOnlyReflow() => OnUi(async host =>
+    {
+        using var view = new Form { ClientSize = new System.Drawing.Size(530, 430) };
+        using var list = new MessageListControl();
+        view.Controls.Add(list);
+        view.Show(host);
+        var user = Guid.NewGuid();
+        var conversation = Guid.NewGuid();
+        var messages = Enumerable.Range(0, 12).Select(_ => new ChatMessage
+        {
+            Id = Guid.NewGuid(), ConversationId = conversation, SenderUserId = user, IsRead = true,
+            Text = "Nội dung dài, xuống dòng khi kéo hẹp vùng đọc.", CreatedAtTicks = DateTime.UtcNow.Ticks
+        }).ToArray();
+        list.Bind(conversation, messages, user, []);
+        var bubble = Children(list).OfType<MessageBubbleControl>().First();
+        var originalWidth = bubble.Width;
+        var widthChanges = 0;
+        var lastWidth = originalWidth;
+        bubble.SizeChanged += (_, _) =>
+        {
+            if (lastWidth != bubble.Width) { lastWidth = bubble.Width; widthChanges++; }
+        };
+
+        view.ClientSize = new System.Drawing.Size(530, 490);
+        await Task.Delay(150);
+        Assert.Equal(0, widthChanges);
+        var flow = list.Controls.OfType<FlowLayoutPanel>().Single();
+        var viewportChanges = 0;
+        flow.SizeChanged += (_, _) => viewportChanges++;
+        for (var width = 520; width >= 400; width -= 20)
+        {
+            view.ClientSize = new System.Drawing.Size(width, 490);
+            var drained = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+            list.BeginInvoke((Action)(() => drained.SetResult(true)));
+            await drained.Task;
+        }
+        await Task.Delay(200);
+        Assert.Equal(1, widthChanges);
+        Assert.Equal(1, viewportChanges);
+        Assert.Equal(list.ClientSize, flow.Size);
+        Assert.True(bubble.Width < originalWidth);
+    });
+
+    [Fact]
     public Task ConversationRenderingKeepsTheSelectedHistoryCorrect() => OnUi(host =>
     {
         using var list = new MessageListControl(); host.Controls.Add(list);
@@ -428,6 +472,72 @@ public sealed partial class WindowsUiTests
             Directory.CreateDirectory(captures);
             File.WriteAllText(Path.Combine(captures, "render-timing.json"), JsonSerializer.Serialize(new { cold, repeated, switched, returned }));
         }
+        return Task.CompletedTask;
+    });
+
+    [Theory]
+    [InlineData(96)]
+    [InlineData(120)]
+    [InlineData(144)]
+    [InlineData(192)]
+    public Task ConversationFiltersAndUnreadBadgeFitAtHighDpi(int dpi) => OnUi(host =>
+    {
+        using var view = new DpiForm { ClientSize = new System.Drawing.Size(290, 400) };
+        using var list = new ConversationListControl();
+        view.Controls.Add(list);
+        view.Show(host);
+        var summary = new ConversationSummary(Guid.NewGuid(), Guid.NewGuid(), "Nguyễn Văn An", "Tin chưa đọc", 0, 120, true, true, LanChat.Domain.PresenceStatus.Online);
+        list.Bind([summary], null);
+        using var fonts = SimulateDpi(view, dpi);
+        list.ApplyPreferences(new UiPreferences { Density = UiDensity.Compact });
+
+        var filters = Children(list).OfType<Button>().Where(button => button.Text is "Tất cả" or "Chưa đọc" or "@ Tôi" or "Đã ghim").ToArray();
+        Assert.Equal(4, filters.Length);
+        foreach (var button in filters)
+        {
+            Assert.True(button.Height >= button.Font.Height + button.Padding.Vertical, $"Filter clipped at {dpi}: {button.Text}");
+            Assert.True(button.Parent.ClientRectangle.Contains(button.Bounds));
+        }
+
+        var row = Children(list).OfType<ConversationItemControl>().Single();
+        var badge = Children(row).OfType<UnreadBadge>().Single();
+        Assert.True(badge.Visible);
+        Assert.True(badge.Height >= badge.GetPreferredSize(System.Drawing.Size.Empty).Height);
+        Assert.True(badge.Parent.ClientRectangle.Contains(badge.Bounds));
+        return Task.CompletedTask;
+    });
+
+    [Fact]
+    public Task ReturnToLatestNeverCoversHistoryOrComposer() => OnUi(host =>
+    {
+        using var view = new Form { ClientSize = new System.Drawing.Size(370, 380) };
+        using var chat = new ChatViewControl();
+        view.Controls.Add(chat);
+        view.Show(host);
+        chat.SelectConversation("Hội thoại thử", true);
+        chat.SetHistoryAvailable(true, returnToLatest: true);
+        var link = Children(chat).OfType<IconLinkLabel>().Single(c => c.Visible && c.Text == "Quay về tin nhắn mới");
+        var history = Children(chat).OfType<MessageListControl>().Single();
+        var composer = Children(chat).OfType<ChatInputControl>().Single();
+        var linkBounds = link.RectangleToScreen(link.ClientRectangle);
+        Assert.True(history.RectangleToScreen(history.ClientRectangle).Bottom <= linkBounds.Top);
+        Assert.True(linkBounds.Bottom <= composer.RectangleToScreen(composer.ClientRectangle).Top);
+        Assert.True(composer.Height > 0);
+        return Task.CompletedTask;
+    });
+
+    [Fact]
+    public Task AttachmentButtonsStackInsideNarrowFileCard() => OnUi(host =>
+    {
+        var file = new AttachmentDto(Guid.NewGuid(), Guid.NewGuid(), "Hồ sơ.txt", "text/plain", 123, new string('a', 64));
+        using var item = new AttachmentItemControl(file, null, null);
+        host.Controls.Add(item);
+        item.FitWidth(105);
+        var open = Children(item).OfType<Button>().Single(c => c.Text == "Mở");
+        var save = Children(item).OfType<Button>().Single(c => c.Text == "Lưu về máy");
+        Assert.True(item.ClientRectangle.Contains(open.Bounds));
+        Assert.True(item.ClientRectangle.Contains(save.Bounds));
+        Assert.True(open.Bottom <= save.Top);
         return Task.CompletedTask;
     });
 
@@ -500,8 +610,10 @@ public sealed partial class WindowsUiTests
         // Reapply the emulated monitor after that message, then raise its layout event.
         foreach (var control in Children(view).Prepend(view))
             typeof(Control).GetField("deviceDpi", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(control, dpi);
-        foreach (var bubble in Children(list).OfType<MessageBubbleControl>())
-            typeof(Control).GetMethod("OnDpiChangedAfterParent", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(bubble, [EventArgs.Empty]);
+        typeof(Control).GetMethod("OnDpiChangedAfterParent", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(list, [EventArgs.Empty]);
+        var dpiApplied = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        list.BeginInvoke((Action)(() => dpiApplied.SetResult(true)));
+        await dpiApplied.Task;
         var items = Children(list).OfType<AttachmentItemControl>().ToArray(); Assert.Equal(2, items.Length);
         var commands = new List<AttachmentCommand>(); list.AttachmentCommandRequested += (_, command) => commands.Add(command);
         foreach (var item in items)

@@ -30,6 +30,8 @@ public sealed class MessageBubbleControl : UserControl
     private ChatImageService? _images;
     private AttachmentActions? _attachmentActions;
     private bool _updatingHeight;
+    private (int Width, int Dpi) _layoutSize;
+    private (int Maximum, int Gutter, int AvatarSpace) _layoutConstraints;
     private readonly ContextMenuStrip _menu = new();
     private readonly ContextMenuStrip _reactionMenu = new();
     private readonly CheckBox _select = new() { Visible = false, AutoSize = false, AccessibleName = "Chọn tin nhắn", Margin = Padding.Empty };
@@ -66,7 +68,9 @@ public sealed class MessageBubbleControl : UserControl
     public event Action<AttachmentDto>? FileRequested;
     internal event Action<AttachmentDto, AttachmentCommand>? AttachmentCommandRequested;
     internal event Action<Guid, Guid>? QuoteRequested;
-    public MessageBubbleControl()
+    public MessageBubbleControl() : this(false) { }
+
+    internal MessageBubbleControl(bool managedLayout)
     {
         Size = new Size(400, 120); Margin = Padding.Empty;
         BackColor = Theme.Canvas; DoubleBuffered = true; ResizeRedraw = true;
@@ -142,8 +146,11 @@ public sealed class MessageBubbleControl : UserControl
         Disposed += (_, _) => { _menu.Dispose(); _reactionMenu.Dispose(); };
         _menu.Opening += (_, _) => { foreach (ToolStripItem item in _menu.Items) item.Enabled = _message is not null && _message.Kind != MessageKind.System && ((string?)item.Tag == "delete" || (!_message.IsRecalled && ((string?)item.Tag is not ("edit" or "recall") || _own))); };
         ContextMenuStrip = _card.ContextMenuStrip = _sender.ContextMenuStrip = _body.ContextMenuStrip = _state.ContextMenuStrip = _menu;
-        Resize += (_, _) => UpdateLayout();
-        DpiChangedAfterParent += (_, _) => UpdateLayout();
+        if (!managedLayout)
+        {
+            SizeChanged += (_, _) => EnsureLayout();
+            DpiChangedAfterParent += (_, _) => EnsureLayout();
+        }
     }
     public void ConfigureImages(ChatImageService images) => _images = images;
     internal void SetSelection(bool mode, bool selected, bool selectable)
@@ -169,10 +176,17 @@ public sealed class MessageBubbleControl : UserControl
         };
     }
 
-    private void UpdateLayout()
+    internal void EnsureLayout()
+    {
+        if (_layoutSize != (Width, this.LayoutDpi())) UpdateLayout(reuseMeasurements: true);
+    }
+
+    private void UpdateLayout(bool reuseMeasurements = false)
     {
         if (_updatingHeight || _message is null) return;
         _updatingHeight = true;
+        var previousDpi = _layoutSize.Dpi;
+        _layoutSize = (Width, this.LayoutDpi());
         try
         {
             var system = _message.Kind == MessageKind.System;
@@ -180,6 +194,25 @@ public sealed class MessageBubbleControl : UserControl
             var selectionSpace = _selectionMode ? this.ScalePixels(26) : 0;
             var avatarSpace = !system && Width >= this.ScalePixels(130) ? this.ScalePixels(34) : 0;
             var maximum = Math.Max(1, Math.Min(Width - gutter * 2 - avatarSpace - selectionSpace, this.ScalePixels(system ? 480 : 620)));
+            int CardLeft(int cardWidth) => system ? selectionSpace + (Width - selectionSpace - cardWidth) / 2 :
+                _own ? Width - gutter - avatarSpace - cardWidth : gutter + selectionSpace + avatarSpace;
+
+            var constraints = (maximum, gutter, avatarSpace);
+            if (reuseMeasurements && previousDpi == _layoutSize.Dpi && _layoutConstraints == constraints && !_bubbleBounds.IsEmpty)
+            {
+                // In a wide viewport the bubble is already capped. Moving it
+                // is enough; do not remeasure its text, files or table rows.
+                var delta = CardLeft(_bubbleBounds.Width) - _bubbleBounds.Left;
+                if (delta != 0)
+                {
+                    _card.Left += delta;
+                    _bubbleBounds.Offset(delta, 0);
+                    if (_own && !_avatarBounds.IsEmpty) _avatarBounds.Offset(delta, 0);
+                    Invalidate();
+                }
+                return;
+            }
+            _layoutConstraints = constraints;
             var insetX = Math.Min(this.ScalePixels(10), (maximum - 1) / 2);
             var insetY = this.ScalePixels(_appearance.Density == UiDensity.Compact ? 3 : _appearance.Density == UiDensity.Comfortable ? 8 : 5);
             var flags = TextFormatFlags.WordBreak | TextFormatFlags.TextBoxControl | TextFormatFlags.NoPrefix;
@@ -191,17 +224,18 @@ public sealed class MessageBubbleControl : UserControl
             var natural = Math.Max(this.ScalePixels(184), Math.Min(TextWidth(_state.Text, _state.Font) + _state.Padding.Horizontal, this.ScalePixels(220)) + actionsWidth + this.ScalePixels(12));
             natural = Math.Max(natural, TextWidth(_body.Text, _body.Font));
             if (_startsGroup) natural = Math.Max(natural, Math.Min(TextWidth(_sender.Text, _sender.Font), this.ScalePixels(240)));
-            if (_quote.Visible) natural = Math.Max(natural, this.ScalePixels(300));
+            if (_presentation?.Quote is not null) natural = Math.Max(natural, this.ScalePixels(300));
             var pictureWidth = this.ScalePixels(176);
             if (_pictures.Controls.Count > 0)
             {
-                pictureWidth = Math.Max(pictureWidth, _pictures.Controls.OfType<AttachmentItemControl>().Max(item => item.ActionWidth) + this.ScalePixels(6));
+                var padding = this.ScalePixels(6);
+                foreach (AttachmentItemControl item in _pictures.Controls) pictureWidth = Math.Max(pictureWidth, item.ActionWidth + padding);
                 natural = Math.Max(natural, Math.Min(3, _pictures.Controls.Count) * (pictureWidth + this.ScalePixels(4)));
             }
-            foreach (var item in _files.Controls.OfType<AttachmentItemControl>()) natural = Math.Max(natural, item.PreferredRowWidth);
+            foreach (AttachmentItemControl item in _files.Controls) natural = Math.Max(natural, item.PreferredRowWidth);
             var cardWidth = Math.Max(1, Math.Min(maximum, natural + insetX * 2));
             var contentWidth = Math.Max(1, cardWidth - insetX * 2);
-            var x = system ? selectionSpace + (Width - selectionSpace - cardWidth) / 2 : _own ? Width - gutter - avatarSpace - cardWidth : gutter + selectionSpace + avatarSpace;
+            var x = CardLeft(cardWidth);
             var y = this.ScalePixels(_startsGroup ? 8 : _appearance.Density == UiDensity.Compact ? 1 : _appearance.Density == UiDensity.Comfortable ? 5 : 2) + (_separateBefore ? 2 : 0);
             if (_selectionMode) _select.SetBounds(gutter, y + this.ScalePixels(6), this.ScalePixels(20), this.ScalePixels(20));
 
@@ -210,9 +244,10 @@ public sealed class MessageBubbleControl : UserControl
             if (_pictures.Controls.Count > 0)
             {
                 var tileWidth = Math.Max(1, Math.Min(pictureWidth, contentWidth));
-                var columns = Math.Max(1, (contentWidth + this.ScalePixels(4)) / (tileWidth + this.ScalePixels(4)));
-                tileWidth = Math.Max(1, Math.Min(tileWidth, (contentWidth - (columns - 1) * this.ScalePixels(4)) / columns));
-                foreach (var item in _pictures.Controls.OfType<AttachmentItemControl>())
+                var gap = this.ScalePixels(4);
+                var columns = Math.Max(1, contentWidth / (tileWidth + gap));
+                tileWidth = Math.Max(1, Math.Min(tileWidth, contentWidth / columns - gap));
+                foreach (AttachmentItemControl item in _pictures.Controls)
                 {
                     item.Margin = new Padding(0, 0, this.ScalePixels(4), this.ScalePixels(4)); item.FitWidth(tileWidth);
                 }
@@ -220,7 +255,7 @@ public sealed class MessageBubbleControl : UserControl
                 picturesHeight = rows * (_pictures.Controls[0].Height + this.ScalePixels(4));
             }
             var filesHeight = 0;
-            foreach (var item in _files.Controls.OfType<AttachmentItemControl>())
+            foreach (AttachmentItemControl item in _files.Controls)
             {
                 item.Margin = new Padding(0, 0, 0, this.ScalePixels(4)); item.FitWidth(contentWidth);
                 filesHeight += item.Height + item.Margin.Vertical;
@@ -229,18 +264,29 @@ public sealed class MessageBubbleControl : UserControl
                 new Size(contentWidth, int.MaxValue), flags).Height + this.ScalePixels(4);
             _body.Margin = new Padding(0, 0, 0, bodyHeight > 0 && _attachments.Length > 0 ? this.ScalePixels(4) : 0);
             var top = this.ScalePixels(2);
-            _reply.Visible = _react.Visible = !system && contentWidth >= this.ScalePixels(174);
-            actionsWidth = system ? 0 : buttonSize.Width * (_reply.Visible ? 3 : 1);
+            var showQuickActions = !system && contentWidth >= this.ScalePixels(174);
+            _reply.Visible = _react.Visible = showQuickActions;
+            actionsWidth = system ? 0 : buttonSize.Width * (showQuickActions ? 3 : 1);
             var footerHeight = Math.Max(_state.PreferredHeight, system ? 0 : buttonSize.Height) + top;
             _actions.SetBounds(contentWidth - actionsWidth, top, actionsWidth, buttonSize.Height);
             _state.SetBounds(0, top, Math.Max(1, contentWidth - actionsWidth - (system ? 0 : this.ScalePixels(6))), footerHeight - top);
             _quote.Margin = new Padding(0, 0, 0, this.ScalePixels(4));
             var quoteHeight = _quote.HeightForWidth(contentWidth);
-            var rowHeights = new[] { !system && _startsGroup ? _sender.PreferredHeight + this.ScalePixels(2) : 0,
-                quoteHeight == 0 ? 0 : quoteHeight + _quote.Margin.Vertical, bodyHeight + _body.Margin.Vertical,
-                picturesHeight, filesHeight, footerHeight };
-            for (var i = 0; i < rowHeights.Length; i++) _card.RowStyles[i].Height = rowHeights[i];
-            var height = rowHeights.Sum();
+            var senderHeight = !system && _startsGroup ? _sender.PreferredHeight + this.ScalePixels(2) : 0;
+            var replyHeight = quoteHeight == 0 ? 0 : quoteHeight + _quote.Margin.Vertical;
+            var textHeight = bodyHeight + _body.Margin.Vertical;
+            void SetRowHeight(int row, int height)
+            {
+                if (_card.RowStyles[row].Height != height) _card.RowStyles[row].Height = height;
+            }
+
+            SetRowHeight(0, senderHeight);
+            SetRowHeight(1, replyHeight);
+            SetRowHeight(2, textHeight);
+            SetRowHeight(3, picturesHeight);
+            SetRowHeight(4, filesHeight);
+            SetRowHeight(5, footerHeight);
+            var height = senderHeight + replyHeight + textHeight + picturesHeight + filesHeight + footerHeight;
             _card.SetBounds(x + insetX, y + insetY, contentWidth, height);
             _card.ResumeLayout(true);
             _bubbleBounds = new Rectangle(x, y, cardWidth, height + insetY * 2);
@@ -295,7 +341,11 @@ public sealed class MessageBubbleControl : UserControl
             string.Join("  ", details?.Reactions ?? []), m.IsRecalled ? null : details?.Quote, own, startsGroup, unread, separateBefore, showDate, string.Join(";", (details?.Mentions ?? []).Where(v => v.UserIds.Contains(localUser)).Select(v => $"{v.Start}:{v.Length}")));
         if (_message?.Id != m.Id) { _menu.Close(); _reactionMenu.Close(); }
         _message = m;
-        if (_presentation == presentation && _attachments.SequenceEqual(files)) return;
+        if (_presentation == presentation && _attachments.SequenceEqual(files))
+        {
+            EnsureLayout();
+            return;
+        }
         _presentation = presentation;
         _own = own; _startsGroup = startsGroup; _unread = unread; _separateBefore = separateBefore;
         var system = m.Kind == MessageKind.System;
@@ -354,7 +404,7 @@ public sealed class MessageBubbleControl : UserControl
             Theme.AddAtCurrentDpi(_images is not null && ChatImageService.IsImage(file) ? _pictures : _files, item);
         }
     }
-    public void EnsureImagesLoaded() { foreach (var item in _pictures.Controls.OfType<AttachmentItemControl>()) item.EnsureImageLoaded(); }
+    public void EnsureImagesLoaded() { foreach (AttachmentItemControl item in _pictures.Controls) item.EnsureImageLoaded(); }
 
 #if DEBUG
     internal void ClickActionsForVerification(string emoji)
@@ -372,7 +422,7 @@ public sealed class MessageBubbleControl : UserControl
 
 public sealed class MessageListControl : UserControl
 {
-    private readonly FlowLayoutPanel _flow = new BufferedFlowLayoutPanel { Dock = DockStyle.Fill, AutoScroll = true, FlowDirection = FlowDirection.TopDown,
+    private readonly FlowLayoutPanel _flow = new BufferedFlowLayoutPanel { Anchor = AnchorStyles.Top | AnchorStyles.Left, AutoScroll = true, FlowDirection = FlowDirection.TopDown,
         WrapContents = false, BackColor = Theme.Canvas, Padding = new Padding(0, 0, 0, 10) };
     private readonly Label _unreadDivider = Theme.Label("Tin nhắn chưa đọc", 9, true);
     private readonly ToolTip _actionToolTips = new();
@@ -381,7 +431,9 @@ public sealed class MessageListControl : UserControl
     private bool IsBoundBubble(MessageBubbleControl bubble) =>
         _bubbles.TryGetValue(bubble.MessageId, out var current) && ReferenceEquals(current, bubble);
     private Guid? _conversation;
-    private bool _resizing, _resizeQueued, _binding;
+    private bool _resizing, _dpiLayoutQueued, _binding;
+    private readonly System.Windows.Forms.Timer _resizeTimer = new() { Interval = 90 };
+    private (int Width, int Dpi) _viewportLayout;
     private Guid? _firstNewMessage;
     private Guid? _lastMessage;
     private Guid? _highlight;
@@ -428,7 +480,7 @@ public sealed class MessageListControl : UserControl
     internal event Action<Guid, Guid>? QuoteRequested;
     public MessageListControl()
     {
-        Dock = DockStyle.Fill; Controls.Add(_flow);
+        Dock = DockStyle.Fill; BackColor = Theme.Canvas; Controls.Add(_flow);
         _unreadDivider.Dock = DockStyle.None;
         _unreadDivider.AutoSize = false;
         _unreadDivider.TextAlign = ContentAlignment.MiddleCenter;
@@ -446,12 +498,15 @@ public sealed class MessageListControl : UserControl
         };
         Disposed += (_, _) =>
         {
+            _resizeTimer.Stop();
+            _resizeTimer.Dispose();
             _unreadDivider.Dispose();
             _actionToolTips.Dispose();
         };
-        _flow.HandleCreated += (_, _) => QueueResize();
-        _flow.SizeChanged += (_, _) => QueueResize();
-        DpiChangedAfterParent += (_, _) => QueueResize();
+        _resizeTimer.Tick += (_, _) => { _resizeTimer.Stop(); ResizeItems(); };
+        HandleCreated += (_, _) => ResizeItems();
+        ClientSizeChanged += (_, _) => QueueResize();
+        DpiChangedAfterParent += (_, _) => QueueDpiLayout();
         _flow.Scroll += (_, _) => OnScrolled();
         _flow.MouseWheel += (_, _) => OnScrolled();
     }
@@ -467,31 +522,55 @@ public sealed class MessageListControl : UserControl
 
     private void QueueResize()
     {
-        if (_resizeQueued || !_flow.IsHandleCreated || _flow.IsDisposed) return;
-        // Reflow after WinForms has finished calculating the viewport and its scrollbars.
-        _resizeQueued = true;
-        _flow.BeginInvoke((Action)(() =>
+        if (!IsHandleCreated || IsDisposed || _resizing || _binding) return;
+        _resizeTimer.Stop();
+        if (!_dpiLayoutQueued && (_flow.Size != ClientSize || _viewportLayout != (ItemWidth, this.LayoutDpi()))) _resizeTimer.Start();
+    }
+
+    private void QueueDpiLayout()
+    {
+        if (_dpiLayoutQueued || !IsHandleCreated || IsDisposed) return;
+        // DPI changes also scale the native children. Reconcile their custom
+        // geometry after that pass, without waiting for the interactive resize timer.
+        _resizeTimer.Stop();
+        _dpiLayoutQueued = true;
+        BeginInvoke((Action)(() =>
         {
-            _resizeQueued = false;
-            if (!_flow.IsDisposed) ResizeItems();
+            _dpiLayoutQueued = false;
+            if (!IsDisposed) ResizeItems();
         }));
     }
 
     private void ResizeItems()
     {
-        if (_resizing || _flow.ClientSize.Width <= 0) return;
+        var size = ClientSize;
+        if (_resizing || size.Width <= 0 || size.Height <= 0) return;
+        var viewport = (Width: ItemWidth, Dpi: this.LayoutDpi());
+        var reflow = _viewportLayout != viewport;
+        if (!reflow && _flow.Size == size) return;
+        _viewportLayout = viewport;
         _resizing = true;
         try
         {
             var followEnd = !_binding && AtBottom;
             var anchor = !_binding && !followEnd ? _flow.Controls.OfType<MessageBubbleControl>().FirstOrDefault(c => IsBoundBubble(c) && c.Bottom > 0) : null;
             var anchorTop = anchor?.Top ?? 0;
-            var width = ItemWidth;
+            var width = viewport.Width;
             _flow.SuspendLayout();
             try
             {
-                foreach (var bubble in _bubbles.Values) bubble.Width = width;
-                _unreadDivider.Size = new Size(width, _unreadDivider.PreferredHeight + this.ScalePixels(14));
+                // Commit the viewport and its rows together. Leaving the flow
+                // un-docked keeps WinForms from laying out every child per pixel.
+                _flow.Size = size;
+                if (reflow && !_binding)
+                {
+                    foreach (var bubble in _bubbles.Values)
+                    {
+                        bubble.Width = width;
+                        bubble.EnsureLayout();
+                    }
+                }
+                if (reflow) _unreadDivider.Size = new Size(width, _unreadDivider.PreferredHeight + this.ScalePixels(14));
             }
             finally { _flow.ResumeLayout(true); }
             if (followEnd) ScrollToEnd();
@@ -504,13 +583,13 @@ public sealed class MessageListControl : UserControl
         get
         {
             var scrollBar = SystemInformation.GetVerticalScrollBarWidthForDpi(this.LayoutDpi());
-            var viewport = Math.Min(_flow.ClientSize.Width, _flow.Width - scrollBar);
+            var viewport = ClientSize.Width - scrollBar;
             return Math.Max(1, viewport - _flow.Padding.Horizontal - this.ScalePixels(2));
         }
     }
     private MessageBubbleControl CreateBubble(bool hidden = false)
     {
-        var bubble = new MessageBubbleControl { Visible = !hidden };
+        var bubble = new MessageBubbleControl(managedLayout: true) { Visible = !hidden };
         bubble.SelectionChanged += (id, selected) => { _selection.Select(id, selected); RefreshSelection(false); };
         bubble.ActionRequested += (message, action) => ActionRequested?.Invoke(message, action);
         bubble.FileRequested += file => FileRequested?.Invoke(file);
@@ -1085,7 +1164,7 @@ public sealed class ChatViewControl : UserControl
     public ChatViewControl()
     {
         Dock = DockStyle.Fill;
-        var layout = Theme.Stack(6);
+        var layout = Theme.Stack(7);
         var header = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 5, RowCount = 1, Margin = Padding.Empty };
         header.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         header.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100)); header.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize)); header.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
@@ -1104,9 +1183,13 @@ public sealed class ChatViewControl : UserControl
         headerTips.SetToolTip(_selectMessages, "Chọn nhiều tin nhắn để xuất QR văn bản");
         headerTips.SetToolTip(_allMessages, "Chọn tất cả tin trong phần lịch sử đang hiển thị; tải tin cũ hơn để chọn thêm.");
         Disposed += (_, _) => headerTips.Dispose();
+        (bool Compact, int Dpi)? headerLayout = null;
         void FitHeaderActions()
         {
             var compact = header.ClientSize.Width < this.ScalePixels(560);
+            var state = (compact, this.LayoutDpi());
+            if (headerLayout == state) return;
+            headerLayout = state;
             _find.Text = compact ? "" : _find.AccessibleName;
             _info.Text = compact ? "" : _info.AccessibleName;
             _selectMessages.Text = compact ? "" : _selectMessages.AccessibleName;
@@ -1159,24 +1242,22 @@ public sealed class ChatViewControl : UserControl
         _forwardSelected.Click += (_, _) => ForwardRequested?.Invoke(_messages.ForwardIds);
         _shareQr.Click += (_, _) => { var text = _messages.SelectedText; if (!text.CanExport) return; using var dialog = new QrShareForm(text); UiInteraction.ShowDialog(dialog, this); };
         var history = new BufferedPanel { Dock = DockStyle.Fill };
-        history.Controls.Add(_messages); history.Controls.Add(_new); history.Controls.Add(_loadingView); _new.BringToFront();
-        void PositionNewMessagesLink() => _new.Location = new Point(
-            Math.Max(0, history.ClientSize.Width - _new.Width - this.ScalePixels(24)),
-            Math.Max(0, history.ClientSize.Height - _new.Height - this.ScalePixels(12)));
-        history.SizeChanged += (_, _) => PositionNewMessagesLink();
-        _new.SizeChanged += (_, _) => PositionNewMessagesLink();
-        DpiChangedAfterParent += (_, _) => PositionNewMessagesLink();
+        history.Controls.Add(_messages);
+        history.Controls.Add(_loadingView);
+        _loadingView.BringToFront();
         _messages.NewMessages += value => _new.Visible = value || _returnToLatest;
         _messages.ReachedBottom += () => ReadRequested?.Invoke();
         _new.LinkClicked += async (_, _) => { if (_returnToLatest && OlderRequested is not null) await OlderRequested(); else { _messages.ScrollToEnd(); ReadRequested?.Invoke(); } };
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 36)); layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 22));
         layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100)); layout.RowStyles.Add(new RowStyle(SizeType.Absolute, ChatInputControl.BaseHeight));
+        layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, ChatInputControl.BaseHeight));
         _title.Padding = new Padding(10, 4, 0, 0); _subtitle.Padding = new Padding(10, 0, 0, 0); _subtitle.ForeColor = Theme.Muted;
         _title.AutoSize = false; _title.AutoEllipsis = true; _subtitle.AutoSize = false; _subtitle.AutoEllipsis = true;
         layout.Controls.Add(header, 0, 0); layout.Controls.Add(_subtitle, 0, 1); layout.Controls.Add(_selectionBar, 0, 2);
-        layout.Controls.Add(_older, 0, 3); layout.Controls.Add(history, 0, 4); layout.Controls.Add(_input, 0, 5);
+        layout.Controls.Add(_older, 0, 3); layout.Controls.Add(history, 0, 4); layout.Controls.Add(_new, 0, 5); layout.Controls.Add(_input, 0, 6);
         Controls.Add(layout); _input.SendRequested += async text => { if (SendRequested is not null) await SendRequested(text); };
         _input.DraftFilesChanged += () => DraftFilesChanged?.Invoke();
         var requestedInputHeight = ChatInputControl.BaseHeight;
@@ -1186,17 +1267,19 @@ public sealed class ChatViewControl : UserControl
             if (_older.Visible) headerHeight += _older.PreferredHeight + _older.Margin.Vertical;
             if (_selectionBar.Visible) headerHeight += _selectionBar.Height + _selectionBar.Margin.Vertical;
 
+            if (_new.Visible) headerHeight += _new.PreferredHeight + _new.Margin.Vertical;
             var available = Math.Max(0, layout.ClientSize.Height - headerHeight);
             var preferred = this.ScalePixels(requestedInputHeight);
             // Keep some history visible on short screens. The preview strip can scroll.
             var minimum = this.ScalePixels(_input.MinimumHeight);
             var limit = Math.Max(minimum, (int)(available * .45));
             var height = Math.Min(preferred, Math.Min(available, limit));
-            if (layout.RowStyles[5].Height != height) layout.RowStyles[5].Height = height;
+            if (layout.RowStyles[6].Height != height) layout.RowStyles[6].Height = height;
         }
         _input.HeightRequested += height => { requestedInputHeight = height; FitComposer(); };
         layout.SizeChanged += (_, _) => FitComposer();
         _older.VisibleChanged += (_, _) => FitComposer();
+        _new.VisibleChanged += (_, _) => FitComposer();
         _selectionBar.VisibleChanged += (_, _) => FitComposer(); _selectionBar.SizeChanged += (_, _) => FitComposer();
         DpiChangedAfterParent += (_, _) => FitComposer();
         _messages.ActionRequested += (m, a) => ActionRequested?.Invoke(m, a); _messages.FileRequested += f => FileRequested?.Invoke(f);
@@ -1252,9 +1335,7 @@ public sealed class ChatViewControl : UserControl
     public void SetHistoryAvailable(bool older, bool returnToLatest = false)
     {
         _returnToLatest = returnToLatest;
-        _older.Visible = older || returnToLatest;
-        _older.Text = returnToLatest ? "Quay về tin nhắn mới" : "Xem tin nhắn cũ hơn";
-        _older.Icon = returnToLatest ? UiIcon.Down : UiIcon.Up;
+        _older.Visible = older && !returnToLatest;
         _new.Text = returnToLatest ? "Quay về tin nhắn mới" : "Tin mới";
         if (returnToLatest || _messages.AtBottom) _new.Visible = returnToLatest;
     }

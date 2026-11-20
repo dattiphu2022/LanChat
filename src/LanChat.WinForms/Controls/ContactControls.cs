@@ -56,9 +56,7 @@ public sealed class UserItemControl : UserControl
         Height = 78; TabStop = true; AccessibleRole = AccessibleRole.ListItem; Dock = DockStyle.Top; BackColor = Color.White; Cursor = Cursors.Hand;
         var stack = Theme.Stack(3);
         stack.Padding = new Padding(10, 6, 10, 6);
-        stack.RowStyles.Add(new RowStyle(SizeType.Absolute, 24));
-        stack.RowStyles.Add(new RowStyle(SizeType.Absolute, 21));
-        stack.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        for (var row = 0; row < 3; row++) stack.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         _device.ForeColor = _presence.ForeColor = Theme.Muted;
         foreach (var label in new[] { _title, _device, _presence })
         {
@@ -73,6 +71,13 @@ public sealed class UserItemControl : UserControl
         GotFocus += (_, _) => stack.Invalidate(); LostFocus += (_, _) => stack.Invalidate();
         stack.Click += SelectUser;
         Controls.Add(stack);
+        void FitRow()
+        {
+            var height = stack.Controls.OfType<Label>().Sum(label => label.PreferredHeight + label.Margin.Vertical);
+            Height = Math.Max(this.ScalePixels(78), height + stack.Padding.Vertical);
+        }
+        foreach (var label in new[] { _title, _device, _presence }) label.FontChanged += (_, _) => FitRow();
+        DpiChangedAfterParent += (_, _) => FitRow();
     }
     private void SelectUser(object? sender, EventArgs e) => Selected?.Invoke(UserId);
     public void Bind(UserSummary u)
@@ -94,7 +99,32 @@ public sealed class ConversationItemControl : UserControl
     private readonly Label _meta = Theme.Label("", 9);
     private readonly UnreadBadge _unread = new();
     private readonly Label _time = Theme.Label("", 8);
-    internal void ApplyPreferences(UiPreferences preferences) => Height = this.ScalePixels(preferences.ConversationRowHeight);
+    private readonly TableLayoutPanel _layout = new() { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 3, Padding = new Padding(8, 5, 8, 5) };
+    private UiPreferences _appearance = new();
+
+    internal void ApplyPreferences(UiPreferences preferences)
+    {
+        _appearance = preferences;
+        FitRow();
+    }
+
+    private void FitRow()
+    {
+        var title = Math.Max(_title.PreferredHeight + _title.Margin.Vertical, _time.PreferredHeight + _time.Margin.Vertical);
+        var preview = _preview.PreferredHeight + _preview.Margin.Vertical;
+        var badgeSize = _unread.GetPreferredSize(Size.Empty);
+        var meta = Math.Max(_meta.PreferredHeight + _meta.Margin.Vertical, badgeSize.Height + _unread.Margin.Vertical);
+
+        _layout.SuspendLayout();
+        try
+        {
+            _unread.Size = badgeSize;
+            _layout.RowStyles[0].Height = title;
+            _layout.RowStyles[1].Height = preview;
+            Height = Math.Max(this.ScalePixels(_appearance.ConversationRowHeight), title + preview + meta + _layout.Padding.Vertical + Padding.Vertical);
+        }
+        finally { _layout.ResumeLayout(true); }
+    }
     private ConversationSummary? _model;
     protected override void OnGotFocus(EventArgs e) { base.OnGotFocus(e); Invalidate(); }
     protected override void OnLostFocus(EventArgs e) { base.OnLostFocus(e); Invalidate(); }
@@ -105,8 +135,8 @@ public sealed class ConversationItemControl : UserControl
         Height = 72; TabStop = true; Dock = DockStyle.Top; Cursor = Cursors.Hand;
         DoubleBuffered = true; ResizeRedraw = true;
         Padding = new Padding(0, 0, 0, 1);
-        DpiChangedAfterParent += (_, _) => Padding = new Padding(0, 0, 0, 1);
-        var layout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 3, Padding = new Padding(8, 5, 8, 5) };
+        DpiChangedAfterParent += (_, _) => { Padding = new Padding(0, 0, 0, 1); FitRow(); };
+        var layout = _layout;
         layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 44)); layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         layout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 21)); layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 20)); layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
@@ -166,6 +196,7 @@ public sealed class ConversationItemControl : UserControl
             c.IsPinned ? "◆ Ghim" : "", c.IsMuted ? "Im lặng" : "" }.Where(part => part.Length > 0).ToArray();
         _meta.Text = indicators.Length > 0 ? string.Join(" · ", indicators) :
             c.Kind == ConversationKind.Group ? "Nhóm" : c.Presence == PresenceStatus.Online ? "Trực tuyến" : "Ngoại tuyến";
+        FitRow();
         SetActive(active);
     }
 }
@@ -212,12 +243,12 @@ public sealed class ConversationListControl : UserControl
         _search.KeyDown += (_, e) => { if ((e.KeyCode == Keys.Down || e.KeyCode == Keys.Enter) && _rows.Count > 0) { _items.Controls.OfType<ConversationItemControl>().Last().Focus(); e.SuppressKeyPress = true; } };
         var layout = Theme.Stack(4);
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 45)); layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 38));
-        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 38)); layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        var filters = new TableLayoutPanel { Dock = DockStyle.Fill, AutoSize = false, ColumnCount = 4, RowCount = 1, Margin = new Padding(0, 4, 0, 6) };
-        filters.RowStyles.Add(new RowStyle(SizeType.Percent,100));
+        layout.RowStyles.Add(new RowStyle(SizeType.AutoSize)); layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        var filters = new TableLayoutPanel { Dock = DockStyle.Top, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, ColumnCount = 4, RowCount = 1, Margin = new Padding(0, 4, 0, 6) };
+        filters.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         _filters = new[] { "Tất cả", "Chưa đọc", "@ Tôi", "Đã ghim" }.Select((text, index) =>
         {
-            var button = new Button { Text = text, AccessibleName = text, AutoSize = false, AutoEllipsis = true, Dock = DockStyle.Fill, FlatStyle = FlatStyle.Flat,
+            var button = new Button { Text = text, AccessibleName = text, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, AutoEllipsis = true, Dock = DockStyle.Fill, FlatStyle = FlatStyle.Flat,
                 Font = Theme.GetFont(9, false), Margin = new Padding(1), Padding = new Padding(1, 4, 1, 4), Cursor = Cursors.Hand };
             button.FlatAppearance.BorderSize = 0;
             button.Click += (_, _) => { _filter = index; Bind(_source, _activeKey); };
