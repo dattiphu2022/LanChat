@@ -18,3 +18,7 @@ Chi tiết máy đọc: [packages.json](verification/v1.2.10/packages.json). Ki�
 
 - 221/221 bài tuần tự PASS trên bản Debug đã ký, .NET Framework 4.8. Kết quả gốc ở artifacts/v1.2.10-tests.
 - Bài khôi phục lịch sử nhóm lớn đã tái hiện timeout trên HEAD gốc tiếp tục được loại có ghi chú, không tính là PASS.
+
+## Ảnh kiểm thử giao diện
+
+![Hội thoại nhóm trong bài kiểm thử hai tiến trình WinForms](verification/uiux/two-processes/A.group-chat.png)

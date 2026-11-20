@@ -12,3 +12,7 @@ LanChat v1.2.10 — nâng cấp UI/UX
 Giữ WinForms/.NET Framework 4.8, Windows 10/11 x64, giao thức, E2EE/TLS/DPAPI và cấu trúc database. Cài đè bằng cùng tài khoản Windows để giữ dữ liệu và cấu hình. Bộ cài và ứng dụng ký bằng chứng thư phát triển LanChat tự ký; không phải chứng thư CA và Windows/SmartScreen có thể vẫn cảnh báo.
 
 Giới hạn: chưa có dark mode. Kịch bản khôi phục lịch sử nhóm lớn chỉ còn một máy giữ dữ liệu chưa được nghiệm thu đầy đủ; bài kiểm thử này cũng timeout trên mã nguồn gốc. Kiểm chứng DPI gồm ma trận mô phỏng 100–200% và hai tiến trình thật ở DPI 125%; chưa đại diện mọi cấu hình phần cứng.
+
+### Giao diện LanChat v1.2.10
+
+![Bố cục trò chuyện sau nâng cấp](../uiux/after/chat-1280.png)

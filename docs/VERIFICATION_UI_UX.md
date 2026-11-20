@@ -56,3 +56,9 @@ pwsh -NoProfile -File scripts/Verify-TwoInstances.ps1
 Đặt biến môi trường `LANCHAT_UI_CAPTURE_DIR` nếu muốn lưu ảnh kiểm thử DPI. Testhost cần quyền kết nối loopback; lần chạy trong sandbox trước đó bị timeout kết nối, các lần kiểm chứng dùng testhost ngoài sandbox.
 
 Hiện vật của đợt này nằm trong thư mục không theo dõi Git `.codex-temp/ui-ux-20261118/`: báo cáo TRX trong `verified-tests/`, ảnh `about-96.png`, `about-144.png`, `about-192.png`, và báo cáo/ảnh hai tiến trình trong `two-instances-final/`. Mỗi lần chạy hai tiến trình phải dùng thư mục kết quả mới, không dùng dữ liệu chat thật.
+
+## Ảnh giao diện sau nâng cấp
+
+![Bố cục trò chuyện ở chiều rộng 800 px](verification/uiux/after/chat-800.png)
+
+![Cài đặt hiển thị ở DPI 200%](verification/uiux/after/preferences-192.png)

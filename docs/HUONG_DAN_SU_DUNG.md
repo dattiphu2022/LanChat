@@ -12,6 +12,8 @@ Trong LanChat, mở **Giới thiệu → Hướng dẫn sử dụng** để đ�
 
 Mỗi tab tương ứng với một mạng. Khi gỡ mạng rồi nhập lại đúng mã, LanChat có thể mở lại dữ liệu đã lưu trên máy đó. Bản cài nội bộ có thể được cấp sẵn một mạng mặc định.
 
+![Hướng dẫn thiết lập LanChat lần đầu](verification/uiux/after/getting-started-120.png)
+
 ## Nhắn tin riêng và theo nhóm
 
 1. Chọn người dùng trong **Danh bạ** hoặc mở tin nhắn từ danh sách hội thoại. Dùng **Ctrl+K** để tới ô tìm hội thoại.
@@ -58,6 +60,8 @@ Nhấp phải hội thoại để ghim, tắt thông báo hoặc **Xóa hội th
 - Khi Mở/Lưu mất thời gian, hộp tiến độ phân biệt chờ tác vụ, chờ máy nguồn, tải, kiểm tra và chuẩn bị. Có thể Hủy; nếu còn người khác chờ, lượt chuẩn bị chung vẫn tiếp tục. Nguồn không trả lời sẽ hết hạn để thử nguồn khác; không thay đổi phần mềm bảo vệ Windows.
 - Bấm ảnh trong tin nhắn để xem lớn. Dùng phím mũi tên để chuyển ảnh, cuộn chuột để phóng to và nhấn **Esc** để đóng.
 
+![Trung tâm truyền tệp](verification/uiux/after/transfer-center.png)
+
 ## Lưu đính kèm và mở lại bản đã sửa
 
 - **Mở** cạnh mỗi tệp, thư mục hoặc ảnh dùng ứng dụng mặc định của Windows; thư mục mở trong Explorer. Bấm trực tiếp tên tệp/thư mục vẫn mở như trước, còn bấm ảnh vẫn vào khung xem LanChat với ảnh gốc của tin nhắn.
@@ -75,6 +79,8 @@ Nhấp phải hội thoại để ghim, tắt thông báo hoặc **Xóa hội th
 3. Dòng trạng thái hiển thị số tin và dung lượng UTF-8, tối đa **500 byte**, gồm cả dấu phân cách. Khi vượt giới hạn, **Xuất QR** bị khóa; bỏ chọn bớt tin để tiếp tục. Ứng dụng không tự cắt hoặc thay đổi nội dung.
 4. Bấm **Xuất QR** để xem mã và văn bản sẽ chia sẻ. Văn bản ghép theo thời gian tăng dần bằng hai dấu xuống dòng LF, không thêm metadata. QR dùng Plain Text UTF-8, sửa lỗi M, tối đa Version 18, không có BOM.
 5. Chọn **Xuất PNG…**, nhập nơi lưu và tên tệp. Hộp thoại Windows hỏi trước khi ghi đè. Không tự mở hay gửi ảnh QR ra ngoài. Tạo và xuất QR hoàn toàn trên máy, không dùng dịch vụ bên ngoài.
+
+![Cửa sổ xem trước và lưu mã QR](verification/uiux/after/qr-120.png)
 
 ## Cập nhật và thoát ứng dụng
 

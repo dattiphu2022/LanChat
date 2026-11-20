@@ -6,6 +6,14 @@ Giữ WinForms/.NET Framework 4.8, giao thức và dữ liệu hiện có. [Chi 
 
 LanChat hỗ trợ chat riêng, chat nhóm và truyền ảnh, tệp, thư mục giữa các máy Windows trên mạng LAN. Mỗi máy lưu dữ liệu trong SQLite. Tin nhắn và tệp được mã hóa đầu cuối. Cập nhật hỗ trợ GitHub, máy cùng mạng chat trong LAN hoặc bộ cài cục bộ; LAN và bộ cài cục bộ hoạt động không cần Internet.
 
+## Giao diện LanChat
+
+![Giao diện trò chuyện ở bố cục rộng](docs/verification/uiux/after/chat-1280.png)
+
+![Danh sách hội thoại ở bố cục hẹp](docs/verification/uiux/after/conversation-list.png)
+
+[Xem thêm ảnh trước và sau](docs/UI_UX_IMPLEMENTATION.md#4-ảnh-và-ma-trận-kiểm-tra).
+
 ## Tải và bắt đầu sử dụng
 
 1. Tải **LanChat-Setup-Windows-x64.exe** từ [GitHub Releases](https://github.com/dattiphu2022/LanChat/releases/latest) và chạy bộ cài. Hỗ trợ Windows 10 từ phiên bản 1903 và Windows 11 x64 với .NET Framework 4.8.

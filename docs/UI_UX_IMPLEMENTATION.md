@@ -63,7 +63,13 @@ Không sửa Domain/Application/Infrastructure, migrations, project/target/publi
 
 ## 4. Ảnh và ma trận kiểm tra
 
-- [Trước 660](verification/uiux/before/chat-660.png) · [Sau 660](verification/uiux/after/chat-660.png).
+**Trước nâng cấp, cửa sổ rộng 660 px**
+
+![Bố cục trước nâng cấp ở 660 px](verification/uiux/before/chat-660.png)
+
+**Sau nâng cấp, cửa sổ rộng 660 px**
+
+![Bố cục sau nâng cấp ở 660 px](verification/uiux/after/chat-660.png)
 - [Sau 800](verification/uiux/after/chat-800.png) · [Sau 1280](verification/uiux/after/chat-1280.png).
 - [Hai máy thật — giao diện](verification/uiux/two-processes/A.1020.png) · [Nhóm](verification/uiux/two-processes/A.groups.png) · [Thông tin](verification/uiux/two-processes/A.conversation-panel.png).
 - [QR 200%](verification/uiux/after/qr-192.png) · [Cài đặt 200%](verification/uiux/after/preferences-192.png) · [Trung tâm tệp](verification/uiux/after/transfer-center.png).
