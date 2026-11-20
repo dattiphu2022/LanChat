@@ -1,0 +1,188 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TestRun id="fe02c1e9-0719-4f7a-9893-93a3b47cb194" name="Admin@ADMIN-PC 2026-11-20 07:40:15" runUser="ADMIN-PC\Admin" xmlns="http://microsoft.com/schemas/VisualStudio/TeamTest/2010">
+  <Times creation="2026-11-20T07:40:15.7178255+07:00" queuing="2026-11-20T07:40:15.7178257+07:00" start="2026-11-20T07:40:09.0620048+07:00" finish="2026-11-20T07:40:20.3534479+07:00" />
+  <TestSettings name="default" id="4634bb92-aa26-47d1-ad25-4c348c0d4aca">
+    <Deployment runDeploymentRoot="Admin_ADMIN-PC_2026-11-20_07_40_15" />
+  </TestSettings>
+  <Results>
+    <UnitTestResult executionId="9e01718f-0fb7-473e-bd1e-d98400f22c00" testId="b41cef43-b878-2afc-237b-349e67431e5a" testName="LanChat.Tests.WindowsUiTests.ResponsiveWorkspaceKeepsDraftAndConversationAtEverySize(dpi: 120)" computerName="ADMIN-PC" duration="00:00:05.4810000" startTime="2026-11-20T07:40:10.1969821+07:00" endTime="2026-11-20T07:40:15.6881569+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="9e01718f-0fb7-473e-bd1e-d98400f22c00" />
+    <UnitTestResult executionId="edee617e-f90c-44e5-989d-e0e33d8d851e" testId="2221beb6-887b-e529-a33e-61a5c4c7d3e7" testName="LanChat.Tests.WindowsUiTests.ResponsiveWorkspaceKeepsDraftAndConversationAtEverySize(dpi: 144)" computerName="ADMIN-PC" duration="00:00:01.8720000" startTime="2026-11-20T07:40:17.1410963+07:00" endTime="2026-11-20T07:40:18.9773183+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="edee617e-f90c-44e5-989d-e0e33d8d851e" />
+    <UnitTestResult executionId="aed00429-4115-4741-bab9-9b5da8ce11c1" testId="2ca56f13-fa45-6369-4c6c-a787e8a5b1e8" testName="LanChat.Tests.WindowsUiTests.ResponsiveWorkspaceKeepsDraftAndConversationAtEverySize(dpi: 192)" computerName="ADMIN-PC" duration="00:00:01.3430000" startTime="2026-11-20T07:40:15.7074342+07:00" endTime="2026-11-20T07:40:17.1123131+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Failed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="aed00429-4115-4741-bab9-9b5da8ce11c1">
+      <Output>
+        <ErrorInfo>
+          <Message>Assert.Equal() Failure: Values differ&#xD;
+Expected: False&#xD;
+Actual:   True</Message>
+          <StackTrace>   at LanChat.Tests.WindowsUiTests.&lt;&gt;c__DisplayClass67_1.&lt;&lt;ResponsiveWorkspaceKeepsDraftAndConversationAtEverySize&gt;b__0&gt;d.MoveNext() in C:\Users\Admin\source\repos\dattiphu2022\LanChat\tests\LanChat.Tests\WindowsUxTests.cs:line 70&#xD;
+--- End of stack trace from previous location where exception was thrown ---&#xD;
+   at System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw()&#xD;
+   at System.Runtime.CompilerServices.TaskAwaiter.HandleNonSuccessAndDebuggerNotification(Task task)&#xD;
+   at System.Runtime.CompilerServices.TaskAwaiter.GetResult()&#xD;
+   at LanChat.Tests.WindowsUiTests.&lt;&gt;c__DisplayClass54_1.&lt;&lt;OnUi&gt;b__2&gt;d.MoveNext() in C:\Users\Admin\source\repos\dattiphu2022\LanChat\tests\LanChat.Tests\WindowsUiTests.cs:line 861&#xD;
+--- End of stack trace from previous location where exception was thrown ---&#xD;
+   at System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw()&#xD;
+   at System.Runtime.CompilerServices.TaskAwaiter.HandleNonSuccessAndDebuggerNotification(Task task)&#xD;
+   at System.Runtime.CompilerServices.TaskAwaiter.GetResult()&#xD;
+   at LanChat.Tests.WindowsUiTests.&lt;ResponsiveWorkspaceKeepsDraftAndConversationAtEverySize&gt;d__67.MoveNext() in C:\Users\Admin\source\repos\dattiphu2022\LanChat\tests\LanChat.Tests\WindowsUxTests.cs:line 53&#xD;
+--- End of stack trace from previous location where exception was thrown ---&#xD;
+   at System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw()&#xD;
+   at LanChat.Tests.WindowsUiTests.&lt;ResponsiveWorkspaceKeepsDraftAndConversationAtEverySize&gt;d__67.MoveNext() in C:\Users\Admin\source\repos\dattiphu2022\LanChat\tests\LanChat.Tests\WindowsUxTests.cs:line 53&#xD;
+--- End of stack trace from previous location where exception was thrown ---&#xD;
+   at System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw()&#xD;
+   at LanChat.Tests.WindowsUiTests.&lt;ResponsiveWorkspaceKeepsDraftAndConversationAtEverySize&gt;d__67.MoveNext() in C:\Users\Admin\source\repos\dattiphu2022\LanChat\tests\LanChat.Tests\WindowsUxTests.cs:line 53&#xD;
+--- End of stack trace from previous location where exception was thrown ---&#xD;
+   at System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw()&#xD;
+   at System.Runtime.CompilerServices.TaskAwaiter.HandleNonSuccessAndDebuggerNotification(Task task)&#xD;
+--- End of stack trace from previous location where exception was thrown ---&#xD;
+   at System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw()&#xD;
+   at System.Runtime.CompilerServices.TaskAwaiter.HandleNonSuccessAndDebuggerNotification(Task task)&#xD;
+--- End of stack trace from previous location where exception was thrown ---&#xD;
+   at System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw()&#xD;
+   at System.Runtime.CompilerServices.TaskAwaiter.HandleNonSuccessAndDebuggerNotification(Task task)</StackTrace>
+        </ErrorInfo>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="ec785b9d-3260-4053-8a9a-e56b1083f1ae" testId="a287bc05-380a-6e2f-3171-780f995fc639" testName="LanChat.Tests.WindowsUiTests.ResponsiveWorkspaceKeepsDraftAndConversationAtEverySize(dpi: 96)" computerName="ADMIN-PC" duration="00:00:01.1660000" startTime="2026-11-20T07:40:18.9793407+07:00" endTime="2026-11-20T07:40:20.1438241+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Failed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="ec785b9d-3260-4053-8a9a-e56b1083f1ae">
+      <Output>
+        <ErrorInfo>
+          <Message>Assert.Equal() Failure: Values differ&#xD;
+Expected: True&#xD;
+Actual:   False</Message>
+          <StackTrace>   at LanChat.Tests.WindowsUiTests.&lt;&gt;c__DisplayClass67_1.&lt;&lt;ResponsiveWorkspaceKeepsDraftAndConversationAtEverySize&gt;b__0&gt;d.MoveNext() in C:\Users\Admin\source\repos\dattiphu2022\LanChat\tests\LanChat.Tests\WindowsUxTests.cs:line 70&#xD;
+--- End of stack trace from previous location where exception was thrown ---&#xD;
+   at System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw()&#xD;
+   at System.Runtime.CompilerServices.TaskAwaiter.HandleNonSuccessAndDebuggerNotification(Task task)&#xD;
+   at System.Runtime.CompilerServices.TaskAwaiter.GetResult()&#xD;
+   at LanChat.Tests.WindowsUiTests.&lt;&gt;c__DisplayClass54_1.&lt;&lt;OnUi&gt;b__2&gt;d.MoveNext() in C:\Users\Admin\source\repos\dattiphu2022\LanChat\tests\LanChat.Tests\WindowsUiTests.cs:line 861&#xD;
+--- End of stack trace from previous location where exception was thrown ---&#xD;
+   at System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw()&#xD;
+   at System.Runtime.CompilerServices.TaskAwaiter.HandleNonSuccessAndDebuggerNotification(Task task)&#xD;
+   at System.Runtime.CompilerServices.TaskAwaiter.GetResult()&#xD;
+   at LanChat.Tests.WindowsUiTests.&lt;ResponsiveWorkspaceKeepsDraftAndConversationAtEverySize&gt;d__67.MoveNext() in C:\Users\Admin\source\repos\dattiphu2022\LanChat\tests\LanChat.Tests\WindowsUxTests.cs:line 53&#xD;
+--- End of stack trace from previous location where exception was thrown ---&#xD;
+   at System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw()&#xD;
+   at LanChat.Tests.WindowsUiTests.&lt;ResponsiveWorkspaceKeepsDraftAndConversationAtEverySize&gt;d__67.MoveNext() in C:\Users\Admin\source\repos\dattiphu2022\LanChat\tests\LanChat.Tests\WindowsUxTests.cs:line 53&#xD;
+--- End of stack trace from previous location where exception was thrown ---&#xD;
+   at System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw()&#xD;
+   at LanChat.Tests.WindowsUiTests.&lt;ResponsiveWorkspaceKeepsDraftAndConversationAtEverySize&gt;d__67.MoveNext() in C:\Users\Admin\source\repos\dattiphu2022\LanChat\tests\LanChat.Tests\WindowsUxTests.cs:line 53&#xD;
+--- End of stack trace from previous location where exception was thrown ---&#xD;
+   at System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw()&#xD;
+   at System.Runtime.CompilerServices.TaskAwaiter.HandleNonSuccessAndDebuggerNotification(Task task)&#xD;
+--- End of stack trace from previous location where exception was thrown ---&#xD;
+   at System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw()&#xD;
+   at System.Runtime.CompilerServices.TaskAwaiter.HandleNonSuccessAndDebuggerNotification(Task task)&#xD;
+--- End of stack trace from previous location where exception was thrown ---&#xD;
+   at System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw()&#xD;
+   at System.Runtime.CompilerServices.TaskAwaiter.HandleNonSuccessAndDebuggerNotification(Task task)</StackTrace>
+        </ErrorInfo>
+      </Output>
+    </UnitTestResult>
+  </Results>
+  <TestDefinitions>
+    <UnitTest name="LanChat.Tests.WindowsUiTests.ResponsiveWorkspaceKeepsDraftAndConversationAtEverySize(dpi: 144)" storage="c:\users\admin\source\repos\dattiphu2022\lanchat\tests\lanchat.tests\bin\debug\net48\lanchat.tests.dll" id="2221beb6-887b-e529-a33e-61a5c4c7d3e7">
+      <Execution id="edee617e-f90c-44e5-989d-e0e33d8d851e" />
+      <TestMethod codeBase="C:\Users\Admin\source\repos\dattiphu2022\LanChat\tests\LanChat.Tests\bin\Debug\net48\LanChat.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netfx/" className="LanChat.Tests.WindowsUiTests" name="ResponsiveWorkspaceKeepsDraftAndConversationAtEverySize" />
+    </UnitTest>
+    <UnitTest name="LanChat.Tests.WindowsUiTests.ResponsiveWorkspaceKeepsDraftAndConversationAtEverySize(dpi: 96)" storage="c:\users\admin\source\repos\dattiphu2022\lanchat\tests\lanchat.tests\bin\debug\net48\lanchat.tests.dll" id="a287bc05-380a-6e2f-3171-780f995fc639">
+      <Execution id="ec785b9d-3260-4053-8a9a-e56b1083f1ae" />
+      <TestMethod codeBase="C:\Users\Admin\source\repos\dattiphu2022\LanChat\tests\LanChat.Tests\bin\Debug\net48\LanChat.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netfx/" className="LanChat.Tests.WindowsUiTests" name="ResponsiveWorkspaceKeepsDraftAndConversationAtEverySize" />
+    </UnitTest>
+    <UnitTest name="LanChat.Tests.WindowsUiTests.ResponsiveWorkspaceKeepsDraftAndConversationAtEverySize(dpi: 192)" storage="c:\users\admin\source\repos\dattiphu2022\lanchat\tests\lanchat.tests\bin\debug\net48\lanchat.tests.dll" id="2ca56f13-fa45-6369-4c6c-a787e8a5b1e8">
+      <Execution id="aed00429-4115-4741-bab9-9b5da8ce11c1" />
+      <TestMethod codeBase="C:\Users\Admin\source\repos\dattiphu2022\LanChat\tests\LanChat.Tests\bin\Debug\net48\LanChat.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netfx/" className="LanChat.Tests.WindowsUiTests" name="ResponsiveWorkspaceKeepsDraftAndConversationAtEverySize" />
+    </UnitTest>
+    <UnitTest name="LanChat.Tests.WindowsUiTests.ResponsiveWorkspaceKeepsDraftAndConversationAtEverySize(dpi: 120)" storage="c:\users\admin\source\repos\dattiphu2022\lanchat\tests\lanchat.tests\bin\debug\net48\lanchat.tests.dll" id="b41cef43-b878-2afc-237b-349e67431e5a">
+      <Execution id="9e01718f-0fb7-473e-bd1e-d98400f22c00" />
+      <TestMethod codeBase="C:\Users\Admin\source\repos\dattiphu2022\LanChat\tests\LanChat.Tests\bin\Debug\net48\LanChat.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netfx/" className="LanChat.Tests.WindowsUiTests" name="ResponsiveWorkspaceKeepsDraftAndConversationAtEverySize" />
+    </UnitTest>
+  </TestDefinitions>
+  <TestEntries>
+    <TestEntry testId="b41cef43-b878-2afc-237b-349e67431e5a" executionId="9e01718f-0fb7-473e-bd1e-d98400f22c00" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="2221beb6-887b-e529-a33e-61a5c4c7d3e7" executionId="edee617e-f90c-44e5-989d-e0e33d8d851e" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="2ca56f13-fa45-6369-4c6c-a787e8a5b1e8" executionId="aed00429-4115-4741-bab9-9b5da8ce11c1" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="a287bc05-380a-6e2f-3171-780f995fc639" executionId="ec785b9d-3260-4053-8a9a-e56b1083f1ae" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+  </TestEntries>
+  <TestLists>
+    <TestList name="Results Not in a List" id="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestList name="All Loaded Results" id="19431567-8539-422a-85d7-44ee4e166bda" />
+  </TestLists>
+  <ResultSummary outcome="Failed">
+    <Counters total="4" executed="4" passed="2" failed="2" error="0" timeout="0" aborted="0" inconclusive="0" passedButRunAborted="0" notRunnable="0" notExecuted="0" disconnected="0" warning="0" completed="0" inProgress="0" pending="0" />
+    <Output>
+      <StdOut>[xUnit.net 00:00:00.00] xUnit.net VSTest Adapter v3.0.2+dd36e86129 (64-bit .NET Framework 4.8.10008.0)&#xD;
+[xUnit.net 00:00:00.30]   Discovering: LanChat.Tests&#xD;
+[xUnit.net 00:00:00.43]   Discovered:  LanChat.Tests&#xD;
+[xUnit.net 00:00:00.48]   Starting:    LanChat.Tests&#xD;
+[xUnit.net 00:00:07.45]       Assert.Equal() Failure: Values differ&#xD;
+[xUnit.net 00:00:07.45]       Expected: False&#xD;
+[xUnit.net 00:00:07.45]       Actual:   True&#xD;
+[xUnit.net 00:00:07.45]       Stack Trace:&#xD;
+[xUnit.net 00:00:07.45]         WindowsUxTests.cs(70,0): at LanChat.Tests.WindowsUiTests.&lt;&gt;c__DisplayClass67_1.&lt;&lt;ResponsiveWorkspaceKeepsDraftAndConversationAtEverySize&gt;b__0&gt;d.MoveNext()&#xD;
+[xUnit.net 00:00:07.45]         --- End of stack trace from previous location where exception was thrown ---&#xD;
+[xUnit.net 00:00:07.45]            at System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw()&#xD;
+[xUnit.net 00:00:07.45]            at System.Runtime.CompilerServices.TaskAwaiter.HandleNonSuccessAndDebuggerNotification(Task task)&#xD;
+[xUnit.net 00:00:07.45]            at System.Runtime.CompilerServices.TaskAwaiter.GetResult()&#xD;
+[xUnit.net 00:00:07.45]         WindowsUiTests.cs(861,0): at LanChat.Tests.WindowsUiTests.&lt;&gt;c__DisplayClass54_1.&lt;&lt;OnUi&gt;b__2&gt;d.MoveNext()&#xD;
+[xUnit.net 00:00:07.45]         --- End of stack trace from previous location where exception was thrown ---&#xD;
+[xUnit.net 00:00:07.45]            at System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw()&#xD;
+[xUnit.net 00:00:07.45]            at System.Runtime.CompilerServices.TaskAwaiter.HandleNonSuccessAndDebuggerNotification(Task task)&#xD;
+[xUnit.net 00:00:07.45]            at System.Runtime.CompilerServices.TaskAwaiter.GetResult()&#xD;
+[xUnit.net 00:00:07.45]         WindowsUxTests.cs(53,0): at LanChat.Tests.WindowsUiTests.&lt;ResponsiveWorkspaceKeepsDraftAndConversationAtEverySize&gt;d__67.MoveNext()&#xD;
+[xUnit.net 00:00:07.45]         --- End of stack trace from previous location where exception was thrown ---&#xD;
+[xUnit.net 00:00:07.45]            at System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw()&#xD;
+[xUnit.net 00:00:07.45]         WindowsUxTests.cs(53,0): at LanChat.Tests.WindowsUiTests.&lt;ResponsiveWorkspaceKeepsDraftAndConversationAtEverySize&gt;d__67.MoveNext()&#xD;
+[xUnit.net 00:00:07.45]         --- End of stack trace from previous location where exception was thrown ---&#xD;
+[xUnit.net 00:00:07.45]            at System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw()&#xD;
+[xUnit.net 00:00:07.45]         WindowsUxTests.cs(53,0): at LanChat.Tests.WindowsUiTests.&lt;ResponsiveWorkspaceKeepsDraftAndConversationAtEverySize&gt;d__67.MoveNext()&#xD;
+[xUnit.net 00:00:07.45]         --- End of stack trace from previous location where exception was thrown ---&#xD;
+[xUnit.net 00:00:07.45]            at System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw()&#xD;
+[xUnit.net 00:00:07.45]            at System.Runtime.CompilerServices.TaskAwaiter.HandleNonSuccessAndDebuggerNotification(Task task)&#xD;
+[xUnit.net 00:00:07.45]         --- End of stack trace from previous location where exception was thrown ---&#xD;
+[xUnit.net 00:00:07.45]            at System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw()&#xD;
+[xUnit.net 00:00:07.45]            at System.Runtime.CompilerServices.TaskAwaiter.HandleNonSuccessAndDebuggerNotification(Task task)&#xD;
+[xUnit.net 00:00:07.45]         --- End of stack trace from previous location where exception was thrown ---&#xD;
+[xUnit.net 00:00:07.45]            at System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw()&#xD;
+[xUnit.net 00:00:07.45]            at System.Runtime.CompilerServices.TaskAwaiter.HandleNonSuccessAndDebuggerNotification(Task task)&#xD;
+[xUnit.net 00:00:10.46]       Assert.Equal() Failure: Values differ&#xD;
+[xUnit.net 00:00:10.46]       Expected: True&#xD;
+[xUnit.net 00:00:10.46]       Actual:   False&#xD;
+[xUnit.net 00:00:10.46]       Stack Trace:&#xD;
+[xUnit.net 00:00:10.46]         WindowsUxTests.cs(70,0): at LanChat.Tests.WindowsUiTests.&lt;&gt;c__DisplayClass67_1.&lt;&lt;ResponsiveWorkspaceKeepsDraftAndConversationAtEverySize&gt;b__0&gt;d.MoveNext()&#xD;
+[xUnit.net 00:00:10.47]         --- End of stack trace from previous location where exception was thrown ---&#xD;
+[xUnit.net 00:00:10.47]            at System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw()&#xD;
+[xUnit.net 00:00:10.47]            at System.Runtime.CompilerServices.TaskAwaiter.HandleNonSuccessAndDebuggerNotification(Task task)&#xD;
+[xUnit.net 00:00:10.47]            at System.Runtime.CompilerServices.TaskAwaiter.GetResult()&#xD;
+[xUnit.net 00:00:10.47]         WindowsUiTests.cs(861,0): at LanChat.Tests.WindowsUiTests.&lt;&gt;c__DisplayClass54_1.&lt;&lt;OnUi&gt;b__2&gt;d.MoveNext()&#xD;
+[xUnit.net 00:00:10.47]         --- End of stack trace from previous location where exception was thrown ---&#xD;
+[xUnit.net 00:00:10.47]            at System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw()&#xD;
+[xUnit.net 00:00:10.47]            at System.Runtime.CompilerServices.TaskAwaiter.HandleNonSuccessAndDebuggerNotification(Task task)&#xD;
+[xUnit.net 00:00:10.47]            at System.Runtime.CompilerServices.TaskAwaiter.GetResult()&#xD;
+[xUnit.net 00:00:10.47]         WindowsUxTests.cs(53,0): at LanChat.Tests.WindowsUiTests.&lt;ResponsiveWorkspaceKeepsDraftAndConversationAtEverySize&gt;d__67.MoveNext()&#xD;
+[xUnit.net 00:00:10.47]         --- End of stack trace from previous location where exception was thrown ---&#xD;
+[xUnit.net 00:00:10.47]            at System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw()&#xD;
+[xUnit.net 00:00:10.47]         WindowsUxTests.cs(53,0): at LanChat.Tests.WindowsUiTests.&lt;ResponsiveWorkspaceKeepsDraftAndConversationAtEverySize&gt;d__67.MoveNext()&#xD;
+[xUnit.net 00:00:10.47]         --- End of stack trace from previous location where exception was thrown ---&#xD;
+[xUnit.net 00:00:10.47]            at System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw()&#xD;
+[xUnit.net 00:00:10.47]         WindowsUxTests.cs(53,0): at LanChat.Tests.WindowsUiTests.&lt;ResponsiveWorkspaceKeepsDraftAndConversationAtEverySize&gt;d__67.MoveNext()&#xD;
+[xUnit.net 00:00:10.47]         --- End of stack trace from previous location where exception was thrown ---&#xD;
+[xUnit.net 00:00:10.47]            at System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw()&#xD;
+[xUnit.net 00:00:10.47]            at System.Runtime.CompilerServices.TaskAwaiter.HandleNonSuccessAndDebuggerNotification(Task task)&#xD;
+[xUnit.net 00:00:10.47]         --- End of stack trace from previous location where exception was thrown ---&#xD;
+[xUnit.net 00:00:10.47]            at System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw()&#xD;
+[xUnit.net 00:00:10.47]            at System.Runtime.CompilerServices.TaskAwaiter.HandleNonSuccessAndDebuggerNotification(Task task)&#xD;
+[xUnit.net 00:00:10.47]         --- End of stack trace from previous location where exception was thrown ---&#xD;
+[xUnit.net 00:00:10.47]            at System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw()&#xD;
+[xUnit.net 00:00:10.47]            at System.Runtime.CompilerServices.TaskAwaiter.HandleNonSuccessAndDebuggerNotification(Task task)&#xD;
+[xUnit.net 00:00:10.47]   Finished:    LanChat.Tests&#xD;
+</StdOut>
+    </Output>
+    <RunInfos>
+      <RunInfo computerName="ADMIN-PC" outcome="Error" timestamp="2026-11-20T07:40:17.1279138+07:00">
+        <Text>[xUnit.net 00:00:07.45]     LanChat.Tests.WindowsUiTests.ResponsiveWorkspaceKeepsDraftAndConversationAtEverySize(dpi: 192) [FAIL]</Text>
+      </RunInfo>
+      <RunInfo computerName="ADMIN-PC" outcome="Error" timestamp="2026-11-20T07:40:20.1449446+07:00">
+        <Text>[xUnit.net 00:00:10.46]     LanChat.Tests.WindowsUiTests.ResponsiveWorkspaceKeepsDraftAndConversationAtEverySize(dpi: 96) [FAIL]</Text>
+      </RunInfo>
+    </RunInfos>
+  </ResultSummary>
+</TestRun>

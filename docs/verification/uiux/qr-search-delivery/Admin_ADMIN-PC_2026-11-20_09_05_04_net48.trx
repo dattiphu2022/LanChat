@@ -1,0 +1,70 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TestRun id="09ee37cd-85af-4b7c-b462-cd44d7d8e255" name="Admin@ADMIN-PC 2026-11-20 09:05:04" runUser="ADMIN-PC\Admin" xmlns="http://microsoft.com/schemas/VisualStudio/TeamTest/2010">
+  <Times creation="2026-11-20T09:05:04.2078420+07:00" queuing="2026-11-20T09:05:04.2078423+07:00" start="2026-11-20T09:05:02.2560509+07:00" finish="2026-11-20T09:05:05.0001715+07:00" />
+  <TestSettings name="default" id="288e7a33-20fd-4cce-8ab2-944a39735acd">
+    <Deployment runDeploymentRoot="Admin_ADMIN-PC_2026-11-20_09_05_04" />
+  </TestSettings>
+  <Results>
+    <UnitTestResult executionId="9da51632-b015-4916-abe5-15ac4a566bf3" testId="be8b59ac-9628-ddb2-8522-982324d0b540" testName="LanChat.Tests.WindowsUiTests.QrPreviewCopiesExactUtf8TextAndKeepsButtonsAccessible(dpi: 96)" computerName="ADMIN-PC" duration="00:00:00.1830000" startTime="2026-11-20T09:05:04.4557935+07:00" endTime="2026-11-20T09:05:04.6350929+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="9da51632-b015-4916-abe5-15ac4a566bf3" />
+    <UnitTestResult executionId="9da4ce38-dd07-4088-952e-61abf5a3dd6d" testId="d0dac7ce-ce28-f722-ccd6-ee13cba0a8f8" testName="LanChat.Tests.WindowsUiTests.SearchSnippetsHighlightVietnameseQueriesWithoutAccents(text: &quot;Nguyễn Minh Anh&quot;, query: &quot;nguyen&quot;, expected: 0)" computerName="ADMIN-PC" duration="00:00:00.0470000" startTime="2026-11-20T09:05:03.4856281+07:00" endTime="2026-11-20T09:05:03.5431474+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="9da4ce38-dd07-4088-952e-61abf5a3dd6d" />
+    <UnitTestResult executionId="474cd43f-3bc7-49bd-a148-5ff5e9087495" testId="acbc6dba-d440-b39c-5b1c-c7c4cb240173" testName="LanChat.Tests.WindowsUiTests.SearchSnippetsHighlightVietnameseQueriesWithoutAccents(text: &quot;Báo cáo Đinh&quot;, query: &quot;dinh&quot;, expected: 8)" computerName="ADMIN-PC" duration="00:00:00.0010000" startTime="2026-11-20T09:05:03.5641474+07:00" endTime="2026-11-20T09:05:03.5651473+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="474cd43f-3bc7-49bd-a148-5ff5e9087495" />
+    <UnitTestResult executionId="0b8dd241-3c25-4943-8992-055f7f9464c0" testId="00fd966a-ffea-273b-a0df-6ea85874aadc" testName="LanChat.Tests.WindowsUiTests.QrPreviewCopiesExactUtf8TextAndKeepsButtonsAccessible(dpi: 144)" computerName="ADMIN-PC" duration="00:00:00.7540000" startTime="2026-11-20T09:05:03.5671474+07:00" endTime="2026-11-20T09:05:04.2983225+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="0b8dd241-3c25-4943-8992-055f7f9464c0" />
+    <UnitTestResult executionId="ce6b4c0f-788c-41cf-801d-5cc373fb085c" testId="44604cd2-bdf9-cf4b-28ae-919c9f227c3f" testName="LanChat.Tests.WindowsUiTests.SearchSnippetsHighlightVietnameseQueriesWithoutAccents(text: &quot;Nội dung&quot;, query: &quot;khác&quot;, expected: -1)" computerName="ADMIN-PC" duration="00:00:00.0010000" startTime="2026-11-20T09:05:03.5611474+07:00" endTime="2026-11-20T09:05:03.5611474+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="ce6b4c0f-788c-41cf-801d-5cc373fb085c" />
+    <UnitTestResult executionId="28e7a7dd-f8dd-4664-9dbf-64d267e4bd19" testId="ba7c0837-525c-33a5-151a-23d526e69f65" testName="LanChat.Tests.WindowsUiTests.QrPreviewCopiesExactUtf8TextAndKeepsButtonsAccessible(dpi: 120)" computerName="ADMIN-PC" duration="00:00:00.1540000" startTime="2026-11-20T09:05:04.2983225+07:00" endTime="2026-11-20T09:05:04.4525860+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="28e7a7dd-f8dd-4664-9dbf-64d267e4bd19" />
+    <UnitTestResult executionId="a54fb2ea-4877-4161-bb44-f63f12764cd5" testId="ffea9bcf-a6de-ff22-86b5-91780dcb69f8" testName="LanChat.Tests.WindowsUiTests.QrPreviewCopiesExactUtf8TextAndKeepsButtonsAccessible(dpi: 192)" computerName="ADMIN-PC" duration="00:00:00.2330000" startTime="2026-11-20T09:05:04.6360929+07:00" endTime="2026-11-20T09:05:04.8682358+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="a54fb2ea-4877-4161-bb44-f63f12764cd5" />
+  </Results>
+  <TestDefinitions>
+    <UnitTest name="LanChat.Tests.WindowsUiTests.QrPreviewCopiesExactUtf8TextAndKeepsButtonsAccessible(dpi: 192)" storage="c:\users\admin\source\repos\dattiphu2022\lanchat\tests\lanchat.tests\bin\debug\net48\lanchat.tests.dll" id="ffea9bcf-a6de-ff22-86b5-91780dcb69f8">
+      <Execution id="a54fb2ea-4877-4161-bb44-f63f12764cd5" />
+      <TestMethod codeBase="C:\Users\Admin\source\repos\dattiphu2022\LanChat\tests\LanChat.Tests\bin\Debug\net48\LanChat.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netfx/" className="LanChat.Tests.WindowsUiTests" name="QrPreviewCopiesExactUtf8TextAndKeepsButtonsAccessible" />
+    </UnitTest>
+    <UnitTest name="LanChat.Tests.WindowsUiTests.SearchSnippetsHighlightVietnameseQueriesWithoutAccents(text: &quot;Nội dung&quot;, query: &quot;khác&quot;, expected: -1)" storage="c:\users\admin\source\repos\dattiphu2022\lanchat\tests\lanchat.tests\bin\debug\net48\lanchat.tests.dll" id="44604cd2-bdf9-cf4b-28ae-919c9f227c3f">
+      <Execution id="ce6b4c0f-788c-41cf-801d-5cc373fb085c" />
+      <TestMethod codeBase="C:\Users\Admin\source\repos\dattiphu2022\LanChat\tests\LanChat.Tests\bin\Debug\net48\LanChat.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netfx/" className="LanChat.Tests.WindowsUiTests" name="SearchSnippetsHighlightVietnameseQueriesWithoutAccents" />
+    </UnitTest>
+    <UnitTest name="LanChat.Tests.WindowsUiTests.SearchSnippetsHighlightVietnameseQueriesWithoutAccents(text: &quot;Nguyễn Minh Anh&quot;, query: &quot;nguyen&quot;, expected: 0)" storage="c:\users\admin\source\repos\dattiphu2022\lanchat\tests\lanchat.tests\bin\debug\net48\lanchat.tests.dll" id="d0dac7ce-ce28-f722-ccd6-ee13cba0a8f8">
+      <Execution id="9da4ce38-dd07-4088-952e-61abf5a3dd6d" />
+      <TestMethod codeBase="C:\Users\Admin\source\repos\dattiphu2022\LanChat\tests\LanChat.Tests\bin\Debug\net48\LanChat.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netfx/" className="LanChat.Tests.WindowsUiTests" name="SearchSnippetsHighlightVietnameseQueriesWithoutAccents" />
+    </UnitTest>
+    <UnitTest name="LanChat.Tests.WindowsUiTests.QrPreviewCopiesExactUtf8TextAndKeepsButtonsAccessible(dpi: 144)" storage="c:\users\admin\source\repos\dattiphu2022\lanchat\tests\lanchat.tests\bin\debug\net48\lanchat.tests.dll" id="00fd966a-ffea-273b-a0df-6ea85874aadc">
+      <Execution id="0b8dd241-3c25-4943-8992-055f7f9464c0" />
+      <TestMethod codeBase="C:\Users\Admin\source\repos\dattiphu2022\LanChat\tests\LanChat.Tests\bin\Debug\net48\LanChat.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netfx/" className="LanChat.Tests.WindowsUiTests" name="QrPreviewCopiesExactUtf8TextAndKeepsButtonsAccessible" />
+    </UnitTest>
+    <UnitTest name="LanChat.Tests.WindowsUiTests.SearchSnippetsHighlightVietnameseQueriesWithoutAccents(text: &quot;Báo cáo Đinh&quot;, query: &quot;dinh&quot;, expected: 8)" storage="c:\users\admin\source\repos\dattiphu2022\lanchat\tests\lanchat.tests\bin\debug\net48\lanchat.tests.dll" id="acbc6dba-d440-b39c-5b1c-c7c4cb240173">
+      <Execution id="474cd43f-3bc7-49bd-a148-5ff5e9087495" />
+      <TestMethod codeBase="C:\Users\Admin\source\repos\dattiphu2022\LanChat\tests\LanChat.Tests\bin\Debug\net48\LanChat.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netfx/" className="LanChat.Tests.WindowsUiTests" name="SearchSnippetsHighlightVietnameseQueriesWithoutAccents" />
+    </UnitTest>
+    <UnitTest name="LanChat.Tests.WindowsUiTests.QrPreviewCopiesExactUtf8TextAndKeepsButtonsAccessible(dpi: 120)" storage="c:\users\admin\source\repos\dattiphu2022\lanchat\tests\lanchat.tests\bin\debug\net48\lanchat.tests.dll" id="ba7c0837-525c-33a5-151a-23d526e69f65">
+      <Execution id="28e7a7dd-f8dd-4664-9dbf-64d267e4bd19" />
+      <TestMethod codeBase="C:\Users\Admin\source\repos\dattiphu2022\LanChat\tests\LanChat.Tests\bin\Debug\net48\LanChat.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netfx/" className="LanChat.Tests.WindowsUiTests" name="QrPreviewCopiesExactUtf8TextAndKeepsButtonsAccessible" />
+    </UnitTest>
+    <UnitTest name="LanChat.Tests.WindowsUiTests.QrPreviewCopiesExactUtf8TextAndKeepsButtonsAccessible(dpi: 96)" storage="c:\users\admin\source\repos\dattiphu2022\lanchat\tests\lanchat.tests\bin\debug\net48\lanchat.tests.dll" id="be8b59ac-9628-ddb2-8522-982324d0b540">
+      <Execution id="9da51632-b015-4916-abe5-15ac4a566bf3" />
+      <TestMethod codeBase="C:\Users\Admin\source\repos\dattiphu2022\LanChat\tests\LanChat.Tests\bin\Debug\net48\LanChat.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netfx/" className="LanChat.Tests.WindowsUiTests" name="QrPreviewCopiesExactUtf8TextAndKeepsButtonsAccessible" />
+    </UnitTest>
+  </TestDefinitions>
+  <TestEntries>
+    <TestEntry testId="be8b59ac-9628-ddb2-8522-982324d0b540" executionId="9da51632-b015-4916-abe5-15ac4a566bf3" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="d0dac7ce-ce28-f722-ccd6-ee13cba0a8f8" executionId="9da4ce38-dd07-4088-952e-61abf5a3dd6d" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="acbc6dba-d440-b39c-5b1c-c7c4cb240173" executionId="474cd43f-3bc7-49bd-a148-5ff5e9087495" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="00fd966a-ffea-273b-a0df-6ea85874aadc" executionId="0b8dd241-3c25-4943-8992-055f7f9464c0" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="44604cd2-bdf9-cf4b-28ae-919c9f227c3f" executionId="ce6b4c0f-788c-41cf-801d-5cc373fb085c" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="ba7c0837-525c-33a5-151a-23d526e69f65" executionId="28e7a7dd-f8dd-4664-9dbf-64d267e4bd19" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="ffea9bcf-a6de-ff22-86b5-91780dcb69f8" executionId="a54fb2ea-4877-4161-bb44-f63f12764cd5" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+  </TestEntries>
+  <TestLists>
+    <TestList name="Results Not in a List" id="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestList name="All Loaded Results" id="19431567-8539-422a-85d7-44ee4e166bda" />
+  </TestLists>
+  <ResultSummary outcome="Completed">
+    <Counters total="7" executed="7" passed="7" failed="0" error="0" timeout="0" aborted="0" inconclusive="0" passedButRunAborted="0" notRunnable="0" notExecuted="0" disconnected="0" warning="0" completed="0" inProgress="0" pending="0" />
+    <Output>
+      <StdOut>[xUnit.net 00:00:00.00] xUnit.net VSTest Adapter v3.0.2+dd36e86129 (64-bit .NET Framework 4.8.10008.0)&#xD;
+[xUnit.net 00:00:00.45]   Discovering: LanChat.Tests&#xD;
+[xUnit.net 00:00:00.59]   Discovered:  LanChat.Tests&#xD;
+[xUnit.net 00:00:00.65]   Starting:    LanChat.Tests&#xD;
+[xUnit.net 00:00:02.07]   Finished:    LanChat.Tests&#xD;
+</StdOut>
+    </Output>
+  </ResultSummary>
+</TestRun>

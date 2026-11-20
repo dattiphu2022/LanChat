@@ -6,7 +6,10 @@ namespace LanChat.WinForms.Controls;
 internal sealed class ConversationPanel : UserControl
 {
     private readonly PromptTextBox _search = new() { Dock = DockStyle.Fill, PlaceholderText = "Tìm trong hội thoại…" };
-    private readonly ListBox _results = List("Kết quả tìm tin");
+    private readonly SearchResultListBox _results = new() { Dock = DockStyle.Fill, AccessibleName = "Kết quả trong hội thoại hiện tại",
+        Describe = item => item is SearchRow row ? ($"Hội thoại hiện tại · {new DateTime(row.Item.CreatedAtTicks, DateTimeKind.Utc).ToLocalTime():dd/MM HH:mm}", row.Item.Text) : ("",item.ToString() ?? "") };
+    private readonly Button _stopSearch = Theme.Secondary("Dừng", UiIcon.Stop);
+    public event Action? GlobalSearchRequested;
     private readonly Button _find = Theme.Button("Tìm", UiIcon.Search);
     private readonly Label _searchStatus = Theme.Label("");
     private readonly ListBox _images = List("Ảnh");
@@ -48,10 +51,14 @@ internal sealed class ConversationPanel : UserControl
         root.Controls.Add(header, 0, 0); root.Controls.Add(_tabs, 0, 1); Controls.Add(root);
 
         var searchLayout = Theme.Stack(4); searchLayout.Padding = new Padding(5);
-        searchLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 30)); searchLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 44));
+        searchLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 30)); searchLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         searchLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         searchLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        _find.Dock = DockStyle.Left;
+        var searchActions = Theme.Toolbar();
+        var globalSearch = Theme.Secondary("Toàn bộ lịch sử…", UiIcon.Search);
+        globalSearch.Click += (_, _) => GlobalSearchRequested?.Invoke();
+        _stopSearch.Enabled = false; _stopSearch.Click += (_, _) => { SearchChanged?.Invoke(); _searchStatus.Text = "Đã dừng tìm kiếm."; };
+        searchActions.Controls.AddRange([_find, _stopSearch, globalSearch]);
         UiInteraction.Wrap(_searchStatus, searchLayout);
         _search.AccessibleName = "Tìm tin nhắn trong hội thoại";
         _search.TextChanged += (_, _) =>
@@ -63,7 +70,7 @@ internal sealed class ConversationPanel : UserControl
         _find.Enabled = false;
         _find.Click += (_, _) => Search();
         _search.KeyDown += (_, e) => { if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; Search(); } };
-        searchLayout.Controls.Add(_search, 0, 0); searchLayout.Controls.Add(_find, 0, 1); searchLayout.Controls.Add(_results, 0, 2);
+        searchLayout.Controls.Add(_search, 0, 0); searchLayout.Controls.Add(searchActions, 0, 1); searchLayout.Controls.Add(_results, 0, 2);
         searchLayout.Controls.Add(_searchStatus, 0, 3);
         _searchTab.Controls.Add(searchLayout);
         var photos = _tabs.CreatePage("Ảnh", UiIcon.Photo); photos.Controls.Add(AttachmentList(_images));
@@ -188,6 +195,7 @@ internal sealed class ConversationPanel : UserControl
     public void SetResults(string query, SearchResult[] rows)
     {
         if (_search.Text.Trim() != query) return;
+        _results.Query = query;
         _results.Items.Clear();
         _results.Items.AddRange(rows.Select(x => new SearchRow(x)).ToArray());
         SetSearchState(query, false, rows.Length == 0 ? "Không tìm thấy tin nhắn." : $"Tìm thấy {rows.Length} tin nhắn.");
@@ -196,7 +204,7 @@ internal sealed class ConversationPanel : UserControl
     public void SetSearchState(string query, bool working, string? message = null)
     {
         if (_search.Text.Trim() != query) return;
-        _find.Enabled = !working && query.Length > 0; _results.Enabled = !working;
+        _find.Enabled = !working && query.Length > 0; _stopSearch.Enabled = working; _results.Enabled = !working;
         _searchStatus.Text = message ?? (working ? "Đang tìm tin nhắn…" : "");
         if (working) _results.Items.Clear();
     }

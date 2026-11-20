@@ -102,3 +102,18 @@ Các hộp thoại có nút **Hủy/Đóng** và hỗ trợ **Esc**. Khi có tá
 - Kiểm tra các máy đang chọn đúng tab mạng và có cùng mã. Máy tạo mạng nên mở LanChat trong lần kết nối đầu tiên.
 - Bấm **Quét tất cả**. Nếu vẫn chưa tìm thấy, kiểm tra các máy cùng mạng LAN, quyền tường lửa trên mạng tin cậy và cài đặt cô lập thiết bị của Wi-Fi.
 - Khi sao lưu, chọn **Thoát LanChat** từ khay hệ thống rồi chép cả thư mục `%LOCALAPPDATA%\LanChat\Data` vào vị trí an toàn. Bản sao lưu có thể chứa dữ liệu chat đã giải mã. Khóa thiết bị gắn với tài khoản Windows hiện tại.
+
+
+## Bố cục thích ứng và tùy chỉnh hiển thị
+
+Các mục Giới thiệu, cập nhật và hướng dẫn bắt đầu nằm trong menu **Thêm** trên thanh công cụ. Dấu báo phiên bản mới cũng hiển thị trên nút này.
+
+- Cửa sổ hẹp hiển thị riêng danh sách hoặc nội dung chat. Chọn hội thoại để mở; dùng mũi tên quay lại hoặc **Alt+Trái** để về danh sách. Bản nháp được giữ khi đổi kích thước.
+- Danh sách có **Tất cả / Chưa đọc / @ Tôi / Đã ghim**. Từ khóa tìm tên và bộ lọc được giữ khi dữ liệu cập nhật.
+- Dùng nút **+** cạnh ô nhập để thêm tệp, thư mục, dán ảnh hoặc chụp vùng. **Enter** gửi, **Shift+Enter** xuống dòng, **Ctrl+V** dán, **Esc** hủy trả lời/sửa phù hợp.
+- **Tệp** mở trung tâm theo dõi của mạng hiện tại: hội thoại, kích thước, trạng thái và tiến độ có dữ liệu. Chọn tệp rồi **Mở**, **Lưu về máy** hoặc **Chuẩn bị / Thử lại**. Đóng cửa sổ này vẫn tiếp tục tải nền; không có nút hủy truyền.
+- **Ctrl+K** tìm nhanh tên/hội thoại; **Ctrl+F** tìm trong hội thoại đang mở; **Ctrl+Shift+F** tìm trong toàn bộ lịch sử được phép truy cập. Chọn kết quả để đến đúng tin. Nút **Dừng** chỉ dừng tìm kiếm.
+- Menu **Kết nối** ở cuối cửa sổ cho phép quét **mạng hiện tại**, kiểm tra mạng và xem chẩn đoán. **Quét tất cả** trên thanh công cụ áp dụng cho mọi mạng đang mở. Thiếu máy điều phối không đồng nghĩa mất khả năng nhắn tin.
+- **Cài đặt** cho đổi cỡ chữ tin nhắn (10/11/12/14 pt), mật độ (Gọn/Tiêu chuẩn/Thoải mái) và ẩn nội dung trên thông báo. Các thay đổi áp dụng ngay và chỉ lưu trên máy này.
+- Cửa sổ QR có **Sao chép văn bản**, giữ nguyên cả xuống dòng và Unicode; **Xuất PNG** vẫn tuân thủ giới hạn 500 byte UTF-8.
+- Hướng dẫn bắt đầu dùng lại các màn hình hồ sơ và mạng hiện có. Có thể chọn **Để sau** và mở lại từ menu khay hệ thống.

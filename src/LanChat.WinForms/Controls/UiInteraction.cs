@@ -15,7 +15,7 @@ internal static class UiInteraction
     private static Form? FindOwnedDialog(Form root, bool forOwnership)
     {
         foreach (var child in root.OwnedForms.Reverse())
-            if (child.Visible && !child.IsDisposed && (!forOwnership || child is not Forms.AttachmentOpenProgressForm))
+            if (child is not Forms.TransferCenterForm && child.Visible && !child.IsDisposed && (!forOwnership || child is not Forms.AttachmentOpenProgressForm))
                 return FindOwnedDialog(child, forOwnership) ?? child;
         return null;
     }

@@ -262,7 +262,7 @@ public sealed class GroupsForm : DpiForm
         _membersTitle.Text = _creating ? "Thành viên nhóm mới" : "Thành viên nhóm";
         var details = group is null ? "Chọn nhóm hoặc tạo nhóm mới." : group.PendingCreation ? "Nhóm mới · đang chờ mạng xác nhận." :
             $"{group.Members.Length} thành viên · {(owner ? "Bạn là chủ nhóm" : "Bạn là thành viên")}";
-        _status.Text = (_network is null ? "Đang tải danh sách nhóm…" : UiText.HideIpAddresses(_network.StatusText)) + "\n" +
+        _status.Text = (_network is null ? "Đang tải danh sách nhóm…" : (_network.LeaderReady ? "Sẵn sàng cập nhật nhóm." : PairMember.HasValue ? "Có thể tạo nhóm hai người; cập nhật nhóm cũ cần đủ máy điều phối." : "Chưa đủ máy điều phối để xác nhận thay đổi. Tin nhắn vẫn được lưu và đồng bộ khi có kết nối.")) + "\n" +
             (_error ?? _refreshError ?? (_saving ? "Đang xử lý thay đổi nhóm…" : WaitingForCommit ? "Đang đồng bộ thay đổi nhóm…" : details));
     }
 

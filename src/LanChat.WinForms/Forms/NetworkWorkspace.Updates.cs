@@ -19,11 +19,11 @@ internal sealed partial class NetworkWorkspace
     {
         if (IsDisposed) return;
         var state = _updates.State;
-        if (_aboutButton is not null)
+        if (_moreButton is not null)
         {
-            _aboutButton.ShowBadge = state.Release is not null;
-            _aboutButton.AccessibleDescription = state.Ready ? "Bản cập nhật đã tải xong, sẵn sàng cài đặt." :
-                state.Release is not null ? "Có bản cập nhật mới. " + state.Message : "Thông tin LanChat và cập nhật tự động.";
+            _moreButton.ShowBadge = state.Release is not null;
+            _moreButton.AccessibleDescription = state.Ready ? "Bản cập nhật đã tải xong, sẵn sàng cài đặt." :
+                state.Release is not null ? "Có bản cập nhật mới. " + state.Message : "Mở menu Thêm để xem giới thiệu, cập nhật và hướng dẫn.";
         }
         var progress = state.Downloading && state.Release is { Size: > 0 } item
             ? $" · {Math.Min(100, 100d * state.Received / item.Size):N0}%" : "";

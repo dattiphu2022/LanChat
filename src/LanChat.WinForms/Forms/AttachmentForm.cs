@@ -12,8 +12,9 @@ public sealed class AttachmentForm : DpiForm
     private readonly ProgressBar _progress = new() { Dock = DockStyle.Fill, Maximum = 1000, Visible = false, AccessibleName = "Tiến độ tệp" };
     private string? _localPath;
     private bool _closed, _loading = true;
+    private bool _ownsActions;
 
-    public AttachmentForm(AttachmentDto file, IFileTransferService files) : this(file, files, new AttachmentActions(files)) { }
+    public AttachmentForm(AttachmentDto file, IFileTransferService files) : this(file, files, new AttachmentActions(files)) { _ownsActions = true; }
 
     internal AttachmentForm(AttachmentDto file, IFileTransferService files, AttachmentActions actions)
     {
@@ -100,7 +101,7 @@ public sealed class AttachmentForm : DpiForm
             _closed = true; _lifetime.Cancel(); _operation?.Cancel(); _image.Image?.Dispose(); _image.Image = null;
         }
         FormClosed += (_, _) => Stop();
-        Disposed += (_, _) => { Stop(); _lifetime.Dispose(); };
+        Disposed += (_, _) => { Stop(); _lifetime.Dispose(); if (_ownsActions) actions.Dispose(); };
         UpdateButtons();
     }
 }

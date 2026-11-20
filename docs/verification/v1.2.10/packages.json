@@ -1,0 +1,24 @@
+{
+  "version": "1.2.10",
+  "signingThumbprint": "9CC153E400BB35AAD399B6BA9956DC92EF0DC377",
+  "forbiddenPublishFiles": [],
+  "files": [
+    {
+      "path": "artifacts/v1.2.10-release/publish/LanChat.WinForms.exe",
+      "bytes": 1807664,
+      "sha256": "ab962e4886a92a48b0152ec4c57d00550453d1198259ae37c4b0d3f38a156c88"
+    },
+    {
+      "path": "artifacts/v1.2.10-release/installer/LanChat-Setup-Windows-x64.exe",
+      "bytes": 6838416,
+      "sha256": "4b41e32908130c393f6dd8967fc9714fe696aeb2a9df81b82a6c89431a82e719"
+    }
+  ],
+  "tests": {
+    "passed": 221,
+    "total": 221,
+    "excluded": "GroupHistoryTests.OneRemainingHolderAutomaticallySharesAllPagesWithCurrentGroupMembers",
+    "mode": "xUnit serial",
+    "trx": "artifacts/v1.2.10-tests"
+  }
+}

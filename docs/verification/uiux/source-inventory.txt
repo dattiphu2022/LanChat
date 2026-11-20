@@ -1,0 +1,102 @@
+src\LanChat.Application\Contracts.cs: 129 lines; NodeOptions, UserProfileDto, DiscoveredPeerDto, DevicePublicKeys, EncryptionIdentity, NodeInfoDto, ChatMessageDto, UserSummary, ConversationSummary, IncomingMessageNotice, IncomingMessageBatch, NetworkInfo, DiagnosticsSnapshot, LanScanProgress, ILanScanner, ILocalNetworkInfoProvider, IPeerTransport, IChatStore, IChatService, ChatService, SingleForwardProgress
+src\LanChat.Application\DistributedContracts.cs: 166 lines; EventDto, MessageContent, MessageEdit, ReactionChange, ReceiptChange, AttachmentDto, FolderFile, FolderManifest, FolderAttachment, PeerEndpoint, CursorDto, ReplicationDigest, EventRangeRequest, EventBatch, GroupHistoryKey, EventAck, GroupSummary, MessageDetails, ReplyQuote, SearchResult, DistributedDiagnostics, PeerDiagnostic, ControlCommand, LogEntryDto, VoteRequest, VoteResponse, AppendRequest, AppendResponse, ControlResult, ConsensusStatus, LeadershipResult, LeadershipHandoff, IClusterTransport, IDistributedStore, IConsensusService, AttachmentPhase, FileProgress, FileRequest, FileAvailability, LocalAttachmentLocation, LocalAttachmentMissingException, IFileTransferService, FaultInjection, NodeRuntimeState
+src\LanChat.Application\Forwarding.cs: 83 lines; ForwardDestination, ForwardRequest, ForwardOutcome, ForwardResult, ForwardProgress, ChatService, ForwardFileProgress
+src\LanChat.Application\LocalAttachmentBatchSaver.cs: 55 lines; AttachmentSaveResult, AttachmentSaveProgress, LocalAttachmentBatchSaver, InlineProgress
+src\LanChat.Application\Mentions.cs: 29 lines; MessageMention, Mentions
+src\LanChat.Application\UpdateContracts.cs: 35 lines; UpdatePackage, SignedUpdateManifest, UpdateInfoRequest, UpdateDownloadRequest, UpdateReply, IUpdatePackageProvider, ILanUpdateClient
+src\LanChat.Domain\Compatibility.cs: 25 lines; AppIdentity
+src\LanChat.Domain\DistributedModels.cs: 97 lines; ReplicationEventType, OutboxStatus, ControlCommandType, ReplicationEvent, ReplicationCursor, OutboxItem, Group, GroupMember, MessageReaction, MessageReceipt, Attachment, ClusterState, ControlLogEntry
+src\LanChat.Domain\IsExternalInit.cs: 6 lines; IsExternalInit
+src\LanChat.Domain\Models.cs: 137 lines; PresenceStatus, NodeRole, MessageKind, MessageStatus, ConversationKind, LocalUserProfile, NodeIdentity, PeerNode, Conversation, ConversationMember, Message, LocalSettings, DirectConversation, HybridClock, MessageMentionProjection
+src\LanChat.Infrastructure\AttachmentDownloadBackgroundService.cs: 87 lines; AttachmentDownloadBackgroundService
+src\LanChat.Infrastructure\BackgroundServices.cs: 103 lines; PeerDiscoveryBackgroundService
+src\LanChat.Infrastructure\Bootstrap.cs: 143 lines; ClusterConfiguration, JoinInvitation, ClusterConfigurationStore, ServiceRegistration
+src\LanChat.Infrastructure\ChatDbContext.cs: 227 lines; ChatDatabase, ChatDbContext, Table
+src\LanChat.Infrastructure\ChatStore.cs: 285 lines; ChatStore
+src\LanChat.Infrastructure\ChatStore.Encryption.cs: 182 lines; ChatStore
+src\LanChat.Infrastructure\ChatStore.GroupHistory.cs: 111 lines; ChatStore
+src\LanChat.Infrastructure\ChatStore.Peers.cs: 125 lines; ChatStore, PeerObservation
+src\LanChat.Infrastructure\ChatStore.Projections.cs: 295 lines; ChatStore
+src\LanChat.Infrastructure\ChatStore.Replication.cs: 194 lines; ChatStore
+src\LanChat.Infrastructure\ChatStore.Updates.cs: 22 lines; ChatStore
+src\LanChat.Infrastructure\ClusterTls.cs: 64 lines; ClusterTls
+src\LanChat.Infrastructure\ConsensusService.cs: 439 lines; ConsensusService, Jitter, Snapshot, Membership
+src\LanChat.Infrastructure\ConsensusService.Groups.cs: 117 lines; ConsensusService
+src\LanChat.Infrastructure\ConsensusService.Leadership.cs: 237 lines; ConsensusService
+src\LanChat.Infrastructure\ConsensusService.PairGroups.cs: 145 lines; PairGroupMaintenance, ConsensusService, ConnectedPair
+src\LanChat.Infrastructure\DiscoverySockets.cs: 125 lines; DiscoverySockets, Subscription, Receiver
+src\LanChat.Infrastructure\EndToEndCrypto.cs: 214 lines; WrappedContentKey, EncryptedContent, DeviceIdentity
+src\LanChat.Infrastructure\FileTransferCrypto.cs: 108 lines; FileTransferCrypto
+src\LanChat.Infrastructure\FrameworkIO.cs: 113 lines; FrameworkIO
+src\LanChat.Infrastructure\LanScanner.cs: 192 lines; LanScanner, ScanSession, FallbackScanBackgroundService
+src\LanChat.Infrastructure\LanUpdateClient.cs: 66 lines; LanUpdateClient
+src\LanChat.Infrastructure\LocalUpdatePackages.cs: 126 lines; LocalUpdatePackages, UpdateReadStream, NoUpdatePackages
+src\LanChat.Infrastructure\Networking.cs: 504 lines; NetworkRangeCalculator, LocalNetworkInfoProvider, ClusterPorts, NetworkEnvelope, NetworkRejectionKind, NetworkRejection, WireProtocol, PeerTransport, NetworkHealth, PeerConnectionManager
+src\LanChat.Infrastructure\PeerFileTransferService.cs: 327 lines; PeerFileTransferService, DownloadSource
+src\LanChat.Infrastructure\PeerFileTransferService.Folders.cs: 235 lines; PeerFileTransferService, FolderProgress
+src\LanChat.Infrastructure\PeerFileTransferService.Forwarding.cs: 61 lines; PeerFileTransferService
+src\LanChat.Infrastructure\PeerFileTransferService.Local.cs: 276 lines; PeerFileTransferService, LocationRecord, is, with, is, is, with
+src\LanChat.Infrastructure\PeerFileTransferService.Preparation.cs: 100 lines; PeerFileTransferService, Preparation
+src\LanChat.Infrastructure\ReplicationBackgroundService.cs: 172 lines; ReplicationBackgroundService
+src\LanChat.Infrastructure\RestoreGroupsBackgroundService.cs: 49 lines; RestoreGroupsBackgroundService
+src\LanChat.WinForms\AppIcon.cs: 30 lines; AppIcon
+src\LanChat.WinForms\Controls\AttachmentActions.cs: 240 lines; AttachmentCommand, AttachmentActions, InlineProgress
+src\LanChat.WinForms\Controls\AttachmentItemControl.cs: 166 lines; AttachmentItemControl
+src\LanChat.WinForms\Controls\AttachmentPreviewControl.cs: 43 lines; AttachmentPreviewControl
+src\LanChat.WinForms\Controls\AttachmentProgressText.cs: 18 lines; AttachmentProgressText
+src\LanChat.WinForms\Controls\AttachmentSaveDialog.cs: 18 lines; AttachmentSaveDialog
+src\LanChat.WinForms\Controls\ChatControls.cs: 1250 lines; MessageBubbleControl, Presentation, MessageListControl, ComposerSubmission, ComposerDraft, ChatInputControl, ChatViewControl
+src\LanChat.WinForms\Controls\ChatImageService.cs: 53 lines; ChatImageService
+src\LanChat.WinForms\Controls\ContactControls.cs: 208 lines; NavigationItemControl, UserItemControl, ConversationItemControl, ConversationListControl
+src\LanChat.WinForms\Controls\ConversationPanel.cs: 245 lines; ConversationPanel, SearchRow, FileRow
+src\LanChat.WinForms\Controls\DraftImages.cs: 135 lines; DraftImageStore, ClipboardDraftImage
+src\LanChat.WinForms\Controls\FolderPickerDialog.cs: 86 lines; FolderPickerDialog, FileDialogOptions, NativeFileOpenDialog, IFileDialog, IShellItem
+src\LanChat.WinForms\Controls\GroupMembersControl.cs: 220 lines; GroupMembersControl, GroupMemberChanges
+src\LanChat.WinForms\Controls\ImageThumbnailControl.cs: 58 lines; ImageThumbnailControl
+src\LanChat.WinForms\Controls\ImageViewportControl.cs: 66 lines; ImageViewportControl
+src\LanChat.WinForms\Controls\MentionEditor.cs: 157 lines; MentionCandidate, MentionDraft, ChatInputControl, MentionPopup
+src\LanChat.WinForms\Controls\MentionTextControl.cs: 36 lines; MentionTextControl
+src\LanChat.WinForms\Controls\MessageSelection.cs: 57 lines; QrText, MessageSelection
+src\LanChat.WinForms\Controls\PersonName.cs: 167 lines; struct, SelectionItem, PersonNameLabel, PersonNameDrawing, PersonNameListBox, PersonNameCheckedListBox
+src\LanChat.WinForms\Controls\PromptTextBox.cs: 60 lines; PromptTextBox
+src\LanChat.WinForms\Controls\ReplyQuoteControl.cs: 120 lines; ReplyQuoteControl
+src\LanChat.WinForms\Controls\Theme.cs: 98 lines; Theme, BufferedPanel, BufferedFlowLayoutPanel
+src\LanChat.WinForms\Controls\UiIcons.cs: 296 lines; UiIcon, UiIcons, IconButton, IconTabControl, IconLinkLabel
+src\LanChat.WinForms\Controls\UiInteraction.cs: 99 lines; UiInteraction
+src\LanChat.WinForms\Controls\UiText.cs: 21 lines; UiText
+src\LanChat.WinForms\Controls\UnreadBadge.cs: 65 lines; UnreadBadge
+src\LanChat.WinForms\Controls\UpdatePanel.cs: 96 lines; UpdatePanel
+src\LanChat.WinForms\Forms\AboutForm.cs: 173 lines; AboutForm
+src\LanChat.WinForms\Forms\AttachmentForm.cs: 107 lines; AttachmentForm
+src\LanChat.WinForms\Forms\AttachmentOpenProgressForm.cs: 49 lines; AttachmentOpenProgressForm
+src\LanChat.WinForms\Forms\AttachmentSaveForm.cs: 79 lines; AttachmentSaveForm, AttachmentRecoveryForm
+src\LanChat.WinForms\Forms\ClusterDiagnosticsForm.cs: 83 lines; ClusterDiagnosticsForm
+src\LanChat.WinForms\Forms\ClusterUpgradeForm.cs: 60 lines; ClusterUpgradeForm
+src\LanChat.WinForms\Forms\DonationForm.cs: 165 lines; DonationForm
+src\LanChat.WinForms\Forms\DpiForm.cs: 50 lines; DpiForm
+src\LanChat.WinForms\Forms\ForwardBatchForm.cs: 91 lines; ForwardBatchForm
+src\LanChat.WinForms\Forms\ForwardRecipientsForm.cs: 72 lines; ForwardRecipientsForm, Choice
+src\LanChat.WinForms\Forms\GroupsForm.cs: 341 lines; GroupsForm
+src\LanChat.WinForms\Forms\ImageGalleryForm.cs: 195 lines; GalleryImage, ImageGalleryForm
+src\LanChat.WinForms\Forms\LicenseForm.cs: 42 lines; LicenseForm
+src\LanChat.WinForms\Forms\MainForm.Advanced.cs: 185 lines; MainForm
+src\LanChat.WinForms\Forms\MainForm.cs: 857 lines; MainForm
+src\LanChat.WinForms\Forms\MainForm.HistoryCache.cs: 48 lines; MainForm, HistorySnapshot
+src\LanChat.WinForms\Forms\MainForm.Verification.cs: 559 lines; MainForm
+src\LanChat.WinForms\Forms\MessageSearchForm.cs: 100 lines; MessageSearchForm, ResultItem
+src\LanChat.WinForms\Forms\NetworkForm.cs: 225 lines; NetworkForm
+src\LanChat.WinForms\Forms\NetworkManagerForm.cs: 139 lines; NetworkManagerForm
+src\LanChat.WinForms\Forms\NetworkWorkspace.cs: 397 lines; NetworkWorkspace
+src\LanChat.WinForms\Forms\NetworkWorkspace.Updates.cs: 69 lines; NetworkWorkspace
+src\LanChat.WinForms\Forms\QrShareForm.cs: 84 lines; QrShareForm, QrPreview
+src\LanChat.WinForms\Forms\RegionCaptureForm.cs: 154 lines; RegionCaptureForm
+src\LanChat.WinForms\Forms\SelectionForm.cs: 75 lines; SelectionForm
+src\LanChat.WinForms\Forms\SettingsForm.cs: 81 lines; SettingsForm
+src\LanChat.WinForms\Forms\UpdateSettingsForm.cs: 199 lines; UpdateNetworkChoice, UpdateSettingsForm, PeerChoice
+src\LanChat.WinForms\Forms\UserGuideForm.cs: 69 lines; UserGuideForm
+src\LanChat.WinForms\NetworkCatalog.cs: 334 lines; AppProfile, NetworkEntry, DefaultNetworkProvision, SavedNetworks, NetworkCatalog, RunningNetwork
+src\LanChat.WinForms\Program.cs: 166 lines; Program, VerificationStartup
+src\LanChat.WinForms\UpdateCoordinator.cs: 163 lines; UpdateState, UpdateCoordinator
+src\LanChat.WinForms\UpdateService.cs: 203 lines; UpdateRelease, UpdateCheck, VerifiedInstaller, UpdateService, CheckState
+src\LanChat.WinForms\UpdateSources.cs: 132 lines; UpdateSourceKind, UpdateSettings, IUpdateSource, LocalUpdateSource, LanUpdateSource, GitHubUpdateSource, GitHubRelease, GitHubAsset, OwnedDownloadStream
+src\LanChat.WinForms\WindowsStartup.cs: 46 lines; WindowsStartup

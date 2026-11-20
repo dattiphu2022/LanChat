@@ -1,0 +1,115 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TestRun id="6cd338ca-f51a-4eb3-8c81-f6d26b78c500" name="Admin@ADMIN-PC 2026-11-20 08:29:16" runUser="ADMIN-PC\Admin" xmlns="http://microsoft.com/schemas/VisualStudio/TeamTest/2010">
+  <Times creation="2026-11-20T08:29:16.5379520+07:00" queuing="2026-11-20T08:29:16.5379526+07:00" start="2026-11-20T08:27:59.2491781+07:00" finish="2026-11-20T08:29:16.5493209+07:00" />
+  <TestSettings name="default" id="be4f9934-367d-41cb-a4b4-adfdf8fbd13e">
+    <Deployment runDeploymentRoot="Admin_ADMIN-PC_2026-11-20_08_29_16" />
+  </TestSettings>
+  <Results>
+    <UnitTestResult executionId="79c3dad2-3711-4562-b0be-0008ddf6c2ef" testId="2a2fcf54-9126-aa71-ca02-43a03125ff3c" testName="LanChat.Tests.GroupHistoryTests.OneRemainingHolderAutomaticallySharesAllPagesWithCurrentGroupMembers" computerName="ADMIN-PC" duration="00:01:14.9570000" startTime="2026-11-20T08:28:00.5931028+07:00" endTime="2026-11-20T08:29:15.8197035+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Failed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="79c3dad2-3711-4562-b0be-0008ddf6c2ef">
+      <Output>
+        <ErrorInfo>
+          <Message>System.Threading.Tasks.TaskCanceledException : A task was canceled.</Message>
+          <StackTrace>   at System.Runtime.CompilerServices.TaskAwaiter.ThrowForNonSuccess(Task task)&#xD;
+   at System.Runtime.CompilerServices.TaskAwaiter.HandleNonSuccessAndDebuggerNotification(Task task)&#xD;
+   at System.Runtime.CompilerServices.TaskAwaiter.GetResult()&#xD;
+   at LanChat.Tests.TestNode.&lt;WaitUntilAsync&gt;d__14.MoveNext() in C:\Users\Admin\source\repos\dattiphu2022\LanChat\.codex-temp\uiux-baseline-source\tests\LanChat.Tests\NodeFixture.cs:line 48&#xD;
+--- End of stack trace from previous location where exception was thrown ---&#xD;
+   at System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw()&#xD;
+   at System.Runtime.CompilerServices.TaskAwaiter.ThrowForNonSuccess(Task task)&#xD;
+   at System.Runtime.CompilerServices.TaskAwaiter.HandleNonSuccessAndDebuggerNotification(Task task)&#xD;
+   at System.Runtime.CompilerServices.TaskAwaiter.GetResult()&#xD;
+   at LanChat.Tests.GroupHistoryTests.&lt;OneRemainingHolderAutomaticallySharesAllPagesWithCurrentGroupMembers&gt;d__3.MoveNext() in C:\Users\Admin\source\repos\dattiphu2022\LanChat\.codex-temp\uiux-baseline-source\tests\LanChat.Tests\GroupHistoryTests.cs:line 96&#xD;
+--- End of stack trace from previous location where exception was thrown ---&#xD;
+   at System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw()&#xD;
+   at LanChat.Tests.GroupHistoryTests.&lt;OneRemainingHolderAutomaticallySharesAllPagesWithCurrentGroupMembers&gt;d__3.MoveNext() in C:\Users\Admin\source\repos\dattiphu2022\LanChat\.codex-temp\uiux-baseline-source\tests\LanChat.Tests\GroupHistoryTests.cs:line 140&#xD;
+--- End of stack trace from previous location where exception was thrown ---&#xD;
+   at System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw()&#xD;
+   at LanChat.Tests.GroupHistoryTests.&lt;OneRemainingHolderAutomaticallySharesAllPagesWithCurrentGroupMembers&gt;d__3.MoveNext() in C:\Users\Admin\source\repos\dattiphu2022\LanChat\.codex-temp\uiux-baseline-source\tests\LanChat.Tests\GroupHistoryTests.cs:line 140&#xD;
+--- End of stack trace from previous location where exception was thrown ---&#xD;
+   at System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw()&#xD;
+   at LanChat.Tests.GroupHistoryTests.&lt;OneRemainingHolderAutomaticallySharesAllPagesWithCurrentGroupMembers&gt;d__3.MoveNext() in C:\Users\Admin\source\repos\dattiphu2022\LanChat\.codex-temp\uiux-baseline-source\tests\LanChat.Tests\GroupHistoryTests.cs:line 140&#xD;
+--- End of stack trace from previous location where exception was thrown ---&#xD;
+   at System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw()&#xD;
+   at LanChat.Tests.GroupHistoryTests.&lt;OneRemainingHolderAutomaticallySharesAllPagesWithCurrentGroupMembers&gt;d__3.MoveNext() in C:\Users\Admin\source\repos\dattiphu2022\LanChat\.codex-temp\uiux-baseline-source\tests\LanChat.Tests\GroupHistoryTests.cs:line 140&#xD;
+--- End of stack trace from previous location where exception was thrown ---&#xD;
+   at System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw()&#xD;
+   at System.Runtime.CompilerServices.TaskAwaiter.ThrowForNonSuccess(Task task)&#xD;
+   at System.Runtime.CompilerServices.TaskAwaiter.HandleNonSuccessAndDebuggerNotification(Task task)&#xD;
+--- End of stack trace from previous location where exception was thrown ---&#xD;
+   at System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw()&#xD;
+   at System.Runtime.CompilerServices.TaskAwaiter.ThrowForNonSuccess(Task task)&#xD;
+   at System.Runtime.CompilerServices.TaskAwaiter.HandleNonSuccessAndDebuggerNotification(Task task)&#xD;
+--- End of stack trace from previous location where exception was thrown ---&#xD;
+   at System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw()&#xD;
+   at System.Runtime.CompilerServices.TaskAwaiter.ThrowForNonSuccess(Task task)&#xD;
+   at System.Runtime.CompilerServices.TaskAwaiter.HandleNonSuccessAndDebuggerNotification(Task task)</StackTrace>
+        </ErrorInfo>
+      </Output>
+    </UnitTestResult>
+  </Results>
+  <TestDefinitions>
+    <UnitTest name="LanChat.Tests.GroupHistoryTests.OneRemainingHolderAutomaticallySharesAllPagesWithCurrentGroupMembers" storage="c:\users\admin\source\repos\dattiphu2022\lanchat\.codex-temp\uiux-baseline-source\tests\lanchat.tests\bin\debug\net48\lanchat.tests.dll" id="2a2fcf54-9126-aa71-ca02-43a03125ff3c">
+      <Execution id="79c3dad2-3711-4562-b0be-0008ddf6c2ef" />
+      <TestMethod codeBase="C:\Users\Admin\source\repos\dattiphu2022\LanChat\.codex-temp\uiux-baseline-source\tests\LanChat.Tests\bin\Debug\net48\LanChat.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netfx/" className="LanChat.Tests.GroupHistoryTests" name="OneRemainingHolderAutomaticallySharesAllPagesWithCurrentGroupMembers" />
+    </UnitTest>
+  </TestDefinitions>
+  <TestEntries>
+    <TestEntry testId="2a2fcf54-9126-aa71-ca02-43a03125ff3c" executionId="79c3dad2-3711-4562-b0be-0008ddf6c2ef" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+  </TestEntries>
+  <TestLists>
+    <TestList name="Results Not in a List" id="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestList name="All Loaded Results" id="19431567-8539-422a-85d7-44ee4e166bda" />
+  </TestLists>
+  <ResultSummary outcome="Failed">
+    <Counters total="1" executed="1" passed="0" failed="1" error="0" timeout="0" aborted="0" inconclusive="0" passedButRunAborted="0" notRunnable="0" notExecuted="0" disconnected="0" warning="0" completed="0" inProgress="0" pending="0" />
+    <Output>
+      <StdOut>[xUnit.net 00:00:00.00] xUnit.net VSTest Adapter v3.0.2+dd36e86129 (64-bit .NET Framework 4.8.10008.0)&#xD;
+[xUnit.net 00:00:00.56]   Discovering: LanChat.Tests&#xD;
+[xUnit.net 00:00:00.69]   Discovered:  LanChat.Tests&#xD;
+[xUnit.net 00:00:00.74]   Starting:    LanChat.Tests&#xD;
+[xUnit.net 00:01:16.02]       System.Threading.Tasks.TaskCanceledException : A task was canceled.&#xD;
+[xUnit.net 00:01:16.02]       Stack Trace:&#xD;
+[xUnit.net 00:01:16.03]            at System.Runtime.CompilerServices.TaskAwaiter.ThrowForNonSuccess(Task task)&#xD;
+[xUnit.net 00:01:16.03]            at System.Runtime.CompilerServices.TaskAwaiter.HandleNonSuccessAndDebuggerNotification(Task task)&#xD;
+[xUnit.net 00:01:16.03]            at System.Runtime.CompilerServices.TaskAwaiter.GetResult()&#xD;
+[xUnit.net 00:01:16.03]         NodeFixture.cs(48,0): at LanChat.Tests.TestNode.&lt;WaitUntilAsync&gt;d__14.MoveNext()&#xD;
+[xUnit.net 00:01:16.03]         --- End of stack trace from previous location where exception was thrown ---&#xD;
+[xUnit.net 00:01:16.03]            at System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw()&#xD;
+[xUnit.net 00:01:16.03]            at System.Runtime.CompilerServices.TaskAwaiter.ThrowForNonSuccess(Task task)&#xD;
+[xUnit.net 00:01:16.03]            at System.Runtime.CompilerServices.TaskAwaiter.HandleNonSuccessAndDebuggerNotification(Task task)&#xD;
+[xUnit.net 00:01:16.03]            at System.Runtime.CompilerServices.TaskAwaiter.GetResult()&#xD;
+[xUnit.net 00:01:16.03]         GroupHistoryTests.cs(96,0): at LanChat.Tests.GroupHistoryTests.&lt;OneRemainingHolderAutomaticallySharesAllPagesWithCurrentGroupMembers&gt;d__3.MoveNext()&#xD;
+[xUnit.net 00:01:16.03]         --- End of stack trace from previous location where exception was thrown ---&#xD;
+[xUnit.net 00:01:16.03]            at System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw()&#xD;
+[xUnit.net 00:01:16.03]         GroupHistoryTests.cs(140,0): at LanChat.Tests.GroupHistoryTests.&lt;OneRemainingHolderAutomaticallySharesAllPagesWithCurrentGroupMembers&gt;d__3.MoveNext()&#xD;
+[xUnit.net 00:01:16.03]         --- End of stack trace from previous location where exception was thrown ---&#xD;
+[xUnit.net 00:01:16.03]            at System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw()&#xD;
+[xUnit.net 00:01:16.03]         GroupHistoryTests.cs(140,0): at LanChat.Tests.GroupHistoryTests.&lt;OneRemainingHolderAutomaticallySharesAllPagesWithCurrentGroupMembers&gt;d__3.MoveNext()&#xD;
+[xUnit.net 00:01:16.03]         --- End of stack trace from previous location where exception was thrown ---&#xD;
+[xUnit.net 00:01:16.03]            at System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw()&#xD;
+[xUnit.net 00:01:16.03]         GroupHistoryTests.cs(140,0): at LanChat.Tests.GroupHistoryTests.&lt;OneRemainingHolderAutomaticallySharesAllPagesWithCurrentGroupMembers&gt;d__3.MoveNext()&#xD;
+[xUnit.net 00:01:16.03]         --- End of stack trace from previous location where exception was thrown ---&#xD;
+[xUnit.net 00:01:16.03]            at System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw()&#xD;
+[xUnit.net 00:01:16.03]         GroupHistoryTests.cs(140,0): at LanChat.Tests.GroupHistoryTests.&lt;OneRemainingHolderAutomaticallySharesAllPagesWithCurrentGroupMembers&gt;d__3.MoveNext()&#xD;
+[xUnit.net 00:01:16.03]         --- End of stack trace from previous location where exception was thrown ---&#xD;
+[xUnit.net 00:01:16.03]            at System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw()&#xD;
+[xUnit.net 00:01:16.03]            at System.Runtime.CompilerServices.TaskAwaiter.ThrowForNonSuccess(Task task)&#xD;
+[xUnit.net 00:01:16.03]            at System.Runtime.CompilerServices.TaskAwaiter.HandleNonSuccessAndDebuggerNotification(Task task)&#xD;
+[xUnit.net 00:01:16.03]         --- End of stack trace from previous location where exception was thrown ---&#xD;
+[xUnit.net 00:01:16.03]            at System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw()&#xD;
+[xUnit.net 00:01:16.03]            at System.Runtime.CompilerServices.TaskAwaiter.ThrowForNonSuccess(Task task)&#xD;
+[xUnit.net 00:01:16.03]            at System.Runtime.CompilerServices.TaskAwaiter.HandleNonSuccessAndDebuggerNotification(Task task)&#xD;
+[xUnit.net 00:01:16.03]         --- End of stack trace from previous location where exception was thrown ---&#xD;
+[xUnit.net 00:01:16.03]            at System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw()&#xD;
+[xUnit.net 00:01:16.03]            at System.Runtime.CompilerServices.TaskAwaiter.ThrowForNonSuccess(Task task)&#xD;
+[xUnit.net 00:01:16.03]            at System.Runtime.CompilerServices.TaskAwaiter.HandleNonSuccessAndDebuggerNotification(Task task)&#xD;
+[xUnit.net 00:01:16.13]   Finished:    LanChat.Tests&#xD;
+</StdOut>
+    </Output>
+    <RunInfos>
+      <RunInfo computerName="ADMIN-PC" outcome="Error" timestamp="2026-11-20T08:29:15.8459208+07:00">
+        <Text>[xUnit.net 00:01:16.02]     LanChat.Tests.GroupHistoryTests.OneRemainingHolderAutomaticallySharesAllPagesWithCurrentGroupMembers [FAIL]</Text>
+      </RunInfo>
+    </RunInfos>
+  </ResultSummary>
+</TestRun>

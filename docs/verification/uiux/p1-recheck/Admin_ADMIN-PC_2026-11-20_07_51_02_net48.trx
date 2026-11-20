@@ -1,0 +1,79 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TestRun id="45342ed1-22f7-4fff-a9dc-7c4398518687" name="Admin@ADMIN-PC 2026-11-20 07:51:02" runUser="ADMIN-PC\Admin" xmlns="http://microsoft.com/schemas/VisualStudio/TeamTest/2010">
+  <Times creation="2026-11-20T07:51:02.8973954+07:00" queuing="2026-11-20T07:51:02.8973957+07:00" start="2026-11-20T07:51:00.5486952+07:00" finish="2026-11-20T07:51:02.9029916+07:00" />
+  <TestSettings name="default" id="ddc196b4-167d-4137-888f-8ff94825353b">
+    <Deployment runDeploymentRoot="Admin_ADMIN-PC_2026-11-20_07_51_02" />
+  </TestSettings>
+  <Results>
+    <UnitTestResult executionId="9479186f-1c53-42ae-839f-67024726ca3c" testId="4a3dcba3-0ab2-b31d-759a-01b9d9400939" testName="LanChat.Tests.WindowsUiTests.ClosingTransferCenterDoesNotCancelNetworkPreparationOrDuplicateWindowWork" computerName="ADMIN-PC" duration="00:00:00.7720000" startTime="2026-11-20T07:51:01.7939302+07:00" endTime="2026-11-20T07:51:02.5760814+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="9479186f-1c53-42ae-839f-67024726ca3c" />
+    <UnitTestResult executionId="a57d4d51-dfd8-4a8c-b8d3-5a519e5497ae" testId="576dfe32-6659-ab2f-8d25-2cbea69a7724" testName="LanChat.Tests.WindowsUiTests.MemberSearchPreservesHiddenUnsavedEdits" computerName="ADMIN-PC" duration="00:00:00.1040000" startTime="2026-11-20T07:51:02.5988024+07:00" endTime="2026-11-20T07:51:02.7364480+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Failed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="a57d4d51-dfd8-4a8c-b8d3-5a519e5497ae">
+      <Output>
+        <ErrorInfo>
+          <Message>System.ArgumentOutOfRangeException : InvalidArgument=Value of '-1' is not valid for 'index'.&#xD;
+Parameter name: index</Message>
+          <StackTrace>   at System.Windows.Forms.CheckedListBox.SetItemCheckState(Int32 index, CheckState value)&#xD;
+   at LanChat.Tests.WindowsUiTests.&lt;&gt;c.&lt;MemberSearchPreservesHiddenUnsavedEdits&gt;b__68_0(Form host) in C:\Users\Admin\source\repos\dattiphu2022\LanChat\tests\LanChat.Tests\WindowsUxWorkflowTests.cs:line 24&#xD;
+   at LanChat.Tests.WindowsUiTests.&lt;&gt;c__DisplayClass54_1.&lt;&lt;OnUi&gt;b__2&gt;d.MoveNext() in C:\Users\Admin\source\repos\dattiphu2022\LanChat\tests\LanChat.Tests\WindowsUiTests.cs:line 861&#xD;
+--- End of stack trace from previous location where exception was thrown ---&#xD;
+   at System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw()&#xD;
+   at System.Runtime.CompilerServices.TaskAwaiter.HandleNonSuccessAndDebuggerNotification(Task task)&#xD;
+--- End of stack trace from previous location where exception was thrown ---&#xD;
+   at System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw()&#xD;
+   at System.Runtime.CompilerServices.TaskAwaiter.HandleNonSuccessAndDebuggerNotification(Task task)&#xD;
+--- End of stack trace from previous location where exception was thrown ---&#xD;
+   at System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw()&#xD;
+   at System.Runtime.CompilerServices.TaskAwaiter.HandleNonSuccessAndDebuggerNotification(Task task)</StackTrace>
+        </ErrorInfo>
+      </Output>
+    </UnitTestResult>
+  </Results>
+  <TestDefinitions>
+    <UnitTest name="LanChat.Tests.WindowsUiTests.MemberSearchPreservesHiddenUnsavedEdits" storage="c:\users\admin\source\repos\dattiphu2022\lanchat\tests\lanchat.tests\bin\debug\net48\lanchat.tests.dll" id="576dfe32-6659-ab2f-8d25-2cbea69a7724">
+      <Execution id="a57d4d51-dfd8-4a8c-b8d3-5a519e5497ae" />
+      <TestMethod codeBase="C:\Users\Admin\source\repos\dattiphu2022\LanChat\tests\LanChat.Tests\bin\Debug\net48\LanChat.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netfx/" className="LanChat.Tests.WindowsUiTests" name="MemberSearchPreservesHiddenUnsavedEdits" />
+    </UnitTest>
+    <UnitTest name="LanChat.Tests.WindowsUiTests.ClosingTransferCenterDoesNotCancelNetworkPreparationOrDuplicateWindowWork" storage="c:\users\admin\source\repos\dattiphu2022\lanchat\tests\lanchat.tests\bin\debug\net48\lanchat.tests.dll" id="4a3dcba3-0ab2-b31d-759a-01b9d9400939">
+      <Execution id="9479186f-1c53-42ae-839f-67024726ca3c" />
+      <TestMethod codeBase="C:\Users\Admin\source\repos\dattiphu2022\LanChat\tests\LanChat.Tests\bin\Debug\net48\LanChat.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netfx/" className="LanChat.Tests.WindowsUiTests" name="ClosingTransferCenterDoesNotCancelNetworkPreparationOrDuplicateWindowWork" />
+    </UnitTest>
+  </TestDefinitions>
+  <TestEntries>
+    <TestEntry testId="4a3dcba3-0ab2-b31d-759a-01b9d9400939" executionId="9479186f-1c53-42ae-839f-67024726ca3c" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="576dfe32-6659-ab2f-8d25-2cbea69a7724" executionId="a57d4d51-dfd8-4a8c-b8d3-5a519e5497ae" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+  </TestEntries>
+  <TestLists>
+    <TestList name="Results Not in a List" id="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestList name="All Loaded Results" id="19431567-8539-422a-85d7-44ee4e166bda" />
+  </TestLists>
+  <ResultSummary outcome="Failed">
+    <Counters total="2" executed="2" passed="1" failed="1" error="0" timeout="0" aborted="0" inconclusive="0" passedButRunAborted="0" notRunnable="0" notExecuted="0" disconnected="0" warning="0" completed="0" inProgress="0" pending="0" />
+    <Output>
+      <StdOut>[xUnit.net 00:00:00.00] xUnit.net VSTest Adapter v3.0.2+dd36e86129 (64-bit .NET Framework 4.8.10008.0)&#xD;
+[xUnit.net 00:00:00.50]   Discovering: LanChat.Tests&#xD;
+[xUnit.net 00:00:00.62]   Discovered:  LanChat.Tests&#xD;
+[xUnit.net 00:00:00.67]   Starting:    LanChat.Tests&#xD;
+[xUnit.net 00:00:01.65]       System.ArgumentOutOfRangeException : InvalidArgument=Value of '-1' is not valid for 'index'.&#xD;
+[xUnit.net 00:00:01.65]       Parameter name: index&#xD;
+[xUnit.net 00:00:01.65]       Stack Trace:&#xD;
+[xUnit.net 00:00:01.65]            at System.Windows.Forms.CheckedListBox.SetItemCheckState(Int32 index, CheckState value)&#xD;
+[xUnit.net 00:00:01.65]         WindowsUxWorkflowTests.cs(24,0): at LanChat.Tests.WindowsUiTests.&lt;&gt;c.&lt;MemberSearchPreservesHiddenUnsavedEdits&gt;b__68_0(Form host)&#xD;
+[xUnit.net 00:00:01.65]         WindowsUiTests.cs(861,0): at LanChat.Tests.WindowsUiTests.&lt;&gt;c__DisplayClass54_1.&lt;&lt;OnUi&gt;b__2&gt;d.MoveNext()&#xD;
+[xUnit.net 00:00:01.65]         --- End of stack trace from previous location where exception was thrown ---&#xD;
+[xUnit.net 00:00:01.65]            at System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw()&#xD;
+[xUnit.net 00:00:01.65]            at System.Runtime.CompilerServices.TaskAwaiter.HandleNonSuccessAndDebuggerNotification(Task task)&#xD;
+[xUnit.net 00:00:01.65]         --- End of stack trace from previous location where exception was thrown ---&#xD;
+[xUnit.net 00:00:01.65]            at System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw()&#xD;
+[xUnit.net 00:00:01.65]            at System.Runtime.CompilerServices.TaskAwaiter.HandleNonSuccessAndDebuggerNotification(Task task)&#xD;
+[xUnit.net 00:00:01.65]         --- End of stack trace from previous location where exception was thrown ---&#xD;
+[xUnit.net 00:00:01.65]            at System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw()&#xD;
+[xUnit.net 00:00:01.65]            at System.Runtime.CompilerServices.TaskAwaiter.HandleNonSuccessAndDebuggerNotification(Task task)&#xD;
+[xUnit.net 00:00:01.66]   Finished:    LanChat.Tests&#xD;
+</StdOut>
+    </Output>
+    <RunInfos>
+      <RunInfo computerName="ADMIN-PC" outcome="Error" timestamp="2026-11-20T07:51:02.7412008+07:00">
+        <Text>[xUnit.net 00:00:01.65]     LanChat.Tests.WindowsUiTests.MemberSearchPreservesHiddenUnsavedEdits [FAIL]</Text>
+      </RunInfo>
+    </RunInfos>
+  </ResultSummary>
+</TestRun>

@@ -26,6 +26,14 @@ internal sealed class NetworkCatalog(NodeOptions primary, IUpdatePackageProvider
     private const string DefaultNetworkResource = "LanChat.DefaultNetwork";
     private bool HasProvisionedDefault => File.Exists(_provisionedPath) ||
         typeof(NetworkCatalog).Assembly.GetManifestResourceInfo(DefaultNetworkResource) is not null;
+    public UiPreferences UiPreferences { get; private set; } = new();
+    public bool HasSavedProfile => _savedProfile is not null;
+    public async Task SaveUiPreferencesAsync(UiPreferences preferences)
+    {
+        var valid = preferences.Validated();
+        await Task.Run(() => WriteAsync("ui-preferences.json", valid));
+        UiPreferences = valid;
+    }
     public IReadOnlyList<NetworkEntry> Entries => _entries;
     public AppProfile Profile => _savedProfile ?? new AppProfile(primary.InitialDisplayName, primary.InitialDepartment);
     public NetworkEntry? DefaultNetwork { get; private set; }
@@ -41,6 +49,12 @@ internal sealed class NetworkCatalog(NodeOptions primary, IUpdatePackageProvider
 
     public async Task LoadAsync()
     {
+        var preferences = Path.Combine(_directory, "ui-preferences.json");
+        if (File.Exists(preferences))
+        {
+            try { UiPreferences = (System.Text.Json.JsonSerializer.Deserialize<UiPreferences>(await FrameworkIO.ReadTextAsync(preferences)) ?? new()).Validated(); }
+            catch (Exception ex) when (ex is IOException or System.Text.Json.JsonException or UnauthorizedAccessException) { UiPreferences = new(); }
+        }
         var list = Path.Combine(_directory, "networks.json");
         if (File.Exists(list))
         {

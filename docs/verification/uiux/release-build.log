@@ -1,0 +1,11 @@
+  LanChat.Domain -> C:\Users\Admin\source\repos\dattiphu2022\LanChat\src\LanChat.Domain\bin\Release\net48\LanChat.Domain.dll
+  LanChat.Application -> C:\Users\Admin\source\repos\dattiphu2022\LanChat\src\LanChat.Application\bin\Release\net48\LanChat.Application.dll
+  LanChat.Infrastructure -> C:\Users\Admin\source\repos\dattiphu2022\LanChat\src\LanChat.Infrastructure\bin\Release\net48\LanChat.Infrastructure.dll
+  LanChat.Signing -> C:\Users\Admin\source\repos\dattiphu2022\LanChat\tools\LanChat.Signing\bin\Release\net48\LanChat.Signing.exe
+  LanChat.WinForms -> C:\Users\Admin\source\repos\dattiphu2022\LanChat\src\LanChat.WinForms\bin\Release\net48\LanChat.WinForms.exe
+
+Build succeeded.
+    0 Warning(s)
+    0 Error(s)
+
+Time Elapsed 00:00:02.99

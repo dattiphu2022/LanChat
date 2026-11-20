@@ -15,6 +15,8 @@ internal sealed class AttachmentActions : IDisposable
     private readonly Dictionary<Guid, int> _watched = [];
     private readonly Dictionary<Guid, FileProgress?> _snapshots = [];
     private bool _disposed;
+    private int _idleTicks;
+    internal event Action? PollIdle;
     public AttachmentActions(IFileTransferService files)
     {
         this.files = files;
@@ -27,6 +29,7 @@ internal sealed class AttachmentActions : IDisposable
                 if (snapshot == previous) continue;
                 _snapshots[id] = snapshot; Notify(id);
             }
+            if (++_idleTicks % 4 == 0) PollIdle?.Invoke();
         };
     }
     internal void Watch(Guid id)
@@ -47,6 +50,23 @@ internal sealed class AttachmentActions : IDisposable
     private readonly HashSet<Guid> _busy = [];
     public event Action<Guid>? Changed;
     private readonly Dictionary<Guid, string> _states = [];
+    private readonly Dictionary<Guid, string> _errors = [];
+    internal bool HasActiveOperations => _busy.Count > 0;
+    internal FileProgress? Progress(Guid id) => files.GetPreparationState(id);
+    internal string? Failure(Guid id) => _errors.TryGetValue(id, out var error) ? error : null;
+    internal async Task PrepareAsync(AttachmentDto file, CancellationToken networkLifetime)
+    {
+        if (!_busy.Add(file.Id)) return;
+        _errors.Remove(file.Id); _states[file.Id] = "Đang chuẩn bị…"; Notify(file.Id);
+        try
+        {
+            var progress = new Progress<FileProgress>(p => { if (!_disposed) Report(file.Id, p); });
+            await Task.Run(() => files.PrepareOpenAsync(file, progress, networkLifetime), networkLifetime);
+        }
+        catch (OperationCanceledException) when (networkLifetime.IsCancellationRequested) { }
+        catch (Exception ex) { if (!_disposed) _errors[file.Id] = UiText.HideIpAddresses(ex.Message); }
+        finally { _busy.Remove(file.Id); _states.Remove(file.Id); if (!_disposed) Notify(file.Id); }
+    }
     public bool IsBusy(Guid id) => _busy.Contains(id);
     public string State(Guid id) => _states.TryGetValue(id, out var state) ? state : "Đang chờ tác vụ…";
     private void Notify(Guid id)

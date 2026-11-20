@@ -1,0 +1,254 @@
+{
+  "BaselineCommit": "e2056aa0577809c91c304d3db110dd90205d270e",
+  "Method": "Paired sequential testhost runs, same 24-message conversations, 12 switches, 80 rendered messages and 10 pt at actual 120 DPI. Phase probes were temporary and removed from delivered source. Exploratory runs retained under measurements/.",
+  "PrimaryDiagnosticPair": [
+    {
+      "kind": "before",
+      "MessagesPerConversation": 24,
+      "WarmSwitches": [
+        64.7859,
+        83.7891,
+        61.823600000000006,
+        64.6921,
+        65.1737,
+        61.3502,
+        83.5006,
+        70.608,
+        63.5146,
+        66.31020000000001,
+        62.862300000000005,
+        64.01610000000001
+      ],
+      "MedianMs": 64.739,
+      "ConversationBodyFontPoints": 10,
+      "MessageRendering": {
+        "Count": 80,
+        "ColdPrepareAndBindMs": 1368.4956,
+        "WarmBindMs": [
+          65.1973,
+          81.2371,
+          62.723400000000005,
+          67.1769,
+          63.807700000000004,
+          58.0163
+        ],
+        "BodyFontPoints": 10
+      },
+      "MeanPhasesMs": {
+        "select": 0.05486666666666667,
+        "draft/reset": 0.25137500000000007,
+        "navigation": 0.05100833333333334,
+        "header": 0.8893916666666665,
+        "cached history": 63.06336666666667,
+        "refresh": 3.3504916666666666,
+        "focus": 0.011325000000000002
+      },
+      "Runtime": "4.0.30319.42000",
+      "Dpi": 120,
+      "WarmBindMedianMs": 64.5025
+    },
+    {
+      "kind": "after",
+      "MessagesPerConversation": 24,
+      "WarmSwitches": [
+        74.7641,
+        63.899800000000006,
+        59.0484,
+        65.2581,
+        59.134800000000006,
+        63.4729,
+        62.5199,
+        68.7702,
+        64.9192,
+        61.819,
+        65.9551,
+        68.8949
+      ],
+      "MedianMs": 64.40950000000001,
+      "ConversationBodyFontPoints": 10,
+      "MessageRendering": {
+        "Count": 80,
+        "ColdPrepareAndBindMs": 1863.3407000000002,
+        "WarmBindMs": [
+          76.10470000000001,
+          71.71130000000001,
+          92.85940000000001,
+          70.11670000000001,
+          70.1982,
+          78.98620000000001
+        ],
+        "BodyFontPoints": 10
+      },
+      "MeanPhasesMs": {
+        "select": 0.102325,
+        "draft/reset": 0.168475,
+        "navigation": 0.04248333333333334,
+        "header": 0.5385333333333334,
+        "cached history": 63.438708333333345,
+        "refresh": 0.5541583333333334,
+        "focus": 0.008591666666666666
+      },
+      "Runtime": "4.0.30319.42000",
+      "Dpi": 120,
+      "WarmBindMedianMs": 73.90800000000002
+    }
+  ],
+  "Conclusion": "Final clean pair is the delivery measurement. Exploratory pairs show variance; no claim of broad performance improvement.",
+  "FinalPair": [
+    {
+      "kind": "before",
+      "MessagesPerConversation": 24,
+      "WarmSwitches": [
+        56.5722,
+        60.7674,
+        60.753400000000006,
+        58.1235,
+        59.3427,
+        62.079600000000006,
+        62.740700000000004,
+        62.568200000000004,
+        60.921800000000005,
+        64.7804,
+        71.5901,
+        68.93650000000001
+      ],
+      "MedianMs": 61.50070000000001,
+      "ConversationBodyFontPoints": 10,
+      "MessageRendering": {
+        "Count": 80,
+        "ColdPrepareAndBindMs": 1111.2834,
+        "WarmBindMs": [
+          56.7143,
+          54.762100000000004,
+          57.2297,
+          54.28,
+          59.693400000000004,
+          55.184000000000005
+        ],
+        "BodyFontPoints": 10
+      },
+      "MeanPhasesMs": {
+        "select": 0.0248,
+        "draft/reset": 0.1998833333333333,
+        "navigation": 0.04748333333333333,
+        "header": 0.7574000000000001,
+        "cached history": 57.979616666666665,
+        "refresh": 3.395,
+        "focus": 0.010216666666666667
+      },
+      "Runtime": "4.0.30319.42000",
+      "Dpi": 120,
+      "WarmBindMedianMs": 55.94915
+    },
+    {
+      "kind": "after",
+      "MessagesPerConversation": 24,
+      "WarmSwitches": [
+        68.586,
+        88.3472,
+        89.0907,
+        92.2188,
+        67.24510000000001,
+        63.031600000000005,
+        69.9696,
+        64.1555,
+        74.3977,
+        63.574000000000005,
+        61.2205,
+        77.03
+      ],
+      "MedianMs": 69.2778,
+      "ConversationBodyFontPoints": 10,
+      "MessageRendering": {
+        "Count": 80,
+        "ColdPrepareAndBindMs": 1346.6659,
+        "WarmBindMs": [
+          61.778600000000004,
+          53.3641,
+          54.075500000000005,
+          57.0231,
+          58.2714,
+          70.7638
+        ],
+        "BodyFontPoints": 10
+      },
+      "Runtime": "4.0.30319.42000",
+      "Dpi": 120,
+      "WarmBindMedianMs": 57.64725
+    }
+  ],
+  "CleanRebuiltPair": [
+    {
+      "kind": "before",
+      "MessagesPerConversation": 24,
+      "WarmSwitches": [
+        56.966300000000004,
+        59.469300000000004,
+        57.9566,
+        59.1248,
+        58.880300000000005,
+        61.626200000000004,
+        71.869,
+        59.941900000000004,
+        58.6028,
+        59.1587,
+        60.7847,
+        60.6184
+      ],
+      "MedianMs": 59.31400000000001,
+      "ConversationBodyFontPoints": 10,
+      "MessageRendering": {
+        "Count": 80,
+        "ColdPrepareAndBindMs": 1041.4435,
+        "WarmBindMs": [
+          56.5529,
+          70.8947,
+          58.471000000000004,
+          76.1329,
+          63.6242,
+          70.3129
+        ],
+        "BodyFontPoints": 10
+      },
+      "Runtime": "4.0.30319.42000",
+      "Dpi": 120,
+      "WarmBindMedianMs": 66.96855
+    },
+    {
+      "kind": "after",
+      "MessagesPerConversation": 24,
+      "WarmSwitches": [
+        59.2233,
+        60.968500000000006,
+        62.8479,
+        58.3417,
+        58.600100000000005,
+        59.776,
+        60.1672,
+        58.9352,
+        61.1159,
+        60.870000000000005,
+        59.515800000000006,
+        58.727900000000005
+      ],
+      "MedianMs": 59.645900000000005,
+      "ConversationBodyFontPoints": 10,
+      "MessageRendering": {
+        "Count": 80,
+        "ColdPrepareAndBindMs": 1096.153,
+        "WarmBindMs": [
+          56.226000000000006,
+          58.0184,
+          56.708600000000004,
+          60.3312,
+          59.907700000000006,
+          71.4939
+        ],
+        "BodyFontPoints": 10
+      },
+      "Runtime": "4.0.30319.42000",
+      "Dpi": 120,
+      "WarmBindMedianMs": 58.96305
+    }
+  ]
+}

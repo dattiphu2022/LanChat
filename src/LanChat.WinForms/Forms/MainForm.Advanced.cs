@@ -169,16 +169,20 @@ public sealed partial class MainForm
             }
         }
     }
-    private async Task OpenFilesAsync()
+    private TransferCenterForm? _transferCenter;
+    private Task OpenFilesAsync()
     {
-        var attachments = await Distributed.GetAttachmentsAsync(ct: _lifetime.Token);
-        using var select = new SelectionForm("Tệp và thư mục trong các cuộc trò chuyện", attachments.Select(x => new SelectionItem(x.Id,
-            x.MimeType == FolderAttachment.MimeType ? $"{x.FileName} · Thư mục" : $"{x.FileName} · {x.FileSize / 1024d:N1} KB")));
-        if (UiInteraction.ShowDialog(select, this) == DialogResult.OK && select.SelectedId is { } id)
+        if (_transferCenter is { IsDisposed: false } existing) { existing.Show(); existing.Activate(); return Task.CompletedTask; }
+        _transferCenter = new TransferCenterForm(_attachmentActions, _lifetime.Token, ct => Task.Run(async () =>
         {
-            var attachment = attachments.Single(x => x.Id == id);
-            if (attachment.MimeType == FolderAttachment.MimeType) await OpenAttachmentAsync(attachment);
-            else { using var viewer = new AttachmentForm(attachment, Files, _attachmentActions); UiInteraction.ShowDialog(viewer, this); }
-        }
+            var attachments = await Distributed.GetAttachmentsAsync(ct: ct);
+            var details = await Distributed.GetMessageDetailsBatchAsync(attachments.Select(f => f.MessageId).Distinct().ToArray(), ct);
+            var names = (await _store.GetConversationsAsync(ct: ct)).ToDictionary(c => c.Id, c => new PersonName(c.DisplayName, c.Department).ToString());
+            var messages = details.ToDictionary(d => d.Message.Id, d => d.Message.ConversationId);
+            return attachments.Where(f => messages.ContainsKey(f.MessageId)).Select(f =>
+                new TransferEntry(f, names.TryGetValue(messages[f.MessageId], out var name) ? name : "Hội thoại")).ToArray();
+        }, ct), file => RunUiAsync(() => OpenAttachmentAsync(file), userOperation: true));
+        _transferCenter.Show(TopLevelControl as Form ?? this);
+        return Task.CompletedTask;
     }
 }

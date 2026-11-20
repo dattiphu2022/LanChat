@@ -29,7 +29,7 @@ public sealed partial class WindowsUiTests
         await controller.CheckAsync(true); await Task.Delay(40);
         Assert.True(panel.Visible);
         var install = Button(panel, "Cài đặt ngay"); Assert.True(install.Visible); Assert.True(install.Enabled);
-        Assert.True(((IconButton)Button(workspace, "Giới thiệu")).ShowBadge);
+        Assert.True(((IconButton)Button(workspace, "Thêm")).ShowBadge);
         Assert.Null(workspace.PendingInstaller);
         Assert.DoesNotContain(Children(panel).OfType<Label>(), label => label.Visible);
         foreach (var button in Children(workspace).OfType<Button>().Where(b => b.Visible))

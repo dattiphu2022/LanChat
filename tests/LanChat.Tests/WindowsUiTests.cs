@@ -114,7 +114,8 @@ public sealed partial class WindowsUiTests
             }
             catch (Exception ex) { driver.TrySetException(ex); about?.Close(); }
         }));
-        Button(workspace, "Giới thiệu").PerformClick();
+        var more = Button(workspace, "Thêm"); more.PerformClick();
+        more.ContextMenuStrip!.Items.OfType<ToolStripMenuItem>().Single(item => item.Text.StartsWith("Giới thiệu")).PerformClick();
         await driver.Task;
         await Until(() => workspace.PendingInstaller is not null);
         workspace.PendingInstaller!.Dispose();
@@ -882,6 +883,7 @@ public sealed partial class WindowsUiTests
         var dpiField = typeof(Control).GetField("deviceDpi", BindingFlags.Instance | BindingFlags.NonPublic);
         Assert.NotNull(dpiField);
         form.MinimumSize = System.Drawing.Size.Empty;
+        foreach (var dpiForm in controls.OfType<DpiForm>()) dpiForm.SimulatedLayoutDpi = dpi;
         foreach (var control in controls) dpiField!.SetValue(control, dpi);
         form.Scale(new System.Drawing.SizeF(scale, scale));
         var fonts = new FontScope(form);

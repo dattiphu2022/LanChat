@@ -1,6 +1,8 @@
-# LanChat v1.2.9 — Chat nội bộ cho Windows
+# LanChat v1.2.10 — Chat nội bộ cho Windows
 
-v1.2.9 tự kiểm tra và tải bản cập nhật trong nền, hiển thị badge trên nút **Giới thiệu** khi có phiên bản mới và chờ bạn chọn **Cài đặt ngay**. Lịch sử hội thoại đã mở được giữ trong bộ nhớ đệm để chuyển qua lại nhanh hơn; dữ liệu thay đổi vẫn được làm mới.
+v1.2.10 nâng cấp bố cục cửa sổ rộng/trung bình/hẹp, thêm bộ lọc hội thoại, khung soạn gọn với nút **+**, trung tâm tệp, tìm kiếm rõ phạm vi và tùy chỉnh cỡ chữ/mật độ. **Thêm** chứa Giới thiệu, cập nhật và hướng dẫn; badge phiên bản mới cũng nằm trên nút này. Ứng dụng tiếp tục tải cập nhật nền và chỉ cài khi bạn chọn **Cài đặt ngay**.
+
+Giữ WinForms/.NET Framework 4.8, giao thức và dữ liệu hiện có. [Chi tiết nâng cấp UI/UX và giới hạn kiểm chứng](docs/UI_UX_IMPLEMENTATION.md).
 
 LanChat hỗ trợ chat riêng, chat nhóm và truyền ảnh, tệp, thư mục giữa các máy Windows trên mạng LAN. Mỗi máy lưu dữ liệu trong SQLite. Tin nhắn và tệp được mã hóa đầu cuối. Cập nhật hỗ trợ GitHub, máy cùng mạng chat trong LAN hoặc bộ cài cục bộ; LAN và bộ cài cục bộ hoạt động không cần Internet.
 

@@ -1,0 +1,90 @@
+{
+  "Success": true,
+  "NodeId": "1e83a634-90dd-41f5-9dad-5c61cb4c7788",
+  "UserId": "01a1f6b1-51a9-7673-85b9-7c0f4811806b",
+  "DeviceDpi": 120,
+  "Messages": [
+    {
+      "Id": "01a1f6b1-5983-7d3d-b29b-c8df39619740",
+      "Text": "N\u1ED9i dung \u0111\u00E3 s\u1EEDa t\u1EEB M\u00E1y B",
+      "Status": 2,
+      "IsEdited": true,
+      "ReplyToMessageId": null
+    },
+    {
+      "Id": "01a1f6b1-613f-737b-bece-9c34eda16738",
+      "Text": "N\u1ED9i dung \u0111\u00E3 s\u1EEDa t\u1EEB M\u00E1y A",
+      "Status": 2,
+      "IsEdited": true,
+      "ReplyToMessageId": null
+    },
+    {
+      "Id": "01a1f6b1-7d16-71fe-8ce5-d574a8c74808",
+      "Text": "B\u1ED9 \u1EA3nh c\u1EE7a M\u00E1y B\nCh\u00FA th\u00EDch chung cho \u1EA3nh ngang v\u00E0 \u1EA3nh d\u1ECDc.",
+      "Status": 2,
+      "IsEdited": false,
+      "ReplyToMessageId": "01a1f6b1-613f-737b-bece-9c34eda16738"
+    },
+    {
+      "Id": "01a1f6b1-7f50-70ef-8632-4870f940a828",
+      "Text": "B\u1ED9 \u1EA3nh c\u1EE7a M\u00E1y A\nCh\u00FA th\u00EDch chung cho \u1EA3nh ngang v\u00E0 \u1EA3nh d\u1ECDc.",
+      "Status": 1,
+      "IsEdited": false,
+      "ReplyToMessageId": "01a1f6b1-5983-7d3d-b29b-c8df39619740"
+    }
+  ],
+  "GroupId": "01a1f6b1-9f52-7acc-8957-5bbc838a6302",
+  "GroupMessageIds": [
+    "01a1f6b1-9f52-71cc-958a-19e95d2a42c5",
+    "01a1f6b1-a49b-7f82-9d02-929c67ab5f72",
+    "01a1f6b1-a6f8-77eb-8f89-e5377eeacddf"
+  ],
+  "VerifiedFiles": 6,
+  "VerifiedOpenRequests": 3,
+  "VerifiedGalleries": 4,
+  "InlineImagesLoaded": 4,
+  "VerifiedSourceChanges": 3,
+  "VerifiedReplies": true,
+  "VerifiedClipboard": true,
+  "VerifiedGroupMembers": true,
+  "VerifiedSavedAttachments": 2,
+  "VerifiedMentionsAndForwarding": true,
+  "VerifiedLegacyMentionCompatibility": false,
+  "VerifiedLanUpdate": true,
+  "VerifiedLegacyUpdateUnsupported": false,
+  "Consensus": {
+    "Role": 2,
+    "Term": 1,
+    "LeaderNodeId": "1e83a634-90dd-41f5-9dad-5c61cb4c7788",
+    "HasQuorum": true,
+    "Voters": [
+      "1e83a634-90dd-41f5-9dad-5c61cb4c7788",
+      "01a1f6b1-51ae-7e53-bbf0-8da57c5b478e"
+    ],
+    "JointVoters": null,
+    "CommitIndex": 6,
+    "LastLeaderHeartbeatTicks": 639307370333039239,
+    "StatusText": "M\u00E1y n\u00E0y \u0111ang \u0111i\u1EC1u ph\u1ED1i",
+    "CanLead": true,
+    "LeaderReady": true,
+    "SupportsPairGroups": true,
+    "SoleOnlinePeerNodeId": null,
+    "PairCoordinatorNodeId": null,
+    "PairGroupMemberUserId": null
+  },
+  "Captures": [
+    "C:\\Users\\Admin\\source\\repos\\dattiphu2022\\LanChat\\.codex-temp\\uiux-delivery-two\\A.1240.png",
+    "C:\\Users\\Admin\\source\\repos\\dattiphu2022\\LanChat\\.codex-temp\\uiux-delivery-two\\A.1020.png",
+    "C:\\Users\\Admin\\source\\repos\\dattiphu2022\\LanChat\\.codex-temp\\uiux-delivery-two\\A.conversation-panel.png",
+    "C:\\Users\\Admin\\source\\repos\\dattiphu2022\\LanChat\\.codex-temp\\uiux-delivery-two\\A.drop-preview.png",
+    "C:\\Users\\Admin\\source\\repos\\dattiphu2022\\LanChat\\.codex-temp\\uiux-delivery-two\\A.inline-images-1240.png",
+    "C:\\Users\\Admin\\source\\repos\\dattiphu2022\\LanChat\\.codex-temp\\uiux-delivery-two\\A.inline-images-1020.png",
+    "C:\\Users\\Admin\\source\\repos\\dattiphu2022\\LanChat\\.codex-temp\\uiux-delivery-two\\A.gallery-1080.png",
+    "C:\\Users\\Admin\\source\\repos\\dattiphu2022\\LanChat\\.codex-temp\\uiux-delivery-two\\A.gallery-780.png",
+    "C:\\Users\\Admin\\source\\repos\\dattiphu2022\\LanChat\\.codex-temp\\uiux-delivery-two\\A.group-chat.png",
+    "C:\\Users\\Admin\\source\\repos\\dattiphu2022\\LanChat\\.codex-temp\\uiux-delivery-two\\A.groups.png",
+    "C:\\Users\\Admin\\source\\repos\\dattiphu2022\\LanChat\\.codex-temp\\uiux-delivery-two\\A.settings.png",
+    "C:\\Users\\Admin\\source\\repos\\dattiphu2022\\LanChat\\.codex-temp\\uiux-delivery-two\\A.diagnostics.png",
+    "C:\\Users\\Admin\\source\\repos\\dattiphu2022\\LanChat\\.codex-temp\\uiux-delivery-two\\A.group-members.png"
+  ]
+}

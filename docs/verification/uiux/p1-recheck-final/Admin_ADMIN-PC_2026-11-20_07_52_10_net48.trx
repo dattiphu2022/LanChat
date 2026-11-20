@@ -1,0 +1,40 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TestRun id="d32cacd3-7bc0-4088-867e-4785747082a3" name="Admin@ADMIN-PC 2026-11-20 07:52:10" runUser="ADMIN-PC\Admin" xmlns="http://microsoft.com/schemas/VisualStudio/TeamTest/2010">
+  <Times creation="2026-11-20T07:52:10.1803808+07:00" queuing="2026-11-20T07:52:10.1803811+07:00" start="2026-11-20T07:52:07.8648537+07:00" finish="2026-11-20T07:52:10.1841227+07:00" />
+  <TestSettings name="default" id="cfd44cd1-2c4e-4a1b-a419-287977bfa313">
+    <Deployment runDeploymentRoot="Admin_ADMIN-PC_2026-11-20_07_52_10" />
+  </TestSettings>
+  <Results>
+    <UnitTestResult executionId="d3d91a7c-f375-40c7-96a3-0d28e7a992d4" testId="4a3dcba3-0ab2-b31d-759a-01b9d9400939" testName="LanChat.Tests.WindowsUiTests.ClosingTransferCenterDoesNotCancelNetworkPreparationOrDuplicateWindowWork" computerName="ADMIN-PC" duration="00:00:00.8040000" startTime="2026-11-20T07:52:09.1507696+07:00" endTime="2026-11-20T07:52:09.9649777+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="d3d91a7c-f375-40c7-96a3-0d28e7a992d4" />
+    <UnitTestResult executionId="063e3adc-e6bc-4555-b8fb-f27850308884" testId="576dfe32-6659-ab2f-8d25-2cbea69a7724" testName="LanChat.Tests.WindowsUiTests.MemberSearchPreservesHiddenUnsavedEdits" computerName="ADMIN-PC" duration="00:00:00.0980000" startTime="2026-11-20T07:52:09.9826434+07:00" endTime="2026-11-20T07:52:10.0630409+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="063e3adc-e6bc-4555-b8fb-f27850308884" />
+  </Results>
+  <TestDefinitions>
+    <UnitTest name="LanChat.Tests.WindowsUiTests.MemberSearchPreservesHiddenUnsavedEdits" storage="c:\users\admin\source\repos\dattiphu2022\lanchat\tests\lanchat.tests\bin\debug\net48\lanchat.tests.dll" id="576dfe32-6659-ab2f-8d25-2cbea69a7724">
+      <Execution id="063e3adc-e6bc-4555-b8fb-f27850308884" />
+      <TestMethod codeBase="C:\Users\Admin\source\repos\dattiphu2022\LanChat\tests\LanChat.Tests\bin\Debug\net48\LanChat.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netfx/" className="LanChat.Tests.WindowsUiTests" name="MemberSearchPreservesHiddenUnsavedEdits" />
+    </UnitTest>
+    <UnitTest name="LanChat.Tests.WindowsUiTests.ClosingTransferCenterDoesNotCancelNetworkPreparationOrDuplicateWindowWork" storage="c:\users\admin\source\repos\dattiphu2022\lanchat\tests\lanchat.tests\bin\debug\net48\lanchat.tests.dll" id="4a3dcba3-0ab2-b31d-759a-01b9d9400939">
+      <Execution id="d3d91a7c-f375-40c7-96a3-0d28e7a992d4" />
+      <TestMethod codeBase="C:\Users\Admin\source\repos\dattiphu2022\LanChat\tests\LanChat.Tests\bin\Debug\net48\LanChat.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netfx/" className="LanChat.Tests.WindowsUiTests" name="ClosingTransferCenterDoesNotCancelNetworkPreparationOrDuplicateWindowWork" />
+    </UnitTest>
+  </TestDefinitions>
+  <TestEntries>
+    <TestEntry testId="4a3dcba3-0ab2-b31d-759a-01b9d9400939" executionId="d3d91a7c-f375-40c7-96a3-0d28e7a992d4" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="576dfe32-6659-ab2f-8d25-2cbea69a7724" executionId="063e3adc-e6bc-4555-b8fb-f27850308884" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+  </TestEntries>
+  <TestLists>
+    <TestList name="Results Not in a List" id="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestList name="All Loaded Results" id="19431567-8539-422a-85d7-44ee4e166bda" />
+  </TestLists>
+  <ResultSummary outcome="Completed">
+    <Counters total="2" executed="2" passed="2" failed="0" error="0" timeout="0" aborted="0" inconclusive="0" passedButRunAborted="0" notRunnable="0" notExecuted="0" disconnected="0" warning="0" completed="0" inProgress="0" pending="0" />
+    <Output>
+      <StdOut>[xUnit.net 00:00:00.00] xUnit.net VSTest Adapter v3.0.2+dd36e86129 (64-bit .NET Framework 4.8.10008.0)&#xD;
+[xUnit.net 00:00:00.52]   Discovering: LanChat.Tests&#xD;
+[xUnit.net 00:00:00.65]   Discovered:  LanChat.Tests&#xD;
+[xUnit.net 00:00:00.69]   Starting:    LanChat.Tests&#xD;
+[xUnit.net 00:00:01.64]   Finished:    LanChat.Tests&#xD;
+</StdOut>
+    </Output>
+  </ResultSummary>
+</TestRun>

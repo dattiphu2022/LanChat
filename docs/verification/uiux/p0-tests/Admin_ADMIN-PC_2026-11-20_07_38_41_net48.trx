@@ -1,0 +1,542 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TestRun id="9447c8aa-e28c-4909-afa7-0364097fad35" name="Admin@ADMIN-PC 2026-11-20 07:38:41" runUser="ADMIN-PC\Admin" xmlns="http://microsoft.com/schemas/VisualStudio/TeamTest/2010">
+  <Times creation="2026-11-20T07:38:41.8252761+07:00" queuing="2026-11-20T07:38:41.8252762+07:00" start="2026-11-20T07:38:38.3486806+07:00" finish="2026-11-20T07:39:34.0116247+07:00" />
+  <TestSettings name="default" id="74aac7e0-402b-4284-9871-2e07fdfe3539">
+    <Deployment runDeploymentRoot="Admin_ADMIN-PC_2026-11-20_07_38_41" />
+  </TestSettings>
+  <Results>
+    <UnitTestResult executionId="5be9d5d7-09e7-43e0-896e-008ae2864ec4" testId="05eda064-7a49-4574-8337-35ac1f55c76f" testName="LanChat.Tests.WindowsUiTests.NativeSaveDialogReturnsCompleteMultiDotName(name: &quot;abc.z.exe&quot;, overwrite: False)" computerName="ADMIN-PC" duration="00:00:09.2030000" startTime="2026-11-20T07:38:47.6151581+07:00" endTime="2026-11-20T07:38:56.8156803+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="5be9d5d7-09e7-43e0-896e-008ae2864ec4" />
+    <UnitTestResult executionId="f3792af8-19a8-4ced-8578-98dd747f77e3" testId="a9a5164e-a70d-fe83-af64-6036db8a8c90" testName="LanChat.Tests.WindowsUiTests.GalleryBatchOnlyIncludesImagesFromSelectedMessage" computerName="ADMIN-PC" duration="00:00:00.2550000" startTime="2026-11-20T07:39:32.3812090+07:00" endTime="2026-11-20T07:39:32.6352343+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="f3792af8-19a8-4ced-8578-98dd747f77e3" />
+    <UnitTestResult executionId="4b5ee378-de7c-4103-b9ef-40c83fb61a98" testId="f8ac6506-ae23-a4f8-0e9d-f81ea054daec" testName="LanChat.Tests.WindowsUiTests.ForwardResultsRetryOnlyUnsentItems" computerName="ADMIN-PC" duration="00:00:00.1280000" startTime="2026-11-20T07:39:24.0451105+07:00" endTime="2026-11-20T07:39:24.1707877+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="4b5ee378-de7c-4103-b9ef-40c83fb61a98" />
+    <UnitTestResult executionId="3e58b28e-4c8e-4e93-9170-4d437771d7a8" testId="67b00646-cc83-6ee2-4e8b-efafd0651e0b" testName="LanChat.Tests.WindowsUiTests.MissingSavedAttachmentCanCancelOrExplicitlyRestoreWithoutLaunchingRealApps" computerName="ADMIN-PC" duration="00:00:00.4600000" startTime="2026-11-20T07:39:31.9212474+07:00" endTime="2026-11-20T07:39:32.3797377+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="3e58b28e-4c8e-4e93-9170-4d437771d7a8" />
+    <UnitTestResult executionId="20f0ac9e-51a0-4dca-916c-358943a6da75" testId="2173e0bb-9d1b-332c-ed78-245362a57702" testName="LanChat.Tests.WindowsUiTests.SourceChangeIsBlockedDuringDownloadAndResetsReadyStateAfterward" computerName="ADMIN-PC" duration="00:00:00.0610000" startTime="2026-11-20T07:39:14.7320736+07:00" endTime="2026-11-20T07:39:14.7907379+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="20f0ac9e-51a0-4dca-916c-358943a6da75" />
+    <UnitTestResult executionId="31ae4e08-c55f-4b6d-88fc-6c40d2413d43" testId="b633843c-4110-55f2-791c-62b9c79ae052" testName="LanChat.Tests.WindowsUiTests.UpdateSettingsLayoutKeepsFooterAccessibleAtHighDpi(dpi: 144)" computerName="ADMIN-PC" duration="00:00:01.1810000" startTime="2026-11-20T07:38:41.0133298+07:00" endTime="2026-11-20T07:38:42.1749444+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="31ae4e08-c55f-4b6d-88fc-6c40d2413d43" />
+    <UnitTestResult executionId="aae2f574-b94f-419a-bb34-1503ae527aef" testId="9e174f4d-f3bc-017f-78f2-39355d2503af" testName="LanChat.Tests.WindowsUiTests.CompactWorkspaceUsesTitleAndKeepsUpdateActionsAccessible(dpi: 96)" computerName="ADMIN-PC" duration="00:00:00.3090000" startTime="2026-11-20T07:39:07.9836343+07:00" endTime="2026-11-20T07:39:08.2889903+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="aae2f574-b94f-419a-bb34-1503ae527aef" />
+    <UnitTestResult executionId="0266fb8d-3dac-495d-9121-9d1c6b282f9f" testId="444f0650-83e8-5729-59e2-c28d3e08adfb" testName="LanChat.Tests.WindowsUiTests.ForwardPickerShowsAllContactsKeepsChecksAndButtonsAtHighDpi(dpi: 96)" computerName="ADMIN-PC" duration="00:00:00.1200000" startTime="2026-11-20T07:39:09.1298186+07:00" endTime="2026-11-20T07:39:09.2491285+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="0266fb8d-3dac-495d-9121-9d1c6b282f9f" />
+    <UnitTestResult executionId="e19ec7c9-e2c6-4549-a201-135dc1749fc5" testId="26321797-a62e-3f39-5e63-892bebf813e5" testName="LanChat.Tests.WindowsUiTests.ForwardPickerShowsAllContactsKeepsChecksAndButtonsAtHighDpi(dpi: 192)" computerName="ADMIN-PC" duration="00:00:00.1600000" startTime="2026-11-20T07:39:08.9693983+07:00" endTime="2026-11-20T07:39:09.1288020+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="e19ec7c9-e2c6-4549-a201-135dc1749fc5" />
+    <UnitTestResult executionId="a3771d69-6c54-480a-88c6-e040238031c7" testId="6ce34255-0f16-8e53-d6ba-74ff8d5e2838" testName="LanChat.Tests.WindowsUiTests.UpdateSettingsLayoutKeepsFooterAccessibleAtHighDpi(dpi: 96)" computerName="ADMIN-PC" duration="00:00:03.0160000" startTime="2026-11-20T07:38:42.1769706+07:00" endTime="2026-11-20T07:38:45.1960519+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="a3771d69-6c54-480a-88c6-e040238031c7" />
+    <UnitTestResult executionId="5c2ef59d-f2a8-400c-9ab6-c71a5610d590" testId="086b5caa-72ea-3405-7bdd-28efdeaedb1f" testName="LanChat.Tests.WindowsUiTests.AboutAndBannerShareDownloadAcrossClosingAndReopening" computerName="ADMIN-PC" duration="00:00:00.4650000" startTime="2026-11-20T07:39:30.7012927+07:00" endTime="2026-11-20T07:39:31.1644659+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="5c2ef59d-f2a8-400c-9ab6-c71a5610d590" />
+    <UnitTestResult executionId="4a209853-943f-4e75-bc71-7e6427e3a19b" testId="983f1836-7d60-fb3a-bc31-6c0648d8af47" testName="LanChat.Tests.WindowsUiTests.NativeSaveDialogReturnsCompleteMultiDotName(name: &quot;abc.z.exe&quot;, overwrite: True)" computerName="ADMIN-PC" duration="00:00:09.1470000" startTime="2026-11-20T07:38:56.8177019+07:00" endTime="2026-11-20T07:39:05.9617671+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="4a209853-943f-4e75-bc71-7e6427e3a19b" />
+    <UnitTestResult executionId="c521c654-168a-43b0-ac47-64c67e97fe86" testId="6370fc43-ea22-7c32-ae21-5ab4c8360c3c" testName="LanChat.Tests.WindowsUiTests.UpdateSettingsSaveFailureKeepsSourceAndEnteredAddress" computerName="ADMIN-PC" duration="00:00:00.5110000" startTime="2026-11-20T07:39:22.6642609+07:00" endTime="2026-11-20T07:39:23.1745182+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="c521c654-168a-43b0-ac47-64c67e97fe86" />
+    <UnitTestResult executionId="470e587e-d91b-4ca9-827b-a4878f00fc8d" testId="6c6a3596-6e0c-fb9a-16b1-ba0105395044" testName="LanChat.Tests.WindowsUiTests.AttachmentActionsStayVisibleAndBindingReusesControls(dpi: 192)" computerName="ADMIN-PC" duration="00:00:00.6640000" startTime="2026-11-20T07:39:14.0668990+07:00" endTime="2026-11-20T07:39:14.7299625+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="470e587e-d91b-4ca9-827b-a4878f00fc8d" />
+    <UnitTestResult executionId="4bfd38d5-de7e-4cd3-9a1a-24ee33b22d6d" testId="3906ff8e-5695-cd3a-71d4-fbe492558d6f" testName="LanChat.Tests.WindowsUiTests.PreparingLongHistoryYieldsAndCanBeCanceledWhenSelectionChanges" computerName="ADMIN-PC" duration="00:00:00.1190000" startTime="2026-11-20T07:39:23.1777609+07:00" endTime="2026-11-20T07:39:23.2935446+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="4bfd38d5-de7e-4cd3-9a1a-24ee33b22d6d" />
+    <UnitTestResult executionId="3c209dea-dc09-4dce-bf9e-863dee5c4817" testId="933537b7-70e7-e42f-506e-dfef32c3bf8c" testName="LanChat.Tests.WindowsUiTests.ClosingAnOpenProgressWindowDoesNotCloseAnUnrelatedDialog" computerName="ADMIN-PC" duration="00:00:00.0430000" startTime="2026-11-20T07:39:23.2947097+07:00" endTime="2026-11-20T07:39:23.3367011+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="3c209dea-dc09-4dce-bf9e-863dee5c4817" />
+    <UnitTestResult executionId="416ec31e-78a8-4430-8770-3047e5501ef4" testId="df7830b8-8cd0-be13-662a-24c0f2508dc7" testName="LanChat.Tests.WindowsUiTests.SavingDialogWaitsForCancellationAndIgnoresCompletionAfterDisposal" computerName="ADMIN-PC" duration="00:00:00.1620000" startTime="2026-11-20T07:39:30.0936502+07:00" endTime="2026-11-20T07:39:30.2543529+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="416ec31e-78a8-4430-8770-3047e5501ef4" />
+    <UnitTestResult executionId="b4cec85d-cc9f-471c-9f94-18f11c735e35" testId="0cd59da9-dc40-5692-1ae6-dcc1e3fff3fa" testName="LanChat.Tests.WindowsUiTests.SavingCanceledCopyPreservesExistingFileAndCleansTemporaryFile" computerName="ADMIN-PC" duration="00:00:00.0080000" startTime="2026-11-20T07:39:24.1722077+07:00" endTime="2026-11-20T07:39:24.1785615+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="b4cec85d-cc9f-471c-9f94-18f11c735e35" />
+    <UnitTestResult executionId="0b296aff-0e11-4b95-8dc1-e432803dc072" testId="610b0188-f90d-d96d-7c91-a4973b8b6caa" testName="LanChat.Tests.WindowsUiTests.ComposerGrowsForVisualLinesCapsAtEightAndShrinksWithoutLosingCaret(dpi: 192)" computerName="ADMIN-PC" duration="00:00:01.0950000" startTime="2026-11-20T07:39:09.2504189+07:00" endTime="2026-11-20T07:39:10.3449180+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="0b296aff-0e11-4b95-8dc1-e432803dc072" />
+    <UnitTestResult executionId="325828a6-31fa-4adb-9c40-234791acd504" testId="7aba3096-15bb-2048-1baf-9cdbdb37b987" testName="LanChat.Tests.WindowsUiTests.NativeSaveDialogReturnsCompleteMultiDotName(name: &quot;Báo.cáo.tháng.11.xlsx&quot;, overwrite: False)" computerName="ADMIN-PC" duration="00:00:00.7940000" startTime="2026-11-20T07:39:06.5494510+07:00" endTime="2026-11-20T07:39:07.3405145+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="325828a6-31fa-4adb-9c40-234791acd504" />
+    <UnitTestResult executionId="bf642ca1-73aa-4964-8dfc-b620e3a8c436" testId="a3a050c5-0207-170a-c670-d8a3cc09d046" testName="LanChat.Tests.WindowsUiTests.AboutActionsStayVisibleAtSmallSizesAndHighDpi(dpi: 144)" computerName="ADMIN-PC" duration="00:00:00.4220000" startTime="2026-11-20T07:39:19.9456187+07:00" endTime="2026-11-20T07:39:20.3658106+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="bf642ca1-73aa-4964-8dfc-b620e3a8c436" />
+    <UnitTestResult executionId="e6191d92-24a3-4b5e-add7-8b64de7cf946" testId="07e9ff58-7adc-3e00-924f-7ce4191dc3cf" testName="LanChat.Tests.WindowsUiTests.ReopeningHistoryReusesSnapshotAndRefreshesAfterNewMessages" computerName="ADMIN-PC" duration="00:00:01.3720000" startTime="2026-11-20T07:39:14.7917503+07:00" endTime="2026-11-20T07:39:16.1641835+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="e6191d92-24a3-4b5e-add7-8b64de7cf946" />
+    <UnitTestResult executionId="0a6c58c8-65fd-4ad1-ab2f-2fbc387c25ac" testId="1e87efc4-0c1f-20fb-1c17-b4c1fc706f3c" testName="LanChat.Tests.WindowsUiTests.CaptureResponsiveWorkspaceAndMeasureConversationSwitches" computerName="ADMIN-PC" duration="00:00:00.0030000" startTime="2026-11-20T07:39:30.6980236+07:00" endTime="2026-11-20T07:39:30.6990387+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="0a6c58c8-65fd-4ad1-ab2f-2fbc387c25ac" />
+    <UnitTestResult executionId="b5c9fd58-394a-4241-8402-6ec312f39aee" testId="3918274a-018b-a403-1f4f-aae38a90c1ac" testName="LanChat.Tests.WindowsUiTests.NativeSaveDialogReturnsCompleteMultiDotName(name: &quot;README&quot;, overwrite: False)" computerName="ADMIN-PC" duration="00:00:00.6380000" startTime="2026-11-20T07:39:07.3405145+07:00" endTime="2026-11-20T07:39:07.9805732+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="b5c9fd58-394a-4241-8402-6ec312f39aee" />
+    <UnitTestResult executionId="d2247dd6-4958-4963-9699-8e5cef9a25e0" testId="9faa9246-110d-749f-5dee-f5dba538a9b4" testName="LanChat.Tests.WindowsUiTests.SendFailureAndLateCompletionPreserveTheRightDraft" computerName="ADMIN-PC" duration="00:00:00.2440000" startTime="2026-11-20T07:39:31.2749096+07:00" endTime="2026-11-20T07:39:31.5183114+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="d2247dd6-4958-4963-9699-8e5cef9a25e0" />
+    <UnitTestResult executionId="5b2f1c65-3ada-43f0-8c41-b0357efe499c" testId="5a7dd0d9-7ced-f5df-09b9-a2c7661cd61a" testName="LanChat.Tests.WindowsUiTests.InstallFromAboutWaitsForItsModalAndBusyScopeToClose" computerName="ADMIN-PC" duration="00:00:00.4350000" startTime="2026-11-20T07:39:23.6135941+07:00" endTime="2026-11-20T07:39:24.0430150+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="5b2f1c65-3ada-43f0-8c41-b0357efe499c" />
+    <UnitTestResult executionId="69fd8240-0fd5-4d1c-9e1c-bf829824e74a" testId="e3f99d18-0f5b-38a3-5d2d-8dfdec7fb7f9" testName="LanChat.Tests.WindowsUiTests.SettingsKeepInputAfterFailureAndPreventClosingDuringSave" computerName="ADMIN-PC" duration="00:00:00.1100000" startTime="2026-11-20T07:39:31.1658067+07:00" endTime="2026-11-20T07:39:31.2738478+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="69fd8240-0fd5-4d1c-9e1c-bf829824e74a" />
+    <UnitTestResult executionId="48267e5d-9298-41a7-ad61-3d6f3e531ab6" testId="2221beb6-887b-e529-a33e-61a5c4c7d3e7" testName="LanChat.Tests.WindowsUiTests.ResponsiveWorkspaceKeepsDraftAndConversationAtEverySize(dpi: 144)" computerName="ADMIN-PC" duration="00:00:01.5160000" startTime="2026-11-20T07:39:27.1790051+07:00" endTime="2026-11-20T07:39:28.6849363+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="48267e5d-9298-41a7-ad61-3d6f3e531ab6" />
+    <UnitTestResult executionId="67602005-1b87-4f64-8a1a-1fd967dc2ad9" testId="321602c0-23d5-0d54-ad4b-2e3f37ac3328" testName="LanChat.Tests.WindowsUiTests.AboutActionsStayVisibleAtSmallSizesAndHighDpi(dpi: 192)" computerName="ADMIN-PC" duration="00:00:00.4690000" startTime="2026-11-20T07:39:19.4760703+07:00" endTime="2026-11-20T07:39:19.9431203+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="67602005-1b87-4f64-8a1a-1fd967dc2ad9" />
+    <UnitTestResult executionId="80a5a10d-e74e-4326-b7f0-4843c944a4d0" testId="a62f7d14-84fc-8f7d-9224-1e8c2d6861ce" testName="LanChat.Tests.WindowsUiTests.NamePromptKeepsInvalidAndFailedInputUntilSaveSucceeds" computerName="ADMIN-PC" duration="00:00:00.0780000" startTime="2026-11-20T07:39:23.5307592+07:00" endTime="2026-11-20T07:39:23.6074463+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="80a5a10d-e74e-4326-b7f0-4843c944a4d0" />
+    <UnitTestResult executionId="93d3b335-c091-4743-8983-778e97e457f0" testId="02dc856c-2268-e040-2c60-759f633a521d" testName="LanChat.Tests.WindowsUiTests.SwitchingHistoryKeepsNativeRowsWarmWithoutDuplicateMessages" computerName="ADMIN-PC" duration="00:00:00.2560000" startTime="2026-11-20T07:39:19.0765097+07:00" endTime="2026-11-20T07:39:19.3307538+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="93d3b335-c091-4743-8983-778e97e457f0" />
+    <UnitTestResult executionId="3467d56b-a87b-44e5-9508-656c83dd1a64" testId="34536c37-f33c-d277-396d-4ebf6f4d98ae" testName="LanChat.Tests.WindowsUiTests.MultiSelectionKeepsControlsDraftAndQrActionsAccessible(dpi: 144)" computerName="ADMIN-PC" duration="00:00:01.0210000" startTime="2026-11-20T07:39:16.1651937+07:00" endTime="2026-11-20T07:39:17.1852738+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="3467d56b-a87b-44e5-9508-656c83dd1a64" />
+    <UnitTestResult executionId="50cf4eb0-5bcf-4f9b-b6ca-3fb58d4c571d" testId="b33d79cd-a335-a822-ec95-baeca2d741af" testName="LanChat.Tests.WindowsUiTests.ComposerGrowthKeepsHistoryAnchorAndAttachmentsReachableAfterSendFailure" computerName="ADMIN-PC" duration="00:00:01.2190000" startTime="2026-11-20T07:39:32.6385602+07:00" endTime="2026-11-20T07:39:33.8551914+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="50cf4eb0-5bcf-4f9b-b6ca-3fb58d4c571d" />
+    <UnitTestResult executionId="14cfd7b3-57d0-49d7-a810-68625c15fbda" testId="60986b2e-5001-350b-f7a8-8cb4287003d5" testName="LanChat.Tests.WindowsUiTests.LateSearchCannotReplaceNewResultsOrUpdateClosedWindow" computerName="ADMIN-PC" duration="00:00:00.1430000" startTime="2026-11-20T07:39:19.3329426+07:00" endTime="2026-11-20T07:39:19.4746575+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="14cfd7b3-57d0-49d7-a810-68625c15fbda" />
+    <UnitTestResult executionId="0139883a-b022-4f83-b7e1-8a25123352c4" testId="3ea9d97b-6c16-12ba-90d0-c41a3067703d" testName="LanChat.Tests.WindowsUiTests.SelectionRequiresARealItemAndReportsEmptyFilter" computerName="ADMIN-PC" duration="00:00:00.0430000" startTime="2026-11-20T07:39:30.2554589+07:00" endTime="2026-11-20T07:39:30.2981590+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="0139883a-b022-4f83-b7e1-8a25123352c4" />
+    <UnitTestResult executionId="118358bf-de34-4342-b7bd-1c99898b32f3" testId="b3ae9036-6ce0-97b9-e1e7-e7e2654647b8" testName="LanChat.Tests.WindowsUiTests.UpdateSettingsLayoutKeepsFooterAccessibleAtHighDpi(dpi: 192)" computerName="ADMIN-PC" duration="00:00:01.3560000" startTime="2026-11-20T07:38:39.6260745+07:00" endTime="2026-11-20T07:38:40.9927489+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="118358bf-de34-4342-b7bd-1c99898b32f3" />
+    <UnitTestResult executionId="25a01004-25c2-4b90-9f84-5fa7cb20e673" testId="a263f630-418e-1046-8c18-9c6339018087" testName="LanChat.Tests.WindowsUiTests.DenseChatShowsEveryFileNameAndKeepsActionsOnTheFooterLine" computerName="ADMIN-PC" duration="00:00:00.1590000" startTime="2026-11-20T07:39:29.9360353+07:00" endTime="2026-11-20T07:39:30.0926471+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="25a01004-25c2-4b90-9f84-5fa7cb20e673" />
+    <UnitTestResult executionId="83d678fb-a2d3-4032-b5c5-68bba95f5b18" testId="2a495689-aedf-450c-6b51-4bc2054baf0a" testName="LanChat.Tests.WindowsUiTests.NativeSaveDialogReturnsCompleteMultiDotName(name: &quot;archive.v1.tar.gz&quot;, overwrite: False)" computerName="ADMIN-PC" duration="00:00:00.5850000" startTime="2026-11-20T07:39:05.9641744+07:00" endTime="2026-11-20T07:39:06.5473958+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="83d678fb-a2d3-4032-b5c5-68bba95f5b18" />
+    <UnitTestResult executionId="99393fab-9427-453c-9771-5de16d04c664" testId="68cfd29c-aa74-86d8-aba4-8aa34fdcd1d3" testName="LanChat.Tests.WindowsUiTests.ConversationRowsHaveOnePixelDividersAndSelectionDoesNotRebuildThem" computerName="ADMIN-PC" duration="00:00:00.0980000" startTime="2026-11-20T07:39:24.2149734+07:00" endTime="2026-11-20T07:39:24.3107203+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="99393fab-9427-453c-9771-5de16d04c664" />
+    <UnitTestResult executionId="ebc19b16-7252-4643-93c2-a48b7bd7e01f" testId="3232f9b3-7664-4d43-5481-b0bc1a2f9bae" testName="LanChat.Tests.WindowsUiTests.FailedOrCanceledDownloadCanRetryWithoutInstalling" computerName="ADMIN-PC" duration="00:00:01.7870000" startTime="2026-11-20T07:38:45.1994607+07:00" endTime="2026-11-20T07:38:46.9784642+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="ebc19b16-7252-4643-93c2-a48b7bd7e01f" />
+    <UnitTestResult executionId="a232b654-b9ea-41db-b7ab-a1bc1fc0702d" testId="1d8004a9-12ee-2247-c9d6-164ed89d191d" testName="LanChat.Tests.WindowsUiTests.MessageDeliveryNeverInfersRecipientReceiptFromReplication" computerName="ADMIN-PC" duration="00:00:00.0060000" startTime="2026-11-20T07:39:30.3047942+07:00" endTime="2026-11-20T07:39:30.3047942+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="a232b654-b9ea-41db-b7ab-a1bc1fc0702d" />
+    <UnitTestResult executionId="ebb1a213-04e9-472c-93f7-e18988888569" testId="94252e06-4210-02d9-31f2-92cb5af39615" testName="LanChat.Tests.WindowsUiTests.ComposerGrowsForVisualLinesCapsAtEightAndShrinksWithoutLosingCaret(dpi: 144)" computerName="ADMIN-PC" duration="00:00:01.0760000" startTime="2026-11-20T07:39:10.3463545+07:00" endTime="2026-11-20T07:39:11.4209227+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="ebb1a213-04e9-472c-93f7-e18988888569" />
+    <UnitTestResult executionId="30f5a745-2f54-488d-aefe-62035393ef27" testId="6b103f15-147e-f473-c5f8-4210e4f4e042" testName="LanChat.Tests.WindowsUiTests.MentionSuggestionsConsumeEnterEscapeAndKeepMetadataInDraftAndEdit" computerName="ADMIN-PC" duration="00:00:00.3910000" startTime="2026-11-20T07:39:30.3058159+07:00" endTime="2026-11-20T07:39:30.6960007+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="30f5a745-2f54-488d-aefe-62035393ef27" />
+    <UnitTestResult executionId="b4262046-8ac3-4238-814c-468634c63cb0" testId="72cbcb8d-def1-9fe9-752a-8de10109dcf4" testName="LanChat.Tests.WindowsUiTests.AttachmentActionsStayVisibleAndBindingReusesControls(dpi: 144)" computerName="ADMIN-PC" duration="00:00:00.5770000" startTime="2026-11-20T07:39:13.4900119+07:00" endTime="2026-11-20T07:39:14.0658967+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="b4262046-8ac3-4238-814c-468634c63cb0" />
+    <UnitTestResult executionId="021bd13d-35f9-4521-8baf-100ea7bbc0d6" testId="ef621703-dce5-aaa0-c8cc-c5f43af63548" testName="LanChat.Tests.WindowsUiTests.MultiSelectionKeepsControlsDraftAndQrActionsAccessible(dpi: 96)" computerName="ADMIN-PC" duration="00:00:00.8340000" startTime="2026-11-20T07:39:17.1863753+07:00" endTime="2026-11-20T07:39:18.0195568+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="021bd13d-35f9-4521-8baf-100ea7bbc0d6" />
+    <UnitTestResult executionId="81b24968-086f-4609-99e8-df752d8e4e44" testId="ac69bb4d-826a-e777-8a16-397e922be078" testName="LanChat.Tests.WindowsUiTests.AttachmentActionsStayVisibleAndBindingReusesControls(dpi: 96)" computerName="ADMIN-PC" duration="00:00:00.8740000" startTime="2026-11-20T07:39:12.6255017+07:00" endTime="2026-11-20T07:39:13.4889727+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="81b24968-086f-4609-99e8-df752d8e4e44" />
+    <UnitTestResult executionId="588339eb-ab24-4606-9e9d-2237c7603043" testId="b41cef43-b878-2afc-237b-349e67431e5a" testName="LanChat.Tests.WindowsUiTests.ResponsiveWorkspaceKeepsDraftAndConversationAtEverySize(dpi: 120)" computerName="ADMIN-PC" duration="00:00:01.4670000" startTime="2026-11-20T07:39:24.3457009+07:00" endTime="2026-11-20T07:39:25.8122847+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="588339eb-ab24-4606-9e9d-2237c7603043" />
+    <UnitTestResult executionId="30621d3c-086e-41b9-aa3d-f9938df87460" testId="3b2b5d1f-4e09-fe52-8047-26db82cb9644" testName="LanChat.Tests.WindowsUiTests.InstallingPublisherWaitsForReadersAndResumesSharingAfterVerificationFailure" computerName="ADMIN-PC" duration="00:00:00.3390000" startTime="2026-11-20T07:39:31.5821693+07:00" endTime="2026-11-20T07:39:31.9202166+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="30621d3c-086e-41b9-aa3d-f9938df87460" />
+    <UnitTestResult executionId="f0fee21b-3443-482b-9d46-3a4d2144f7f5" testId="5d28b2bc-8e4b-ba7e-d829-11482d600911" testName="LanChat.Tests.WindowsUiTests.ForwardPickerShowsAllContactsKeepsChecksAndButtonsAtHighDpi(dpi: 144)" computerName="ADMIN-PC" duration="00:00:00.1840000" startTime="2026-11-20T07:39:08.7889047+07:00" endTime="2026-11-20T07:39:08.9682357+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="f0fee21b-3443-482b-9d46-3a4d2144f7f5" />
+    <UnitTestResult executionId="b2430da7-cfe7-412b-aaf0-6aa65134172d" testId="19ecde15-35be-67c0-5121-053857fbd87b" testName="LanChat.Tests.WindowsUiTests.MultiSelectionKeepsControlsDraftAndQrActionsAccessible(dpi: 192)" computerName="ADMIN-PC" duration="00:00:01.0560000" startTime="2026-11-20T07:39:18.0195568+07:00" endTime="2026-11-20T07:39:19.0751526+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="b2430da7-cfe7-412b-aaf0-6aa65134172d" />
+    <UnitTestResult executionId="1a59666d-8928-4652-88a7-d57333ec1994" testId="c280ffc8-0072-02d2-ad92-ac2e11e210ab" testName="LanChat.Tests.WindowsUiTests.CompactWorkspaceUsesTitleAndKeepsUpdateActionsAccessible(dpi: 192)" computerName="ADMIN-PC" duration="00:00:00.2760000" startTime="2026-11-20T07:39:08.5091416+07:00" endTime="2026-11-20T07:39:08.7843818+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="1a59666d-8928-4652-88a7-d57333ec1994" />
+    <UnitTestResult executionId="850fe9e8-d8be-47dd-a0d3-f5e8f5daef98" testId="dd61d32f-0aef-78c1-eeee-3a94f2b2e761" testName="LanChat.Tests.WindowsUiTests.CompactWorkspaceUsesTitleAndKeepsUpdateActionsAccessible(dpi: 144)" computerName="ADMIN-PC" duration="00:00:00.2200000" startTime="2026-11-20T07:39:08.2916993+07:00" endTime="2026-11-20T07:39:08.5081373+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="850fe9e8-d8be-47dd-a0d3-f5e8f5daef98" />
+    <UnitTestResult executionId="ca628744-5e7f-4e17-9849-86240db314cd" testId="aaa4574c-73f9-9528-87cb-a13f7de51876" testName="LanChat.Tests.WindowsUiTests.AboutActionsStayVisibleAtSmallSizesAndHighDpi(dpi: 96)" computerName="ADMIN-PC" duration="00:00:00.3740000" startTime="2026-11-20T07:39:20.3668114+07:00" endTime="2026-11-20T07:39:20.7402727+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="ca628744-5e7f-4e17-9849-86240db314cd" />
+    <UnitTestResult executionId="87d488ab-2316-497e-b824-b866541982be" testId="79879129-ba8d-4179-8443-bea57bdfd546" testName="LanChat.Tests.WindowsUiTests.MentionRenderingMapsCrLfOffsetsAndRetainsPlainText" computerName="ADMIN-PC" duration="00:00:00.0340000" startTime="2026-11-20T07:39:24.3117476+07:00" endTime="2026-11-20T07:39:24.3443431+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="87d488ab-2316-497e-b824-b866541982be" />
+    <UnitTestResult executionId="e85ea968-d508-488b-b31c-52fa8ef10462" testId="e04fc53d-c453-3a81-f2d8-833171df7134" testName="LanChat.Tests.WindowsUiTests.FileLimitIsReportedWithoutDiscardingAcceptedFiles" computerName="ADMIN-PC" duration="00:00:00.1790000" startTime="2026-11-20T07:39:22.4853134+07:00" endTime="2026-11-20T07:39:22.6632608+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="e85ea968-d508-488b-b31c-52fa8ef10462" />
+    <UnitTestResult executionId="a53459e7-5153-4451-8428-6cdc6f3ffef7" testId="232e8cad-9e71-b1e1-a9a8-eab6d698e983" testName="LanChat.Tests.WindowsUiTests.ConversationRenderingKeepsTheSelectedHistoryCorrect" computerName="ADMIN-PC" duration="00:00:01.7440000" startTime="2026-11-20T07:39:20.7424843+07:00" endTime="2026-11-20T07:39:22.4842888+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="a53459e7-5153-4451-8428-6cdc6f3ffef7" />
+    <UnitTestResult executionId="8c609d87-cc2e-4dc1-b4b0-294f64dd1f58" testId="a287bc05-380a-6e2f-3171-780f995fc639" testName="LanChat.Tests.WindowsUiTests.ResponsiveWorkspaceKeepsDraftAndConversationAtEverySize(dpi: 96)" computerName="ADMIN-PC" duration="00:00:01.2480000" startTime="2026-11-20T07:39:28.6859761+07:00" endTime="2026-11-20T07:39:29.9338591+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Failed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="8c609d87-cc2e-4dc1-b4b0-294f64dd1f58">
+      <Output>
+        <ErrorInfo>
+          <Message>Assert.Equal() Failure: Values differ&#xD;
+Expected: True&#xD;
+Actual:   False</Message>
+          <StackTrace>   at LanChat.Tests.WindowsUiTests.&lt;&gt;c__DisplayClass67_1.&lt;&lt;ResponsiveWorkspaceKeepsDraftAndConversationAtEverySize&gt;b__0&gt;d.MoveNext() in C:\Users\Admin\source\repos\dattiphu2022\LanChat\tests\LanChat.Tests\WindowsUxTests.cs:line 66&#xD;
+--- End of stack trace from previous location where exception was thrown ---&#xD;
+   at System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw()&#xD;
+   at System.Runtime.CompilerServices.TaskAwaiter.HandleNonSuccessAndDebuggerNotification(Task task)&#xD;
+   at System.Runtime.CompilerServices.TaskAwaiter.GetResult()&#xD;
+   at LanChat.Tests.WindowsUiTests.&lt;&gt;c__DisplayClass54_1.&lt;&lt;OnUi&gt;b__2&gt;d.MoveNext() in C:\Users\Admin\source\repos\dattiphu2022\LanChat\tests\LanChat.Tests\WindowsUiTests.cs:line 861&#xD;
+--- End of stack trace from previous location where exception was thrown ---&#xD;
+   at System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw()&#xD;
+   at System.Runtime.CompilerServices.TaskAwaiter.HandleNonSuccessAndDebuggerNotification(Task task)&#xD;
+   at System.Runtime.CompilerServices.TaskAwaiter.GetResult()&#xD;
+   at LanChat.Tests.WindowsUiTests.&lt;ResponsiveWorkspaceKeepsDraftAndConversationAtEverySize&gt;d__67.MoveNext() in C:\Users\Admin\source\repos\dattiphu2022\LanChat\tests\LanChat.Tests\WindowsUxTests.cs:line 53&#xD;
+--- End of stack trace from previous location where exception was thrown ---&#xD;
+   at System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw()&#xD;
+   at LanChat.Tests.WindowsUiTests.&lt;ResponsiveWorkspaceKeepsDraftAndConversationAtEverySize&gt;d__67.MoveNext() in C:\Users\Admin\source\repos\dattiphu2022\LanChat\tests\LanChat.Tests\WindowsUxTests.cs:line 53&#xD;
+--- End of stack trace from previous location where exception was thrown ---&#xD;
+   at System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw()&#xD;
+   at LanChat.Tests.WindowsUiTests.&lt;ResponsiveWorkspaceKeepsDraftAndConversationAtEverySize&gt;d__67.MoveNext() in C:\Users\Admin\source\repos\dattiphu2022\LanChat\tests\LanChat.Tests\WindowsUxTests.cs:line 53&#xD;
+--- End of stack trace from previous location where exception was thrown ---&#xD;
+   at System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw()&#xD;
+   at System.Runtime.CompilerServices.TaskAwaiter.HandleNonSuccessAndDebuggerNotification(Task task)&#xD;
+--- End of stack trace from previous location where exception was thrown ---&#xD;
+   at System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw()&#xD;
+   at System.Runtime.CompilerServices.TaskAwaiter.HandleNonSuccessAndDebuggerNotification(Task task)&#xD;
+--- End of stack trace from previous location where exception was thrown ---&#xD;
+   at System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw()&#xD;
+   at System.Runtime.CompilerServices.TaskAwaiter.HandleNonSuccessAndDebuggerNotification(Task task)</StackTrace>
+        </ErrorInfo>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="597652f2-5aae-44f9-984c-1f090f5d497c" testId="049fb3c6-c18d-33cf-67c7-4a2e99e9e5ef" testName="LanChat.Tests.WindowsUiTests.EditingRestoresTextFilesAndReplyAfterCancelAndSuccessfulSave" computerName="ADMIN-PC" duration="00:00:00.1930000" startTime="2026-11-20T07:39:23.3377139+07:00" endTime="2026-11-20T07:39:23.5295646+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="597652f2-5aae-44f9-984c-1f090f5d497c" />
+    <UnitTestResult executionId="b02e38f4-316c-49cd-932d-6f7c8568ef6e" testId="5ee8cced-1bf9-8d77-bf59-b5b6c31d029b" testName="LanChat.Tests.WindowsUiTests.ComposerGrowsForVisualLinesCapsAtEightAndShrinksWithoutLosingCaret(dpi: 96)" computerName="ADMIN-PC" duration="00:00:01.1930000" startTime="2026-11-20T07:39:11.4219901+07:00" endTime="2026-11-20T07:39:12.6146429+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="b02e38f4-316c-49cd-932d-6f7c8568ef6e" />
+    <UnitTestResult executionId="67fcc1cf-bd82-42d3-9fec-b0dfd2b50cf1" testId="b1362eed-c690-12c0-49f7-5306e6de7458" testName="LanChat.Tests.WindowsUiTests.EmbeddedViewsUseTheForegroundOwnedDialog" computerName="ADMIN-PC" duration="00:00:00.0330000" startTime="2026-11-20T07:39:24.1795828+07:00" endTime="2026-11-20T07:39:24.2129582+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="67fcc1cf-bd82-42d3-9fec-b0dfd2b50cf1" />
+    <UnitTestResult executionId="381466f5-78b3-45fc-8866-daad0cf356ab" testId="dddf62ef-5eca-c22a-8bff-a2b1a460eb9e" testName="LanChat.Tests.WindowsUiTests.ConversationFiltersPreserveQueryAndReuseUnchangedRows" computerName="ADMIN-PC" duration="00:00:00.6340000" startTime="2026-11-20T07:38:46.9827938+07:00" endTime="2026-11-20T07:38:47.6127953+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="381466f5-78b3-45fc-8866-daad0cf356ab" />
+    <UnitTestResult executionId="45ca10ad-b4d2-4455-8921-c8524b91895a" testId="2ca56f13-fa45-6369-4c6c-a787e8a5b1e8" testName="LanChat.Tests.WindowsUiTests.ResponsiveWorkspaceKeepsDraftAndConversationAtEverySize(dpi: 192)" computerName="ADMIN-PC" duration="00:00:01.2260000" startTime="2026-11-20T07:39:25.8132949+07:00" endTime="2026-11-20T07:39:27.1709069+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Failed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="45ca10ad-b4d2-4455-8921-c8524b91895a">
+      <Output>
+        <ErrorInfo>
+          <Message>Assert.Equal() Failure: Values differ&#xD;
+Expected: False&#xD;
+Actual:   True</Message>
+          <StackTrace>   at LanChat.Tests.WindowsUiTests.&lt;&gt;c__DisplayClass67_1.&lt;&lt;ResponsiveWorkspaceKeepsDraftAndConversationAtEverySize&gt;b__0&gt;d.MoveNext() in C:\Users\Admin\source\repos\dattiphu2022\LanChat\tests\LanChat.Tests\WindowsUxTests.cs:line 66&#xD;
+--- End of stack trace from previous location where exception was thrown ---&#xD;
+   at System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw()&#xD;
+   at System.Runtime.CompilerServices.TaskAwaiter.HandleNonSuccessAndDebuggerNotification(Task task)&#xD;
+   at System.Runtime.CompilerServices.TaskAwaiter.GetResult()&#xD;
+   at LanChat.Tests.WindowsUiTests.&lt;&gt;c__DisplayClass54_1.&lt;&lt;OnUi&gt;b__2&gt;d.MoveNext() in C:\Users\Admin\source\repos\dattiphu2022\LanChat\tests\LanChat.Tests\WindowsUiTests.cs:line 861&#xD;
+--- End of stack trace from previous location where exception was thrown ---&#xD;
+   at System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw()&#xD;
+   at System.Runtime.CompilerServices.TaskAwaiter.HandleNonSuccessAndDebuggerNotification(Task task)&#xD;
+   at System.Runtime.CompilerServices.TaskAwaiter.GetResult()&#xD;
+   at LanChat.Tests.WindowsUiTests.&lt;ResponsiveWorkspaceKeepsDraftAndConversationAtEverySize&gt;d__67.MoveNext() in C:\Users\Admin\source\repos\dattiphu2022\LanChat\tests\LanChat.Tests\WindowsUxTests.cs:line 53&#xD;
+--- End of stack trace from previous location where exception was thrown ---&#xD;
+   at System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw()&#xD;
+   at LanChat.Tests.WindowsUiTests.&lt;ResponsiveWorkspaceKeepsDraftAndConversationAtEverySize&gt;d__67.MoveNext() in C:\Users\Admin\source\repos\dattiphu2022\LanChat\tests\LanChat.Tests\WindowsUxTests.cs:line 53&#xD;
+--- End of stack trace from previous location where exception was thrown ---&#xD;
+   at System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw()&#xD;
+   at LanChat.Tests.WindowsUiTests.&lt;ResponsiveWorkspaceKeepsDraftAndConversationAtEverySize&gt;d__67.MoveNext() in C:\Users\Admin\source\repos\dattiphu2022\LanChat\tests\LanChat.Tests\WindowsUxTests.cs:line 53&#xD;
+--- End of stack trace from previous location where exception was thrown ---&#xD;
+   at System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw()&#xD;
+   at System.Runtime.CompilerServices.TaskAwaiter.HandleNonSuccessAndDebuggerNotification(Task task)&#xD;
+--- End of stack trace from previous location where exception was thrown ---&#xD;
+   at System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw()&#xD;
+   at System.Runtime.CompilerServices.TaskAwaiter.HandleNonSuccessAndDebuggerNotification(Task task)&#xD;
+--- End of stack trace from previous location where exception was thrown ---&#xD;
+   at System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw()&#xD;
+   at System.Runtime.CompilerServices.TaskAwaiter.HandleNonSuccessAndDebuggerNotification(Task task)</StackTrace>
+        </ErrorInfo>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="6bda065d-ff5e-48d0-be05-95a833f336e4" testId="eb827f24-f249-654a-2568-3c59c6c8f2e4" testName="LanChat.Tests.WindowsUiTests.ClosingSearchCancelsItsPendingRead" computerName="ADMIN-PC" duration="00:00:00.0630000" startTime="2026-11-20T07:39:31.5193364+07:00" endTime="2026-11-20T07:39:31.5811001+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="6bda065d-ff5e-48d0-be05-95a833f336e4" />
+  </Results>
+  <TestDefinitions>
+    <UnitTest name="LanChat.Tests.WindowsUiTests.AboutActionsStayVisibleAtSmallSizesAndHighDpi(dpi: 192)" storage="c:\users\admin\source\repos\dattiphu2022\lanchat\tests\lanchat.tests\bin\debug\net48\lanchat.tests.dll" id="321602c0-23d5-0d54-ad4b-2e3f37ac3328">
+      <Execution id="67602005-1b87-4f64-8a1a-1fd967dc2ad9" />
+      <TestMethod codeBase="C:\Users\Admin\source\repos\dattiphu2022\LanChat\tests\LanChat.Tests\bin\Debug\net48\LanChat.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netfx/" className="LanChat.Tests.WindowsUiTests" name="AboutActionsStayVisibleAtSmallSizesAndHighDpi" />
+    </UnitTest>
+    <UnitTest name="LanChat.Tests.WindowsUiTests.UpdateSettingsLayoutKeepsFooterAccessibleAtHighDpi(dpi: 192)" storage="c:\users\admin\source\repos\dattiphu2022\lanchat\tests\lanchat.tests\bin\debug\net48\lanchat.tests.dll" id="b3ae9036-6ce0-97b9-e1e7-e7e2654647b8">
+      <Execution id="118358bf-de34-4342-b7bd-1c99898b32f3" />
+      <TestMethod codeBase="C:\Users\Admin\source\repos\dattiphu2022\LanChat\tests\LanChat.Tests\bin\Debug\net48\LanChat.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netfx/" className="LanChat.Tests.WindowsUiTests" name="UpdateSettingsLayoutKeepsFooterAccessibleAtHighDpi" />
+    </UnitTest>
+    <UnitTest name="LanChat.Tests.WindowsUiTests.FileLimitIsReportedWithoutDiscardingAcceptedFiles" storage="c:\users\admin\source\repos\dattiphu2022\lanchat\tests\lanchat.tests\bin\debug\net48\lanchat.tests.dll" id="e04fc53d-c453-3a81-f2d8-833171df7134">
+      <Execution id="e85ea968-d508-488b-b31c-52fa8ef10462" />
+      <TestMethod codeBase="C:\Users\Admin\source\repos\dattiphu2022\LanChat\tests\LanChat.Tests\bin\Debug\net48\LanChat.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netfx/" className="LanChat.Tests.WindowsUiTests" name="FileLimitIsReportedWithoutDiscardingAcceptedFiles" />
+    </UnitTest>
+    <UnitTest name="LanChat.Tests.WindowsUiTests.FailedOrCanceledDownloadCanRetryWithoutInstalling" storage="c:\users\admin\source\repos\dattiphu2022\lanchat\tests\lanchat.tests\bin\debug\net48\lanchat.tests.dll" id="3232f9b3-7664-4d43-5481-b0bc1a2f9bae">
+      <Execution id="ebc19b16-7252-4643-93c2-a48b7bd7e01f" />
+      <TestMethod codeBase="C:\Users\Admin\source\repos\dattiphu2022\LanChat\tests\LanChat.Tests\bin\Debug\net48\LanChat.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netfx/" className="LanChat.Tests.WindowsUiTests" name="FailedOrCanceledDownloadCanRetryWithoutInstalling" />
+    </UnitTest>
+    <UnitTest name="LanChat.Tests.WindowsUiTests.NativeSaveDialogReturnsCompleteMultiDotName(name: &quot;Báo.cáo.tháng.11.xlsx&quot;, overwrite: False)" storage="c:\users\admin\source\repos\dattiphu2022\lanchat\tests\lanchat.tests\bin\debug\net48\lanchat.tests.dll" id="7aba3096-15bb-2048-1baf-9cdbdb37b987">
+      <Execution id="325828a6-31fa-4adb-9c40-234791acd504" />
+      <TestMethod codeBase="C:\Users\Admin\source\repos\dattiphu2022\LanChat\tests\LanChat.Tests\bin\Debug\net48\LanChat.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netfx/" className="LanChat.Tests.WindowsUiTests" name="NativeSaveDialogReturnsCompleteMultiDotName" />
+    </UnitTest>
+    <UnitTest name="LanChat.Tests.WindowsUiTests.SendFailureAndLateCompletionPreserveTheRightDraft" storage="c:\users\admin\source\repos\dattiphu2022\lanchat\tests\lanchat.tests\bin\debug\net48\lanchat.tests.dll" id="9faa9246-110d-749f-5dee-f5dba538a9b4">
+      <Execution id="d2247dd6-4958-4963-9699-8e5cef9a25e0" />
+      <TestMethod codeBase="C:\Users\Admin\source\repos\dattiphu2022\LanChat\tests\LanChat.Tests\bin\Debug\net48\LanChat.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netfx/" className="LanChat.Tests.WindowsUiTests" name="SendFailureAndLateCompletionPreserveTheRightDraft" />
+    </UnitTest>
+    <UnitTest name="LanChat.Tests.WindowsUiTests.CompactWorkspaceUsesTitleAndKeepsUpdateActionsAccessible(dpi: 192)" storage="c:\users\admin\source\repos\dattiphu2022\lanchat\tests\lanchat.tests\bin\debug\net48\lanchat.tests.dll" id="c280ffc8-0072-02d2-ad92-ac2e11e210ab">
+      <Execution id="1a59666d-8928-4652-88a7-d57333ec1994" />
+      <TestMethod codeBase="C:\Users\Admin\source\repos\dattiphu2022\LanChat\tests\LanChat.Tests\bin\Debug\net48\LanChat.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netfx/" className="LanChat.Tests.WindowsUiTests" name="CompactWorkspaceUsesTitleAndKeepsUpdateActionsAccessible" />
+    </UnitTest>
+    <UnitTest name="LanChat.Tests.WindowsUiTests.ForwardResultsRetryOnlyUnsentItems" storage="c:\users\admin\source\repos\dattiphu2022\lanchat\tests\lanchat.tests\bin\debug\net48\lanchat.tests.dll" id="f8ac6506-ae23-a4f8-0e9d-f81ea054daec">
+      <Execution id="4b5ee378-de7c-4103-b9ef-40c83fb61a98" />
+      <TestMethod codeBase="C:\Users\Admin\source\repos\dattiphu2022\LanChat\tests\LanChat.Tests\bin\Debug\net48\LanChat.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netfx/" className="LanChat.Tests.WindowsUiTests" name="ForwardResultsRetryOnlyUnsentItems" />
+    </UnitTest>
+    <UnitTest name="LanChat.Tests.WindowsUiTests.ComposerGrowthKeepsHistoryAnchorAndAttachmentsReachableAfterSendFailure" storage="c:\users\admin\source\repos\dattiphu2022\lanchat\tests\lanchat.tests\bin\debug\net48\lanchat.tests.dll" id="b33d79cd-a335-a822-ec95-baeca2d741af">
+      <Execution id="50cf4eb0-5bcf-4f9b-b6ca-3fb58d4c571d" />
+      <TestMethod codeBase="C:\Users\Admin\source\repos\dattiphu2022\LanChat\tests\LanChat.Tests\bin\Debug\net48\LanChat.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netfx/" className="LanChat.Tests.WindowsUiTests" name="ComposerGrowthKeepsHistoryAnchorAndAttachmentsReachableAfterSendFailure" />
+    </UnitTest>
+    <UnitTest name="LanChat.Tests.WindowsUiTests.ComposerGrowsForVisualLinesCapsAtEightAndShrinksWithoutLosingCaret(dpi: 192)" storage="c:\users\admin\source\repos\dattiphu2022\lanchat\tests\lanchat.tests\bin\debug\net48\lanchat.tests.dll" id="610b0188-f90d-d96d-7c91-a4973b8b6caa">
+      <Execution id="0b296aff-0e11-4b95-8dc1-e432803dc072" />
+      <TestMethod codeBase="C:\Users\Admin\source\repos\dattiphu2022\LanChat\tests\LanChat.Tests\bin\Debug\net48\LanChat.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netfx/" className="LanChat.Tests.WindowsUiTests" name="ComposerGrowsForVisualLinesCapsAtEightAndShrinksWithoutLosingCaret" />
+    </UnitTest>
+    <UnitTest name="LanChat.Tests.WindowsUiTests.DenseChatShowsEveryFileNameAndKeepsActionsOnTheFooterLine" storage="c:\users\admin\source\repos\dattiphu2022\lanchat\tests\lanchat.tests\bin\debug\net48\lanchat.tests.dll" id="a263f630-418e-1046-8c18-9c6339018087">
+      <Execution id="25a01004-25c2-4b90-9f84-5fa7cb20e673" />
+      <TestMethod codeBase="C:\Users\Admin\source\repos\dattiphu2022\LanChat\tests\LanChat.Tests\bin\Debug\net48\LanChat.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netfx/" className="LanChat.Tests.WindowsUiTests" name="DenseChatShowsEveryFileNameAndKeepsActionsOnTheFooterLine" />
+    </UnitTest>
+    <UnitTest name="LanChat.Tests.WindowsUiTests.ConversationRowsHaveOnePixelDividersAndSelectionDoesNotRebuildThem" storage="c:\users\admin\source\repos\dattiphu2022\lanchat\tests\lanchat.tests\bin\debug\net48\lanchat.tests.dll" id="68cfd29c-aa74-86d8-aba4-8aa34fdcd1d3">
+      <Execution id="99393fab-9427-453c-9771-5de16d04c664" />
+      <TestMethod codeBase="C:\Users\Admin\source\repos\dattiphu2022\LanChat\tests\LanChat.Tests\bin\Debug\net48\LanChat.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netfx/" className="LanChat.Tests.WindowsUiTests" name="ConversationRowsHaveOnePixelDividersAndSelectionDoesNotRebuildThem" />
+    </UnitTest>
+    <UnitTest name="LanChat.Tests.WindowsUiTests.ResponsiveWorkspaceKeepsDraftAndConversationAtEverySize(dpi: 120)" storage="c:\users\admin\source\repos\dattiphu2022\lanchat\tests\lanchat.tests\bin\debug\net48\lanchat.tests.dll" id="b41cef43-b878-2afc-237b-349e67431e5a">
+      <Execution id="588339eb-ab24-4606-9e9d-2237c7603043" />
+      <TestMethod codeBase="C:\Users\Admin\source\repos\dattiphu2022\LanChat\tests\LanChat.Tests\bin\Debug\net48\LanChat.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netfx/" className="LanChat.Tests.WindowsUiTests" name="ResponsiveWorkspaceKeepsDraftAndConversationAtEverySize" />
+    </UnitTest>
+    <UnitTest name="LanChat.Tests.WindowsUiTests.UpdateSettingsSaveFailureKeepsSourceAndEnteredAddress" storage="c:\users\admin\source\repos\dattiphu2022\lanchat\tests\lanchat.tests\bin\debug\net48\lanchat.tests.dll" id="6370fc43-ea22-7c32-ae21-5ab4c8360c3c">
+      <Execution id="c521c654-168a-43b0-ac47-64c67e97fe86" />
+      <TestMethod codeBase="C:\Users\Admin\source\repos\dattiphu2022\LanChat\tests\LanChat.Tests\bin\Debug\net48\LanChat.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netfx/" className="LanChat.Tests.WindowsUiTests" name="UpdateSettingsSaveFailureKeepsSourceAndEnteredAddress" />
+    </UnitTest>
+    <UnitTest name="LanChat.Tests.WindowsUiTests.ForwardPickerShowsAllContactsKeepsChecksAndButtonsAtHighDpi(dpi: 96)" storage="c:\users\admin\source\repos\dattiphu2022\lanchat\tests\lanchat.tests\bin\debug\net48\lanchat.tests.dll" id="444f0650-83e8-5729-59e2-c28d3e08adfb">
+      <Execution id="0266fb8d-3dac-495d-9121-9d1c6b282f9f" />
+      <TestMethod codeBase="C:\Users\Admin\source\repos\dattiphu2022\LanChat\tests\LanChat.Tests\bin\Debug\net48\LanChat.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netfx/" className="LanChat.Tests.WindowsUiTests" name="ForwardPickerShowsAllContactsKeepsChecksAndButtonsAtHighDpi" />
+    </UnitTest>
+    <UnitTest name="LanChat.Tests.WindowsUiTests.AttachmentActionsStayVisibleAndBindingReusesControls(dpi: 192)" storage="c:\users\admin\source\repos\dattiphu2022\lanchat\tests\lanchat.tests\bin\debug\net48\lanchat.tests.dll" id="6c6a3596-6e0c-fb9a-16b1-ba0105395044">
+      <Execution id="470e587e-d91b-4ca9-827b-a4878f00fc8d" />
+      <TestMethod codeBase="C:\Users\Admin\source\repos\dattiphu2022\LanChat\tests\LanChat.Tests\bin\Debug\net48\LanChat.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netfx/" className="LanChat.Tests.WindowsUiTests" name="AttachmentActionsStayVisibleAndBindingReusesControls" />
+    </UnitTest>
+    <UnitTest name="LanChat.Tests.WindowsUiTests.InstallFromAboutWaitsForItsModalAndBusyScopeToClose" storage="c:\users\admin\source\repos\dattiphu2022\lanchat\tests\lanchat.tests\bin\debug\net48\lanchat.tests.dll" id="5a7dd0d9-7ced-f5df-09b9-a2c7661cd61a">
+      <Execution id="5b2f1c65-3ada-43f0-8c41-b0357efe499c" />
+      <TestMethod codeBase="C:\Users\Admin\source\repos\dattiphu2022\LanChat\tests\LanChat.Tests\bin\Debug\net48\LanChat.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netfx/" className="LanChat.Tests.WindowsUiTests" name="InstallFromAboutWaitsForItsModalAndBusyScopeToClose" />
+    </UnitTest>
+    <UnitTest name="LanChat.Tests.WindowsUiTests.CompactWorkspaceUsesTitleAndKeepsUpdateActionsAccessible(dpi: 144)" storage="c:\users\admin\source\repos\dattiphu2022\lanchat\tests\lanchat.tests\bin\debug\net48\lanchat.tests.dll" id="dd61d32f-0aef-78c1-eeee-3a94f2b2e761">
+      <Execution id="850fe9e8-d8be-47dd-a0d3-f5e8f5daef98" />
+      <TestMethod codeBase="C:\Users\Admin\source\repos\dattiphu2022\LanChat\tests\LanChat.Tests\bin\Debug\net48\LanChat.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netfx/" className="LanChat.Tests.WindowsUiTests" name="CompactWorkspaceUsesTitleAndKeepsUpdateActionsAccessible" />
+    </UnitTest>
+    <UnitTest name="LanChat.Tests.WindowsUiTests.InstallingPublisherWaitsForReadersAndResumesSharingAfterVerificationFailure" storage="c:\users\admin\source\repos\dattiphu2022\lanchat\tests\lanchat.tests\bin\debug\net48\lanchat.tests.dll" id="3b2b5d1f-4e09-fe52-8047-26db82cb9644">
+      <Execution id="30621d3c-086e-41b9-aa3d-f9938df87460" />
+      <TestMethod codeBase="C:\Users\Admin\source\repos\dattiphu2022\LanChat\tests\LanChat.Tests\bin\Debug\net48\LanChat.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netfx/" className="LanChat.Tests.WindowsUiTests" name="InstallingPublisherWaitsForReadersAndResumesSharingAfterVerificationFailure" />
+    </UnitTest>
+    <UnitTest name="LanChat.Tests.WindowsUiTests.ResponsiveWorkspaceKeepsDraftAndConversationAtEverySize(dpi: 144)" storage="c:\users\admin\source\repos\dattiphu2022\lanchat\tests\lanchat.tests\bin\debug\net48\lanchat.tests.dll" id="2221beb6-887b-e529-a33e-61a5c4c7d3e7">
+      <Execution id="48267e5d-9298-41a7-ad61-3d6f3e531ab6" />
+      <TestMethod codeBase="C:\Users\Admin\source\repos\dattiphu2022\LanChat\tests\LanChat.Tests\bin\Debug\net48\LanChat.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netfx/" className="LanChat.Tests.WindowsUiTests" name="ResponsiveWorkspaceKeepsDraftAndConversationAtEverySize" />
+    </UnitTest>
+    <UnitTest name="LanChat.Tests.WindowsUiTests.ForwardPickerShowsAllContactsKeepsChecksAndButtonsAtHighDpi(dpi: 192)" storage="c:\users\admin\source\repos\dattiphu2022\lanchat\tests\lanchat.tests\bin\debug\net48\lanchat.tests.dll" id="26321797-a62e-3f39-5e63-892bebf813e5">
+      <Execution id="e19ec7c9-e2c6-4549-a201-135dc1749fc5" />
+      <TestMethod codeBase="C:\Users\Admin\source\repos\dattiphu2022\LanChat\tests\LanChat.Tests\bin\Debug\net48\LanChat.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netfx/" className="LanChat.Tests.WindowsUiTests" name="ForwardPickerShowsAllContactsKeepsChecksAndButtonsAtHighDpi" />
+    </UnitTest>
+    <UnitTest name="LanChat.Tests.WindowsUiTests.ClosingSearchCancelsItsPendingRead" storage="c:\users\admin\source\repos\dattiphu2022\lanchat\tests\lanchat.tests\bin\debug\net48\lanchat.tests.dll" id="eb827f24-f249-654a-2568-3c59c6c8f2e4">
+      <Execution id="6bda065d-ff5e-48d0-be05-95a833f336e4" />
+      <TestMethod codeBase="C:\Users\Admin\source\repos\dattiphu2022\LanChat\tests\LanChat.Tests\bin\Debug\net48\LanChat.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netfx/" className="LanChat.Tests.WindowsUiTests" name="ClosingSearchCancelsItsPendingRead" />
+    </UnitTest>
+    <UnitTest name="LanChat.Tests.WindowsUiTests.SelectionRequiresARealItemAndReportsEmptyFilter" storage="c:\users\admin\source\repos\dattiphu2022\lanchat\tests\lanchat.tests\bin\debug\net48\lanchat.tests.dll" id="3ea9d97b-6c16-12ba-90d0-c41a3067703d">
+      <Execution id="0139883a-b022-4f83-b7e1-8a25123352c4" />
+      <TestMethod codeBase="C:\Users\Admin\source\repos\dattiphu2022\LanChat\tests\LanChat.Tests\bin\Debug\net48\LanChat.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netfx/" className="LanChat.Tests.WindowsUiTests" name="SelectionRequiresARealItemAndReportsEmptyFilter" />
+    </UnitTest>
+    <UnitTest name="LanChat.Tests.WindowsUiTests.ConversationFiltersPreserveQueryAndReuseUnchangedRows" storage="c:\users\admin\source\repos\dattiphu2022\lanchat\tests\lanchat.tests\bin\debug\net48\lanchat.tests.dll" id="dddf62ef-5eca-c22a-8bff-a2b1a460eb9e">
+      <Execution id="381466f5-78b3-45fc-8866-daad0cf356ab" />
+      <TestMethod codeBase="C:\Users\Admin\source\repos\dattiphu2022\LanChat\tests\LanChat.Tests\bin\Debug\net48\LanChat.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netfx/" className="LanChat.Tests.WindowsUiTests" name="ConversationFiltersPreserveQueryAndReuseUnchangedRows" />
+    </UnitTest>
+    <UnitTest name="LanChat.Tests.WindowsUiTests.EditingRestoresTextFilesAndReplyAfterCancelAndSuccessfulSave" storage="c:\users\admin\source\repos\dattiphu2022\lanchat\tests\lanchat.tests\bin\debug\net48\lanchat.tests.dll" id="049fb3c6-c18d-33cf-67c7-4a2e99e9e5ef">
+      <Execution id="597652f2-5aae-44f9-984c-1f090f5d497c" />
+      <TestMethod codeBase="C:\Users\Admin\source\repos\dattiphu2022\LanChat\tests\LanChat.Tests\bin\Debug\net48\LanChat.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netfx/" className="LanChat.Tests.WindowsUiTests" name="EditingRestoresTextFilesAndReplyAfterCancelAndSuccessfulSave" />
+    </UnitTest>
+    <UnitTest name="LanChat.Tests.WindowsUiTests.AttachmentActionsStayVisibleAndBindingReusesControls(dpi: 144)" storage="c:\users\admin\source\repos\dattiphu2022\lanchat\tests\lanchat.tests\bin\debug\net48\lanchat.tests.dll" id="72cbcb8d-def1-9fe9-752a-8de10109dcf4">
+      <Execution id="b4262046-8ac3-4238-814c-468634c63cb0" />
+      <TestMethod codeBase="C:\Users\Admin\source\repos\dattiphu2022\LanChat\tests\LanChat.Tests\bin\Debug\net48\LanChat.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netfx/" className="LanChat.Tests.WindowsUiTests" name="AttachmentActionsStayVisibleAndBindingReusesControls" />
+    </UnitTest>
+    <UnitTest name="LanChat.Tests.WindowsUiTests.MultiSelectionKeepsControlsDraftAndQrActionsAccessible(dpi: 144)" storage="c:\users\admin\source\repos\dattiphu2022\lanchat\tests\lanchat.tests\bin\debug\net48\lanchat.tests.dll" id="34536c37-f33c-d277-396d-4ebf6f4d98ae">
+      <Execution id="3467d56b-a87b-44e5-9508-656c83dd1a64" />
+      <TestMethod codeBase="C:\Users\Admin\source\repos\dattiphu2022\LanChat\tests\LanChat.Tests\bin\Debug\net48\LanChat.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netfx/" className="LanChat.Tests.WindowsUiTests" name="MultiSelectionKeepsControlsDraftAndQrActionsAccessible" />
+    </UnitTest>
+    <UnitTest name="LanChat.Tests.WindowsUiTests.MultiSelectionKeepsControlsDraftAndQrActionsAccessible(dpi: 96)" storage="c:\users\admin\source\repos\dattiphu2022\lanchat\tests\lanchat.tests\bin\debug\net48\lanchat.tests.dll" id="ef621703-dce5-aaa0-c8cc-c5f43af63548">
+      <Execution id="021bd13d-35f9-4521-8baf-100ea7bbc0d6" />
+      <TestMethod codeBase="C:\Users\Admin\source\repos\dattiphu2022\LanChat\tests\LanChat.Tests\bin\Debug\net48\LanChat.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netfx/" className="LanChat.Tests.WindowsUiTests" name="MultiSelectionKeepsControlsDraftAndQrActionsAccessible" />
+    </UnitTest>
+    <UnitTest name="LanChat.Tests.WindowsUiTests.PreparingLongHistoryYieldsAndCanBeCanceledWhenSelectionChanges" storage="c:\users\admin\source\repos\dattiphu2022\lanchat\tests\lanchat.tests\bin\debug\net48\lanchat.tests.dll" id="3906ff8e-5695-cd3a-71d4-fbe492558d6f">
+      <Execution id="4bfd38d5-de7e-4cd3-9a1a-24ee33b22d6d" />
+      <TestMethod codeBase="C:\Users\Admin\source\repos\dattiphu2022\LanChat\tests\LanChat.Tests\bin\Debug\net48\LanChat.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netfx/" className="LanChat.Tests.WindowsUiTests" name="PreparingLongHistoryYieldsAndCanBeCanceledWhenSelectionChanges" />
+    </UnitTest>
+    <UnitTest name="LanChat.Tests.WindowsUiTests.NativeSaveDialogReturnsCompleteMultiDotName(name: &quot;abc.z.exe&quot;, overwrite: False)" storage="c:\users\admin\source\repos\dattiphu2022\lanchat\tests\lanchat.tests\bin\debug\net48\lanchat.tests.dll" id="05eda064-7a49-4574-8337-35ac1f55c76f">
+      <Execution id="5be9d5d7-09e7-43e0-896e-008ae2864ec4" />
+      <TestMethod codeBase="C:\Users\Admin\source\repos\dattiphu2022\LanChat\tests\LanChat.Tests\bin\Debug\net48\LanChat.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netfx/" className="LanChat.Tests.WindowsUiTests" name="NativeSaveDialogReturnsCompleteMultiDotName" />
+    </UnitTest>
+    <UnitTest name="LanChat.Tests.WindowsUiTests.GalleryBatchOnlyIncludesImagesFromSelectedMessage" storage="c:\users\admin\source\repos\dattiphu2022\lanchat\tests\lanchat.tests\bin\debug\net48\lanchat.tests.dll" id="a9a5164e-a70d-fe83-af64-6036db8a8c90">
+      <Execution id="f3792af8-19a8-4ced-8578-98dd747f77e3" />
+      <TestMethod codeBase="C:\Users\Admin\source\repos\dattiphu2022\LanChat\tests\LanChat.Tests\bin\Debug\net48\LanChat.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netfx/" className="LanChat.Tests.WindowsUiTests" name="GalleryBatchOnlyIncludesImagesFromSelectedMessage" />
+    </UnitTest>
+    <UnitTest name="LanChat.Tests.WindowsUiTests.NativeSaveDialogReturnsCompleteMultiDotName(name: &quot;abc.z.exe&quot;, overwrite: True)" storage="c:\users\admin\source\repos\dattiphu2022\lanchat\tests\lanchat.tests\bin\debug\net48\lanchat.tests.dll" id="983f1836-7d60-fb3a-bc31-6c0648d8af47">
+      <Execution id="4a209853-943f-4e75-bc71-7e6427e3a19b" />
+      <TestMethod codeBase="C:\Users\Admin\source\repos\dattiphu2022\LanChat\tests\LanChat.Tests\bin\Debug\net48\LanChat.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netfx/" className="LanChat.Tests.WindowsUiTests" name="NativeSaveDialogReturnsCompleteMultiDotName" />
+    </UnitTest>
+    <UnitTest name="LanChat.Tests.WindowsUiTests.MultiSelectionKeepsControlsDraftAndQrActionsAccessible(dpi: 192)" storage="c:\users\admin\source\repos\dattiphu2022\lanchat\tests\lanchat.tests\bin\debug\net48\lanchat.tests.dll" id="19ecde15-35be-67c0-5121-053857fbd87b">
+      <Execution id="b2430da7-cfe7-412b-aaf0-6aa65134172d" />
+      <TestMethod codeBase="C:\Users\Admin\source\repos\dattiphu2022\LanChat\tests\LanChat.Tests\bin\Debug\net48\LanChat.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netfx/" className="LanChat.Tests.WindowsUiTests" name="MultiSelectionKeepsControlsDraftAndQrActionsAccessible" />
+    </UnitTest>
+    <UnitTest name="LanChat.Tests.WindowsUiTests.ForwardPickerShowsAllContactsKeepsChecksAndButtonsAtHighDpi(dpi: 144)" storage="c:\users\admin\source\repos\dattiphu2022\lanchat\tests\lanchat.tests\bin\debug\net48\lanchat.tests.dll" id="5d28b2bc-8e4b-ba7e-d829-11482d600911">
+      <Execution id="f0fee21b-3443-482b-9d46-3a4d2144f7f5" />
+      <TestMethod codeBase="C:\Users\Admin\source\repos\dattiphu2022\LanChat\tests\LanChat.Tests\bin\Debug\net48\LanChat.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netfx/" className="LanChat.Tests.WindowsUiTests" name="ForwardPickerShowsAllContactsKeepsChecksAndButtonsAtHighDpi" />
+    </UnitTest>
+    <UnitTest name="LanChat.Tests.WindowsUiTests.UpdateSettingsLayoutKeepsFooterAccessibleAtHighDpi(dpi: 96)" storage="c:\users\admin\source\repos\dattiphu2022\lanchat\tests\lanchat.tests\bin\debug\net48\lanchat.tests.dll" id="6ce34255-0f16-8e53-d6ba-74ff8d5e2838">
+      <Execution id="a3771d69-6c54-480a-88c6-e040238031c7" />
+      <TestMethod codeBase="C:\Users\Admin\source\repos\dattiphu2022\LanChat\tests\LanChat.Tests\bin\Debug\net48\LanChat.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netfx/" className="LanChat.Tests.WindowsUiTests" name="UpdateSettingsLayoutKeepsFooterAccessibleAtHighDpi" />
+    </UnitTest>
+    <UnitTest name="LanChat.Tests.WindowsUiTests.AboutActionsStayVisibleAtSmallSizesAndHighDpi(dpi: 144)" storage="c:\users\admin\source\repos\dattiphu2022\lanchat\tests\lanchat.tests\bin\debug\net48\lanchat.tests.dll" id="a3a050c5-0207-170a-c670-d8a3cc09d046">
+      <Execution id="bf642ca1-73aa-4964-8dfc-b620e3a8c436" />
+      <TestMethod codeBase="C:\Users\Admin\source\repos\dattiphu2022\LanChat\tests\LanChat.Tests\bin\Debug\net48\LanChat.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netfx/" className="LanChat.Tests.WindowsUiTests" name="AboutActionsStayVisibleAtSmallSizesAndHighDpi" />
+    </UnitTest>
+    <UnitTest name="LanChat.Tests.WindowsUiTests.SwitchingHistoryKeepsNativeRowsWarmWithoutDuplicateMessages" storage="c:\users\admin\source\repos\dattiphu2022\lanchat\tests\lanchat.tests\bin\debug\net48\lanchat.tests.dll" id="02dc856c-2268-e040-2c60-759f633a521d">
+      <Execution id="93d3b335-c091-4743-8983-778e97e457f0" />
+      <TestMethod codeBase="C:\Users\Admin\source\repos\dattiphu2022\LanChat\tests\LanChat.Tests\bin\Debug\net48\LanChat.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netfx/" className="LanChat.Tests.WindowsUiTests" name="SwitchingHistoryKeepsNativeRowsWarmWithoutDuplicateMessages" />
+    </UnitTest>
+    <UnitTest name="LanChat.Tests.WindowsUiTests.MentionSuggestionsConsumeEnterEscapeAndKeepMetadataInDraftAndEdit" storage="c:\users\admin\source\repos\dattiphu2022\lanchat\tests\lanchat.tests\bin\debug\net48\lanchat.tests.dll" id="6b103f15-147e-f473-c5f8-4210e4f4e042">
+      <Execution id="30f5a745-2f54-488d-aefe-62035393ef27" />
+      <TestMethod codeBase="C:\Users\Admin\source\repos\dattiphu2022\LanChat\tests\LanChat.Tests\bin\Debug\net48\LanChat.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netfx/" className="LanChat.Tests.WindowsUiTests" name="MentionSuggestionsConsumeEnterEscapeAndKeepMetadataInDraftAndEdit" />
+    </UnitTest>
+    <UnitTest name="LanChat.Tests.WindowsUiTests.CaptureResponsiveWorkspaceAndMeasureConversationSwitches" storage="c:\users\admin\source\repos\dattiphu2022\lanchat\tests\lanchat.tests\bin\debug\net48\lanchat.tests.dll" id="1e87efc4-0c1f-20fb-1c17-b4c1fc706f3c">
+      <Execution id="0a6c58c8-65fd-4ad1-ab2f-2fbc387c25ac" />
+      <TestMethod codeBase="C:\Users\Admin\source\repos\dattiphu2022\LanChat\tests\LanChat.Tests\bin\Debug\net48\LanChat.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netfx/" className="LanChat.Tests.WindowsUiTests" name="CaptureResponsiveWorkspaceAndMeasureConversationSwitches" />
+    </UnitTest>
+    <UnitTest name="LanChat.Tests.WindowsUiTests.MissingSavedAttachmentCanCancelOrExplicitlyRestoreWithoutLaunchingRealApps" storage="c:\users\admin\source\repos\dattiphu2022\lanchat\tests\lanchat.tests\bin\debug\net48\lanchat.tests.dll" id="67b00646-cc83-6ee2-4e8b-efafd0651e0b">
+      <Execution id="3e58b28e-4c8e-4e93-9170-4d437771d7a8" />
+      <TestMethod codeBase="C:\Users\Admin\source\repos\dattiphu2022\LanChat\tests\LanChat.Tests\bin\Debug\net48\LanChat.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netfx/" className="LanChat.Tests.WindowsUiTests" name="MissingSavedAttachmentCanCancelOrExplicitlyRestoreWithoutLaunchingRealApps" />
+    </UnitTest>
+    <UnitTest name="LanChat.Tests.WindowsUiTests.LateSearchCannotReplaceNewResultsOrUpdateClosedWindow" storage="c:\users\admin\source\repos\dattiphu2022\lanchat\tests\lanchat.tests\bin\debug\net48\lanchat.tests.dll" id="60986b2e-5001-350b-f7a8-8cb4287003d5">
+      <Execution id="14cfd7b3-57d0-49d7-a810-68625c15fbda" />
+      <TestMethod codeBase="C:\Users\Admin\source\repos\dattiphu2022\LanChat\tests\LanChat.Tests\bin\Debug\net48\LanChat.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netfx/" className="LanChat.Tests.WindowsUiTests" name="LateSearchCannotReplaceNewResultsOrUpdateClosedWindow" />
+    </UnitTest>
+    <UnitTest name="LanChat.Tests.WindowsUiTests.ReopeningHistoryReusesSnapshotAndRefreshesAfterNewMessages" storage="c:\users\admin\source\repos\dattiphu2022\lanchat\tests\lanchat.tests\bin\debug\net48\lanchat.tests.dll" id="07e9ff58-7adc-3e00-924f-7ce4191dc3cf">
+      <Execution id="e6191d92-24a3-4b5e-add7-8b64de7cf946" />
+      <TestMethod codeBase="C:\Users\Admin\source\repos\dattiphu2022\LanChat\tests\LanChat.Tests\bin\Debug\net48\LanChat.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netfx/" className="LanChat.Tests.WindowsUiTests" name="ReopeningHistoryReusesSnapshotAndRefreshesAfterNewMessages" />
+    </UnitTest>
+    <UnitTest name="LanChat.Tests.WindowsUiTests.ConversationRenderingKeepsTheSelectedHistoryCorrect" storage="c:\users\admin\source\repos\dattiphu2022\lanchat\tests\lanchat.tests\bin\debug\net48\lanchat.tests.dll" id="232e8cad-9e71-b1e1-a9a8-eab6d698e983">
+      <Execution id="a53459e7-5153-4451-8428-6cdc6f3ffef7" />
+      <TestMethod codeBase="C:\Users\Admin\source\repos\dattiphu2022\LanChat\tests\LanChat.Tests\bin\Debug\net48\LanChat.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netfx/" className="LanChat.Tests.WindowsUiTests" name="ConversationRenderingKeepsTheSelectedHistoryCorrect" />
+    </UnitTest>
+    <UnitTest name="LanChat.Tests.WindowsUiTests.CompactWorkspaceUsesTitleAndKeepsUpdateActionsAccessible(dpi: 96)" storage="c:\users\admin\source\repos\dattiphu2022\lanchat\tests\lanchat.tests\bin\debug\net48\lanchat.tests.dll" id="9e174f4d-f3bc-017f-78f2-39355d2503af">
+      <Execution id="aae2f574-b94f-419a-bb34-1503ae527aef" />
+      <TestMethod codeBase="C:\Users\Admin\source\repos\dattiphu2022\LanChat\tests\LanChat.Tests\bin\Debug\net48\LanChat.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netfx/" className="LanChat.Tests.WindowsUiTests" name="CompactWorkspaceUsesTitleAndKeepsUpdateActionsAccessible" />
+    </UnitTest>
+    <UnitTest name="LanChat.Tests.WindowsUiTests.ComposerGrowsForVisualLinesCapsAtEightAndShrinksWithoutLosingCaret(dpi: 96)" storage="c:\users\admin\source\repos\dattiphu2022\lanchat\tests\lanchat.tests\bin\debug\net48\lanchat.tests.dll" id="5ee8cced-1bf9-8d77-bf59-b5b6c31d029b">
+      <Execution id="b02e38f4-316c-49cd-932d-6f7c8568ef6e" />
+      <TestMethod codeBase="C:\Users\Admin\source\repos\dattiphu2022\LanChat\tests\LanChat.Tests\bin\Debug\net48\LanChat.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netfx/" className="LanChat.Tests.WindowsUiTests" name="ComposerGrowsForVisualLinesCapsAtEightAndShrinksWithoutLosingCaret" />
+    </UnitTest>
+    <UnitTest name="LanChat.Tests.WindowsUiTests.ClosingAnOpenProgressWindowDoesNotCloseAnUnrelatedDialog" storage="c:\users\admin\source\repos\dattiphu2022\lanchat\tests\lanchat.tests\bin\debug\net48\lanchat.tests.dll" id="933537b7-70e7-e42f-506e-dfef32c3bf8c">
+      <Execution id="3c209dea-dc09-4dce-bf9e-863dee5c4817" />
+      <TestMethod codeBase="C:\Users\Admin\source\repos\dattiphu2022\LanChat\tests\LanChat.Tests\bin\Debug\net48\LanChat.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netfx/" className="LanChat.Tests.WindowsUiTests" name="ClosingAnOpenProgressWindowDoesNotCloseAnUnrelatedDialog" />
+    </UnitTest>
+    <UnitTest name="LanChat.Tests.WindowsUiTests.ResponsiveWorkspaceKeepsDraftAndConversationAtEverySize(dpi: 96)" storage="c:\users\admin\source\repos\dattiphu2022\lanchat\tests\lanchat.tests\bin\debug\net48\lanchat.tests.dll" id="a287bc05-380a-6e2f-3171-780f995fc639">
+      <Execution id="8c609d87-cc2e-4dc1-b4b0-294f64dd1f58" />
+      <TestMethod codeBase="C:\Users\Admin\source\repos\dattiphu2022\LanChat\tests\LanChat.Tests\bin\Debug\net48\LanChat.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netfx/" className="LanChat.Tests.WindowsUiTests" name="ResponsiveWorkspaceKeepsDraftAndConversationAtEverySize" />
+    </UnitTest>
+    <UnitTest name="LanChat.Tests.WindowsUiTests.EmbeddedViewsUseTheForegroundOwnedDialog" storage="c:\users\admin\source\repos\dattiphu2022\lanchat\tests\lanchat.tests\bin\debug\net48\lanchat.tests.dll" id="b1362eed-c690-12c0-49f7-5306e6de7458">
+      <Execution id="67fcc1cf-bd82-42d3-9fec-b0dfd2b50cf1" />
+      <TestMethod codeBase="C:\Users\Admin\source\repos\dattiphu2022\LanChat\tests\LanChat.Tests\bin\Debug\net48\LanChat.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netfx/" className="LanChat.Tests.WindowsUiTests" name="EmbeddedViewsUseTheForegroundOwnedDialog" />
+    </UnitTest>
+    <UnitTest name="LanChat.Tests.WindowsUiTests.AboutActionsStayVisibleAtSmallSizesAndHighDpi(dpi: 96)" storage="c:\users\admin\source\repos\dattiphu2022\lanchat\tests\lanchat.tests\bin\debug\net48\lanchat.tests.dll" id="aaa4574c-73f9-9528-87cb-a13f7de51876">
+      <Execution id="ca628744-5e7f-4e17-9849-86240db314cd" />
+      <TestMethod codeBase="C:\Users\Admin\source\repos\dattiphu2022\LanChat\tests\LanChat.Tests\bin\Debug\net48\LanChat.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netfx/" className="LanChat.Tests.WindowsUiTests" name="AboutActionsStayVisibleAtSmallSizesAndHighDpi" />
+    </UnitTest>
+    <UnitTest name="LanChat.Tests.WindowsUiTests.SavingCanceledCopyPreservesExistingFileAndCleansTemporaryFile" storage="c:\users\admin\source\repos\dattiphu2022\lanchat\tests\lanchat.tests\bin\debug\net48\lanchat.tests.dll" id="0cd59da9-dc40-5692-1ae6-dcc1e3fff3fa">
+      <Execution id="b4cec85d-cc9f-471c-9f94-18f11c735e35" />
+      <TestMethod codeBase="C:\Users\Admin\source\repos\dattiphu2022\LanChat\tests\LanChat.Tests\bin\Debug\net48\LanChat.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netfx/" className="LanChat.Tests.WindowsUiTests" name="SavingCanceledCopyPreservesExistingFileAndCleansTemporaryFile" />
+    </UnitTest>
+    <UnitTest name="LanChat.Tests.WindowsUiTests.ComposerGrowsForVisualLinesCapsAtEightAndShrinksWithoutLosingCaret(dpi: 144)" storage="c:\users\admin\source\repos\dattiphu2022\lanchat\tests\lanchat.tests\bin\debug\net48\lanchat.tests.dll" id="94252e06-4210-02d9-31f2-92cb5af39615">
+      <Execution id="ebb1a213-04e9-472c-93f7-e18988888569" />
+      <TestMethod codeBase="C:\Users\Admin\source\repos\dattiphu2022\LanChat\tests\LanChat.Tests\bin\Debug\net48\LanChat.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netfx/" className="LanChat.Tests.WindowsUiTests" name="ComposerGrowsForVisualLinesCapsAtEightAndShrinksWithoutLosingCaret" />
+    </UnitTest>
+    <UnitTest name="LanChat.Tests.WindowsUiTests.MentionRenderingMapsCrLfOffsetsAndRetainsPlainText" storage="c:\users\admin\source\repos\dattiphu2022\lanchat\tests\lanchat.tests\bin\debug\net48\lanchat.tests.dll" id="79879129-ba8d-4179-8443-bea57bdfd546">
+      <Execution id="87d488ab-2316-497e-b824-b866541982be" />
+      <TestMethod codeBase="C:\Users\Admin\source\repos\dattiphu2022\LanChat\tests\LanChat.Tests\bin\Debug\net48\LanChat.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netfx/" className="LanChat.Tests.WindowsUiTests" name="MentionRenderingMapsCrLfOffsetsAndRetainsPlainText" />
+    </UnitTest>
+    <UnitTest name="LanChat.Tests.WindowsUiTests.NamePromptKeepsInvalidAndFailedInputUntilSaveSucceeds" storage="c:\users\admin\source\repos\dattiphu2022\lanchat\tests\lanchat.tests\bin\debug\net48\lanchat.tests.dll" id="a62f7d14-84fc-8f7d-9224-1e8c2d6861ce">
+      <Execution id="80a5a10d-e74e-4326-b7f0-4843c944a4d0" />
+      <TestMethod codeBase="C:\Users\Admin\source\repos\dattiphu2022\LanChat\tests\LanChat.Tests\bin\Debug\net48\LanChat.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netfx/" className="LanChat.Tests.WindowsUiTests" name="NamePromptKeepsInvalidAndFailedInputUntilSaveSucceeds" />
+    </UnitTest>
+    <UnitTest name="LanChat.Tests.WindowsUiTests.NativeSaveDialogReturnsCompleteMultiDotName(name: &quot;archive.v1.tar.gz&quot;, overwrite: False)" storage="c:\users\admin\source\repos\dattiphu2022\lanchat\tests\lanchat.tests\bin\debug\net48\lanchat.tests.dll" id="2a495689-aedf-450c-6b51-4bc2054baf0a">
+      <Execution id="83d678fb-a2d3-4032-b5c5-68bba95f5b18" />
+      <TestMethod codeBase="C:\Users\Admin\source\repos\dattiphu2022\LanChat\tests\LanChat.Tests\bin\Debug\net48\LanChat.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netfx/" className="LanChat.Tests.WindowsUiTests" name="NativeSaveDialogReturnsCompleteMultiDotName" />
+    </UnitTest>
+    <UnitTest name="LanChat.Tests.WindowsUiTests.MessageDeliveryNeverInfersRecipientReceiptFromReplication" storage="c:\users\admin\source\repos\dattiphu2022\lanchat\tests\lanchat.tests\bin\debug\net48\lanchat.tests.dll" id="1d8004a9-12ee-2247-c9d6-164ed89d191d">
+      <Execution id="a232b654-b9ea-41db-b7ab-a1bc1fc0702d" />
+      <TestMethod codeBase="C:\Users\Admin\source\repos\dattiphu2022\LanChat\tests\LanChat.Tests\bin\Debug\net48\LanChat.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netfx/" className="LanChat.Tests.WindowsUiTests" name="MessageDeliveryNeverInfersRecipientReceiptFromReplication" />
+    </UnitTest>
+    <UnitTest name="LanChat.Tests.WindowsUiTests.AttachmentActionsStayVisibleAndBindingReusesControls(dpi: 96)" storage="c:\users\admin\source\repos\dattiphu2022\lanchat\tests\lanchat.tests\bin\debug\net48\lanchat.tests.dll" id="ac69bb4d-826a-e777-8a16-397e922be078">
+      <Execution id="81b24968-086f-4609-99e8-df752d8e4e44" />
+      <TestMethod codeBase="C:\Users\Admin\source\repos\dattiphu2022\LanChat\tests\LanChat.Tests\bin\Debug\net48\LanChat.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netfx/" className="LanChat.Tests.WindowsUiTests" name="AttachmentActionsStayVisibleAndBindingReusesControls" />
+    </UnitTest>
+    <UnitTest name="LanChat.Tests.WindowsUiTests.ResponsiveWorkspaceKeepsDraftAndConversationAtEverySize(dpi: 192)" storage="c:\users\admin\source\repos\dattiphu2022\lanchat\tests\lanchat.tests\bin\debug\net48\lanchat.tests.dll" id="2ca56f13-fa45-6369-4c6c-a787e8a5b1e8">
+      <Execution id="45ca10ad-b4d2-4455-8921-c8524b91895a" />
+      <TestMethod codeBase="C:\Users\Admin\source\repos\dattiphu2022\LanChat\tests\LanChat.Tests\bin\Debug\net48\LanChat.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netfx/" className="LanChat.Tests.WindowsUiTests" name="ResponsiveWorkspaceKeepsDraftAndConversationAtEverySize" />
+    </UnitTest>
+    <UnitTest name="LanChat.Tests.WindowsUiTests.SourceChangeIsBlockedDuringDownloadAndResetsReadyStateAfterward" storage="c:\users\admin\source\repos\dattiphu2022\lanchat\tests\lanchat.tests\bin\debug\net48\lanchat.tests.dll" id="2173e0bb-9d1b-332c-ed78-245362a57702">
+      <Execution id="20f0ac9e-51a0-4dca-916c-358943a6da75" />
+      <TestMethod codeBase="C:\Users\Admin\source\repos\dattiphu2022\LanChat\tests\LanChat.Tests\bin\Debug\net48\LanChat.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netfx/" className="LanChat.Tests.WindowsUiTests" name="SourceChangeIsBlockedDuringDownloadAndResetsReadyStateAfterward" />
+    </UnitTest>
+    <UnitTest name="LanChat.Tests.WindowsUiTests.SettingsKeepInputAfterFailureAndPreventClosingDuringSave" storage="c:\users\admin\source\repos\dattiphu2022\lanchat\tests\lanchat.tests\bin\debug\net48\lanchat.tests.dll" id="e3f99d18-0f5b-38a3-5d2d-8dfdec7fb7f9">
+      <Execution id="69fd8240-0fd5-4d1c-9e1c-bf829824e74a" />
+      <TestMethod codeBase="C:\Users\Admin\source\repos\dattiphu2022\LanChat\tests\LanChat.Tests\bin\Debug\net48\LanChat.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netfx/" className="LanChat.Tests.WindowsUiTests" name="SettingsKeepInputAfterFailureAndPreventClosingDuringSave" />
+    </UnitTest>
+    <UnitTest name="LanChat.Tests.WindowsUiTests.SavingDialogWaitsForCancellationAndIgnoresCompletionAfterDisposal" storage="c:\users\admin\source\repos\dattiphu2022\lanchat\tests\lanchat.tests\bin\debug\net48\lanchat.tests.dll" id="df7830b8-8cd0-be13-662a-24c0f2508dc7">
+      <Execution id="416ec31e-78a8-4430-8770-3047e5501ef4" />
+      <TestMethod codeBase="C:\Users\Admin\source\repos\dattiphu2022\LanChat\tests\LanChat.Tests\bin\Debug\net48\LanChat.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netfx/" className="LanChat.Tests.WindowsUiTests" name="SavingDialogWaitsForCancellationAndIgnoresCompletionAfterDisposal" />
+    </UnitTest>
+    <UnitTest name="LanChat.Tests.WindowsUiTests.AboutAndBannerShareDownloadAcrossClosingAndReopening" storage="c:\users\admin\source\repos\dattiphu2022\lanchat\tests\lanchat.tests\bin\debug\net48\lanchat.tests.dll" id="086b5caa-72ea-3405-7bdd-28efdeaedb1f">
+      <Execution id="5c2ef59d-f2a8-400c-9ab6-c71a5610d590" />
+      <TestMethod codeBase="C:\Users\Admin\source\repos\dattiphu2022\LanChat\tests\LanChat.Tests\bin\Debug\net48\LanChat.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netfx/" className="LanChat.Tests.WindowsUiTests" name="AboutAndBannerShareDownloadAcrossClosingAndReopening" />
+    </UnitTest>
+    <UnitTest name="LanChat.Tests.WindowsUiTests.UpdateSettingsLayoutKeepsFooterAccessibleAtHighDpi(dpi: 144)" storage="c:\users\admin\source\repos\dattiphu2022\lanchat\tests\lanchat.tests\bin\debug\net48\lanchat.tests.dll" id="b633843c-4110-55f2-791c-62b9c79ae052">
+      <Execution id="31ae4e08-c55f-4b6d-88fc-6c40d2413d43" />
+      <TestMethod codeBase="C:\Users\Admin\source\repos\dattiphu2022\LanChat\tests\LanChat.Tests\bin\Debug\net48\LanChat.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netfx/" className="LanChat.Tests.WindowsUiTests" name="UpdateSettingsLayoutKeepsFooterAccessibleAtHighDpi" />
+    </UnitTest>
+    <UnitTest name="LanChat.Tests.WindowsUiTests.NativeSaveDialogReturnsCompleteMultiDotName(name: &quot;README&quot;, overwrite: False)" storage="c:\users\admin\source\repos\dattiphu2022\lanchat\tests\lanchat.tests\bin\debug\net48\lanchat.tests.dll" id="3918274a-018b-a403-1f4f-aae38a90c1ac">
+      <Execution id="b5c9fd58-394a-4241-8402-6ec312f39aee" />
+      <TestMethod codeBase="C:\Users\Admin\source\repos\dattiphu2022\LanChat\tests\LanChat.Tests\bin\Debug\net48\LanChat.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netfx/" className="LanChat.Tests.WindowsUiTests" name="NativeSaveDialogReturnsCompleteMultiDotName" />
+    </UnitTest>
+  </TestDefinitions>
+  <TestEntries>
+    <TestEntry testId="05eda064-7a49-4574-8337-35ac1f55c76f" executionId="5be9d5d7-09e7-43e0-896e-008ae2864ec4" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="a9a5164e-a70d-fe83-af64-6036db8a8c90" executionId="f3792af8-19a8-4ced-8578-98dd747f77e3" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="f8ac6506-ae23-a4f8-0e9d-f81ea054daec" executionId="4b5ee378-de7c-4103-b9ef-40c83fb61a98" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="67b00646-cc83-6ee2-4e8b-efafd0651e0b" executionId="3e58b28e-4c8e-4e93-9170-4d437771d7a8" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="2173e0bb-9d1b-332c-ed78-245362a57702" executionId="20f0ac9e-51a0-4dca-916c-358943a6da75" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="b633843c-4110-55f2-791c-62b9c79ae052" executionId="31ae4e08-c55f-4b6d-88fc-6c40d2413d43" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="9e174f4d-f3bc-017f-78f2-39355d2503af" executionId="aae2f574-b94f-419a-bb34-1503ae527aef" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="444f0650-83e8-5729-59e2-c28d3e08adfb" executionId="0266fb8d-3dac-495d-9121-9d1c6b282f9f" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="26321797-a62e-3f39-5e63-892bebf813e5" executionId="e19ec7c9-e2c6-4549-a201-135dc1749fc5" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="6ce34255-0f16-8e53-d6ba-74ff8d5e2838" executionId="a3771d69-6c54-480a-88c6-e040238031c7" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="086b5caa-72ea-3405-7bdd-28efdeaedb1f" executionId="5c2ef59d-f2a8-400c-9ab6-c71a5610d590" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="983f1836-7d60-fb3a-bc31-6c0648d8af47" executionId="4a209853-943f-4e75-bc71-7e6427e3a19b" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="6370fc43-ea22-7c32-ae21-5ab4c8360c3c" executionId="c521c654-168a-43b0-ac47-64c67e97fe86" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="6c6a3596-6e0c-fb9a-16b1-ba0105395044" executionId="470e587e-d91b-4ca9-827b-a4878f00fc8d" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="3906ff8e-5695-cd3a-71d4-fbe492558d6f" executionId="4bfd38d5-de7e-4cd3-9a1a-24ee33b22d6d" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="933537b7-70e7-e42f-506e-dfef32c3bf8c" executionId="3c209dea-dc09-4dce-bf9e-863dee5c4817" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="df7830b8-8cd0-be13-662a-24c0f2508dc7" executionId="416ec31e-78a8-4430-8770-3047e5501ef4" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="0cd59da9-dc40-5692-1ae6-dcc1e3fff3fa" executionId="b4cec85d-cc9f-471c-9f94-18f11c735e35" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="610b0188-f90d-d96d-7c91-a4973b8b6caa" executionId="0b296aff-0e11-4b95-8dc1-e432803dc072" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="7aba3096-15bb-2048-1baf-9cdbdb37b987" executionId="325828a6-31fa-4adb-9c40-234791acd504" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="a3a050c5-0207-170a-c670-d8a3cc09d046" executionId="bf642ca1-73aa-4964-8dfc-b620e3a8c436" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="07e9ff58-7adc-3e00-924f-7ce4191dc3cf" executionId="e6191d92-24a3-4b5e-add7-8b64de7cf946" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="1e87efc4-0c1f-20fb-1c17-b4c1fc706f3c" executionId="0a6c58c8-65fd-4ad1-ab2f-2fbc387c25ac" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="3918274a-018b-a403-1f4f-aae38a90c1ac" executionId="b5c9fd58-394a-4241-8402-6ec312f39aee" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="9faa9246-110d-749f-5dee-f5dba538a9b4" executionId="d2247dd6-4958-4963-9699-8e5cef9a25e0" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="5a7dd0d9-7ced-f5df-09b9-a2c7661cd61a" executionId="5b2f1c65-3ada-43f0-8c41-b0357efe499c" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="e3f99d18-0f5b-38a3-5d2d-8dfdec7fb7f9" executionId="69fd8240-0fd5-4d1c-9e1c-bf829824e74a" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="2221beb6-887b-e529-a33e-61a5c4c7d3e7" executionId="48267e5d-9298-41a7-ad61-3d6f3e531ab6" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="321602c0-23d5-0d54-ad4b-2e3f37ac3328" executionId="67602005-1b87-4f64-8a1a-1fd967dc2ad9" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="a62f7d14-84fc-8f7d-9224-1e8c2d6861ce" executionId="80a5a10d-e74e-4326-b7f0-4843c944a4d0" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="02dc856c-2268-e040-2c60-759f633a521d" executionId="93d3b335-c091-4743-8983-778e97e457f0" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="34536c37-f33c-d277-396d-4ebf6f4d98ae" executionId="3467d56b-a87b-44e5-9508-656c83dd1a64" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="b33d79cd-a335-a822-ec95-baeca2d741af" executionId="50cf4eb0-5bcf-4f9b-b6ca-3fb58d4c571d" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="60986b2e-5001-350b-f7a8-8cb4287003d5" executionId="14cfd7b3-57d0-49d7-a810-68625c15fbda" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="3ea9d97b-6c16-12ba-90d0-c41a3067703d" executionId="0139883a-b022-4f83-b7e1-8a25123352c4" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="b3ae9036-6ce0-97b9-e1e7-e7e2654647b8" executionId="118358bf-de34-4342-b7bd-1c99898b32f3" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="a263f630-418e-1046-8c18-9c6339018087" executionId="25a01004-25c2-4b90-9f84-5fa7cb20e673" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="2a495689-aedf-450c-6b51-4bc2054baf0a" executionId="83d678fb-a2d3-4032-b5c5-68bba95f5b18" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="68cfd29c-aa74-86d8-aba4-8aa34fdcd1d3" executionId="99393fab-9427-453c-9771-5de16d04c664" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="3232f9b3-7664-4d43-5481-b0bc1a2f9bae" executionId="ebc19b16-7252-4643-93c2-a48b7bd7e01f" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="1d8004a9-12ee-2247-c9d6-164ed89d191d" executionId="a232b654-b9ea-41db-b7ab-a1bc1fc0702d" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="94252e06-4210-02d9-31f2-92cb5af39615" executionId="ebb1a213-04e9-472c-93f7-e18988888569" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="6b103f15-147e-f473-c5f8-4210e4f4e042" executionId="30f5a745-2f54-488d-aefe-62035393ef27" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="72cbcb8d-def1-9fe9-752a-8de10109dcf4" executionId="b4262046-8ac3-4238-814c-468634c63cb0" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="ef621703-dce5-aaa0-c8cc-c5f43af63548" executionId="021bd13d-35f9-4521-8baf-100ea7bbc0d6" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="ac69bb4d-826a-e777-8a16-397e922be078" executionId="81b24968-086f-4609-99e8-df752d8e4e44" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="b41cef43-b878-2afc-237b-349e67431e5a" executionId="588339eb-ab24-4606-9e9d-2237c7603043" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="3b2b5d1f-4e09-fe52-8047-26db82cb9644" executionId="30621d3c-086e-41b9-aa3d-f9938df87460" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="5d28b2bc-8e4b-ba7e-d829-11482d600911" executionId="f0fee21b-3443-482b-9d46-3a4d2144f7f5" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="19ecde15-35be-67c0-5121-053857fbd87b" executionId="b2430da7-cfe7-412b-aaf0-6aa65134172d" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="c280ffc8-0072-02d2-ad92-ac2e11e210ab" executionId="1a59666d-8928-4652-88a7-d57333ec1994" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="dd61d32f-0aef-78c1-eeee-3a94f2b2e761" executionId="850fe9e8-d8be-47dd-a0d3-f5e8f5daef98" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="aaa4574c-73f9-9528-87cb-a13f7de51876" executionId="ca628744-5e7f-4e17-9849-86240db314cd" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="79879129-ba8d-4179-8443-bea57bdfd546" executionId="87d488ab-2316-497e-b824-b866541982be" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="e04fc53d-c453-3a81-f2d8-833171df7134" executionId="e85ea968-d508-488b-b31c-52fa8ef10462" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="232e8cad-9e71-b1e1-a9a8-eab6d698e983" executionId="a53459e7-5153-4451-8428-6cdc6f3ffef7" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="a287bc05-380a-6e2f-3171-780f995fc639" executionId="8c609d87-cc2e-4dc1-b4b0-294f64dd1f58" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="049fb3c6-c18d-33cf-67c7-4a2e99e9e5ef" executionId="597652f2-5aae-44f9-984c-1f090f5d497c" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="5ee8cced-1bf9-8d77-bf59-b5b6c31d029b" executionId="b02e38f4-316c-49cd-932d-6f7c8568ef6e" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="b1362eed-c690-12c0-49f7-5306e6de7458" executionId="67fcc1cf-bd82-42d3-9fec-b0dfd2b50cf1" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="dddf62ef-5eca-c22a-8bff-a2b1a460eb9e" executionId="381466f5-78b3-45fc-8866-daad0cf356ab" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="2ca56f13-fa45-6369-4c6c-a787e8a5b1e8" executionId="45ca10ad-b4d2-4455-8921-c8524b91895a" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="eb827f24-f249-654a-2568-3c59c6c8f2e4" executionId="6bda065d-ff5e-48d0-be05-95a833f336e4" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+  </TestEntries>
+  <TestLists>
+    <TestList name="Results Not in a List" id="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestList name="All Loaded Results" id="19431567-8539-422a-85d7-44ee4e166bda" />
+  </TestLists>
+  <ResultSummary outcome="Failed">
+    <Counters total="63" executed="63" passed="61" failed="2" error="0" timeout="0" aborted="0" inconclusive="0" passedButRunAborted="0" notRunnable="0" notExecuted="0" disconnected="0" warning="0" completed="0" inProgress="0" pending="0" />
+    <Output>
+      <StdOut>[xUnit.net 00:00:00.00] xUnit.net VSTest Adapter v3.0.2+dd36e86129 (64-bit .NET Framework 4.8.10008.0)&#xD;
+[xUnit.net 00:00:00.51]   Discovering: LanChat.Tests&#xD;
+[xUnit.net 00:00:00.63]   Discovered:  LanChat.Tests&#xD;
+[xUnit.net 00:00:00.70]   Starting:    LanChat.Tests&#xD;
+[xUnit.net 00:00:48.28]       Assert.Equal() Failure: Values differ&#xD;
+[xUnit.net 00:00:48.28]       Expected: False&#xD;
+[xUnit.net 00:00:48.28]       Actual:   True&#xD;
+[xUnit.net 00:00:48.28]       Stack Trace:&#xD;
+[xUnit.net 00:00:48.28]         WindowsUxTests.cs(66,0): at LanChat.Tests.WindowsUiTests.&lt;&gt;c__DisplayClass67_1.&lt;&lt;ResponsiveWorkspaceKeepsDraftAndConversationAtEverySize&gt;b__0&gt;d.MoveNext()&#xD;
+[xUnit.net 00:00:48.28]         --- End of stack trace from previous location where exception was thrown ---&#xD;
+[xUnit.net 00:00:48.28]            at System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw()&#xD;
+[xUnit.net 00:00:48.28]            at System.Runtime.CompilerServices.TaskAwaiter.HandleNonSuccessAndDebuggerNotification(Task task)&#xD;
+[xUnit.net 00:00:48.28]            at System.Runtime.CompilerServices.TaskAwaiter.GetResult()&#xD;
+[xUnit.net 00:00:48.28]         WindowsUiTests.cs(861,0): at LanChat.Tests.WindowsUiTests.&lt;&gt;c__DisplayClass54_1.&lt;&lt;OnUi&gt;b__2&gt;d.MoveNext()&#xD;
+[xUnit.net 00:00:48.28]         --- End of stack trace from previous location where exception was thrown ---&#xD;
+[xUnit.net 00:00:48.28]            at System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw()&#xD;
+[xUnit.net 00:00:48.28]            at System.Runtime.CompilerServices.TaskAwaiter.HandleNonSuccessAndDebuggerNotification(Task task)&#xD;
+[xUnit.net 00:00:48.28]            at System.Runtime.CompilerServices.TaskAwaiter.GetResult()&#xD;
+[xUnit.net 00:00:48.28]         WindowsUxTests.cs(53,0): at LanChat.Tests.WindowsUiTests.&lt;ResponsiveWorkspaceKeepsDraftAndConversationAtEverySize&gt;d__67.MoveNext()&#xD;
+[xUnit.net 00:00:48.28]         --- End of stack trace from previous location where exception was thrown ---&#xD;
+[xUnit.net 00:00:48.28]            at System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw()&#xD;
+[xUnit.net 00:00:48.28]         WindowsUxTests.cs(53,0): at LanChat.Tests.WindowsUiTests.&lt;ResponsiveWorkspaceKeepsDraftAndConversationAtEverySize&gt;d__67.MoveNext()&#xD;
+[xUnit.net 00:00:48.28]         --- End of stack trace from previous location where exception was thrown ---&#xD;
+[xUnit.net 00:00:48.28]            at System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw()&#xD;
+[xUnit.net 00:00:48.28]         WindowsUxTests.cs(53,0): at LanChat.Tests.WindowsUiTests.&lt;ResponsiveWorkspaceKeepsDraftAndConversationAtEverySize&gt;d__67.MoveNext()&#xD;
+[xUnit.net 00:00:48.28]         --- End of stack trace from previous location where exception was thrown ---&#xD;
+[xUnit.net 00:00:48.28]            at System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw()&#xD;
+[xUnit.net 00:00:48.28]            at System.Runtime.CompilerServices.TaskAwaiter.HandleNonSuccessAndDebuggerNotification(Task task)&#xD;
+[xUnit.net 00:00:48.28]         --- End of stack trace from previous location where exception was thrown ---&#xD;
+[xUnit.net 00:00:48.28]            at System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw()&#xD;
+[xUnit.net 00:00:48.28]            at System.Runtime.CompilerServices.TaskAwaiter.HandleNonSuccessAndDebuggerNotification(Task task)&#xD;
+[xUnit.net 00:00:48.28]         --- End of stack trace from previous location where exception was thrown ---&#xD;
+[xUnit.net 00:00:48.28]            at System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw()&#xD;
+[xUnit.net 00:00:48.28]            at System.Runtime.CompilerServices.TaskAwaiter.HandleNonSuccessAndDebuggerNotification(Task task)&#xD;
+[xUnit.net 00:00:51.04]       Assert.Equal() Failure: Values differ&#xD;
+[xUnit.net 00:00:51.04]       Expected: True&#xD;
+[xUnit.net 00:00:51.04]       Actual:   False&#xD;
+[xUnit.net 00:00:51.04]       Stack Trace:&#xD;
+[xUnit.net 00:00:51.04]         WindowsUxTests.cs(66,0): at LanChat.Tests.WindowsUiTests.&lt;&gt;c__DisplayClass67_1.&lt;&lt;ResponsiveWorkspaceKeepsDraftAndConversationAtEverySize&gt;b__0&gt;d.MoveNext()&#xD;
+[xUnit.net 00:00:51.04]         --- End of stack trace from previous location where exception was thrown ---&#xD;
+[xUnit.net 00:00:51.04]            at System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw()&#xD;
+[xUnit.net 00:00:51.04]            at System.Runtime.CompilerServices.TaskAwaiter.HandleNonSuccessAndDebuggerNotification(Task task)&#xD;
+[xUnit.net 00:00:51.04]            at System.Runtime.CompilerServices.TaskAwaiter.GetResult()&#xD;
+[xUnit.net 00:00:51.04]         WindowsUiTests.cs(861,0): at LanChat.Tests.WindowsUiTests.&lt;&gt;c__DisplayClass54_1.&lt;&lt;OnUi&gt;b__2&gt;d.MoveNext()&#xD;
+[xUnit.net 00:00:51.04]         --- End of stack trace from previous location where exception was thrown ---&#xD;
+[xUnit.net 00:00:51.04]            at System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw()&#xD;
+[xUnit.net 00:00:51.04]            at System.Runtime.CompilerServices.TaskAwaiter.HandleNonSuccessAndDebuggerNotification(Task task)&#xD;
+[xUnit.net 00:00:51.04]            at System.Runtime.CompilerServices.TaskAwaiter.GetResult()&#xD;
+[xUnit.net 00:00:51.04]         WindowsUxTests.cs(53,0): at LanChat.Tests.WindowsUiTests.&lt;ResponsiveWorkspaceKeepsDraftAndConversationAtEverySize&gt;d__67.MoveNext()&#xD;
+[xUnit.net 00:00:51.04]         --- End of stack trace from previous location where exception was thrown ---&#xD;
+[xUnit.net 00:00:51.04]            at System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw()&#xD;
+[xUnit.net 00:00:51.04]         WindowsUxTests.cs(53,0): at LanChat.Tests.WindowsUiTests.&lt;ResponsiveWorkspaceKeepsDraftAndConversationAtEverySize&gt;d__67.MoveNext()&#xD;
+[xUnit.net 00:00:51.04]         --- End of stack trace from previous location where exception was thrown ---&#xD;
+[xUnit.net 00:00:51.04]            at System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw()&#xD;
+[xUnit.net 00:00:51.04]         WindowsUxTests.cs(53,0): at LanChat.Tests.WindowsUiTests.&lt;ResponsiveWorkspaceKeepsDraftAndConversationAtEverySize&gt;d__67.MoveNext()&#xD;
+[xUnit.net 00:00:51.04]         --- End of stack trace from previous location where exception was thrown ---&#xD;
+[xUnit.net 00:00:51.04]            at System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw()&#xD;
+[xUnit.net 00:00:51.04]            at System.Runtime.CompilerServices.TaskAwaiter.HandleNonSuccessAndDebuggerNotification(Task task)&#xD;
+[xUnit.net 00:00:51.04]         --- End of stack trace from previous location where exception was thrown ---&#xD;
+[xUnit.net 00:00:51.04]            at System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw()&#xD;
+[xUnit.net 00:00:51.04]            at System.Runtime.CompilerServices.TaskAwaiter.HandleNonSuccessAndDebuggerNotification(Task task)&#xD;
+[xUnit.net 00:00:51.04]         --- End of stack trace from previous location where exception was thrown ---&#xD;
+[xUnit.net 00:00:51.04]            at System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw()&#xD;
+[xUnit.net 00:00:51.04]            at System.Runtime.CompilerServices.TaskAwaiter.HandleNonSuccessAndDebuggerNotification(Task task)&#xD;
+[xUnit.net 00:00:54.96]   Finished:    LanChat.Tests&#xD;
+</StdOut>
+    </Output>
+    <RunInfos>
+      <RunInfo computerName="ADMIN-PC" outcome="Error" timestamp="2026-11-20T07:39:27.1748087+07:00">
+        <Text>[xUnit.net 00:00:48.28]     LanChat.Tests.WindowsUiTests.ResponsiveWorkspaceKeepsDraftAndConversationAtEverySize(dpi: 192) [FAIL]</Text>
+      </RunInfo>
+      <RunInfo computerName="ADMIN-PC" outcome="Error" timestamp="2026-11-20T07:39:29.9341553+07:00">
+        <Text>[xUnit.net 00:00:51.04]     LanChat.Tests.WindowsUiTests.ResponsiveWorkspaceKeepsDraftAndConversationAtEverySize(dpi: 96) [FAIL]</Text>
+      </RunInfo>
+    </RunInfos>
+  </ResultSummary>
+</TestRun>

@@ -7,6 +7,8 @@ internal sealed class GroupMembersControl : UserControl
 {
     private readonly PersonNameCheckedListBox _list = new(item => ((SelectionItem)item).DisplayName)
         { Dock = DockStyle.Fill, CheckOnClick = true, IntegralHeight = false, AccessibleName = "Thành viên nhóm" };
+    private SelectionItem[] _allRows = [];
+    private readonly PromptTextBox _search = new() { Dock = DockStyle.Fill, PlaceholderText = "Tìm thành viên…", AccessibleName = "Tìm thành viên nhóm" };
     private readonly Label _hint = Theme.Label("");
     private readonly IconButton _save = Theme.Button("Lưu thành viên", UiIcon.Save);
     private readonly Dictionary<Guid, Dictionary<Guid, bool>> _drafts = [];
@@ -35,19 +37,22 @@ internal sealed class GroupMembersControl : UserControl
         Dock = DockStyle.Fill;
         Margin = Padding.Empty;
 
-        var layout = Theme.Stack(3);
+        var layout = Theme.Stack(4);
         layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));
         layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         var actions = Theme.Toolbar();
         actions.FlowDirection = FlowDirection.RightToLeft;
         actions.Controls.Add(_save);
         layout.Controls.Add(_hint, 0, 0);
-        layout.Controls.Add(_list, 0, 1);
-        layout.Controls.Add(actions, 0, 2);
+        layout.Controls.Add(_search, 0, 1);
+        layout.Controls.Add(_list, 0, 2);
+        layout.Controls.Add(actions, 0, 3);
         Controls.Add(layout);
         UiInteraction.Wrap(_hint, layout);
 
+        _search.TextChanged += (_, _) => FilterRows();
         _list.IsCheckEnabled = item => CanCheck((SelectionItem)item);
         _list.ItemCheck += MemberChecked;
         _save.Click += (_, _) =>
@@ -103,7 +108,17 @@ internal sealed class GroupMembersControl : UserControl
                 .ThenByDescending(person => _members.Contains(person.Id))
                 .ThenBy(person => person.ToString(), StringComparer.CurrentCultureIgnoreCase).ToArray();
         }
-        BindRows(rows, edits, resetViewport);
+        _allRows = rows;
+        if (resetViewport) _search.Clear();
+        BindRows(FilteredRows(), edits, resetViewport);
+    }
+
+    private SelectionItem[] FilteredRows() => _allRows.Where(row => string.IsNullOrWhiteSpace(_search.Text) ||
+        MentionDraft.Matches(row.DisplayName.ToString(), _search.Text.Trim())).ToArray();
+    private void FilterRows()
+    {
+        var edits = _group is { } group && _drafts.TryGetValue(group.Id, out var changes) ? changes : null;
+        BindRows(FilteredRows(), edits, true);
     }
 
     public SelectionItem MemberName(Guid id)
@@ -189,10 +204,11 @@ internal sealed class GroupMembersControl : UserControl
         _save.BackColor = _save.Enabled ? Theme.Blue : Theme.Border;
         _save.Text = _creating ? "Tạo nhóm" : "Lưu thành viên";
         _save.Icon = _creating ? UiIcon.AddPerson : UiIcon.Save;
-        _hint.Text = _status ?? (_creating ? (_pairMember.HasValue ? "Nhóm sẽ gồm hai người dùng đang kết nối." : "Tích chọn người rồi bấm Tạo nhóm.") :
+        var pending = _creating ? _newGroupMembers.Count : _group is { } current && _drafts.TryGetValue(current.Id, out var pendingEdits) ? pendingEdits.Count : 0;
+        _hint.Text = (pending > 0 ? $"{pending} thay đổi chưa lưu · " : "") + (_status ?? (_creating ? (_pairMember.HasValue ? "Nhóm sẽ gồm hai người dùng đang kết nối." : "Tích chọn người rồi bấm Tạo nhóm.") :
             _group is null ? "Chọn một nhóm để xem thành viên." :
             _group.PendingCreation ? "Chờ mạng xác nhận để sửa thành viên." :
-            IsOwner ? "Tích để thêm, bỏ tích để bớt." : "Chỉ chủ nhóm có thể thay đổi thành viên.");
+            IsOwner ? "Tích để thêm, bỏ tích để bớt." : "Chỉ chủ nhóm có thể thay đổi thành viên."));
         _list.Invalidate();
     }
 }

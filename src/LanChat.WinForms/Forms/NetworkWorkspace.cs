@@ -14,9 +14,10 @@ internal sealed partial class NetworkWorkspace : DpiForm
     private readonly Dictionary<Guid, (RunningNetwork Network, MainForm View, TabPage Tab)> _running = new();
     private readonly System.Collections.Concurrent.ConcurrentDictionary<Guid, IServiceProvider> _updateNetworks = new();
     private readonly IconButton _scanButton = Theme.Secondary("Quét tất cả", UiIcon.Scan);
-    private IconButton? _aboutButton;
+    private IconButton? _moreButton;
     private readonly System.Windows.Forms.Timer _updateTimer = new() { Interval = 60 * 1000 };
     private readonly Button _restoreDefaultButton;
+    private readonly Button _manageNetworksButton;
     private readonly Label _feedback = Theme.Label("");
     private readonly NotifyIcon _tray = new() { Icon = AppIcon.Value, Text = "LanChat", Visible = true };
     private readonly List<Button> _actions = [];
@@ -65,17 +66,27 @@ internal sealed partial class NetworkWorkspace : DpiForm
         }
         _scanButton.Click += async (_, _) => { if (_scan is not null) _scan.Cancel(); else if (!_busy && !_installing) await ScanAsync(); };
         actions.Controls.Add(_scanButton);
-        AddAction("Mạng chat", UiIcon.Network, ManageAsync, changesNetworks: true);
+        _manageNetworksButton = AddAction("Mạng chat", UiIcon.Network, ManageAsync, changesNetworks: true);
         _restoreDefaultButton = AddAction("Khôi phục mạng mặc định", UiIcon.Restore, RestoreDefaultNetworkAsync, changesNetworks: true);
-        _restoreDefaultButton.Visible = _catalog.CanRestoreDefaultNetwork;
+        _restoreDefaultButton.Visible = _catalog.CanRestoreDefaultNetwork && !_catalog.Entries.Any(_catalog.IsDefault);
         AddAction("Cài đặt", UiIcon.Settings, SettingsAsync);
-        _aboutButton = (IconButton)AddAction("Giới thiệu", UiIcon.Info, ShowAboutAsync);
+        var moreMenu = new ContextMenuStrip();
+        moreMenu.Items.Add("Giới thiệu và cập nhật…", UiIcons.ForMenu(UiIcon.Info), async (_, _) => await RunAsync(ShowAboutAsync));
+        moreMenu.Items.Add("Cài đặt cập nhật…", UiIcons.ForMenu(UiIcon.Settings), async (_, _) => await RunAsync(() => { ShowUpdateSettings(); return Task.CompletedTask; }));
+        moreMenu.Items.Add("Hướng dẫn bắt đầu…", UiIcons.ForMenu(UiIcon.Book), async (_, _) => await RunAsync(ShowGettingStartedAsync));
+        _moreButton = (IconButton)AddAction("Thêm", UiIcon.More, () =>
+        { moreMenu.Show(_moreButton!, new Point(0, _moreButton!.Height)); return Task.CompletedTask; });
+        _moreButton.ContextMenuStrip = moreMenu;
+        _moreButton.AccessibleName = "Thêm: giới thiệu, cập nhật và hướng dẫn";
+        actionTips.SetToolTip(_moreButton, _moreButton.AccessibleName);
+        Disposed += (_, _) => moreMenu.Dispose();
         root.Controls.Add(actions, 0, 0); root.Controls.Add(_feedback, 0, 1);
         root.Controls.Add(CreateUpdateBar(), 0, 2); root.Controls.Add(_tabs, 0, 3);
         Controls.Add(root);
         var trayMenu = new ContextMenuStrip();
         trayMenu.Items.Add("Mở LanChat", UiIcons.ForMenu(UiIcon.Open), (_, _) => RestoreWindow());
         trayMenu.Items.Add("Thoát LanChat", UiIcons.ForMenu(UiIcon.Exit), (_, _) => { _exitRequested = true; Close(); });
+        trayMenu.Items.Insert(1, new ToolStripMenuItem("Hướng dẫn bắt đầu…", UiIcons.ForMenu(UiIcon.Book), async (_, _) => await RunAsync(ShowGettingStartedAsync)));
         _tray.ContextMenuStrip = trayMenu;
         _tray.DoubleClick += (_, _) => RestoreWindow();
         _tray.BalloonTipClicked += async (_, _) =>
@@ -135,6 +146,8 @@ internal sealed partial class NetworkWorkspace : DpiForm
         finally { _busy = false; UpdateActionState(); }
         _ = _updates.CheckAsync(manual: false);
         _updateTimer.Start();
+        if (!_catalog.UiPreferences.OnboardingCompleted && (!_catalog.HasSavedProfile || _running.Count == 0))
+            await ShowGettingStartedAsync();
     }
 
     private async Task LoadNetworksAsync()
@@ -171,9 +184,12 @@ internal sealed partial class NetworkWorkspace : DpiForm
             tab.Tag = entry.Id;
             view.EmbedInWorkspace((conversationId, messageId, title, body) => ShowNotification(entry.Id, conversationId, messageId, title, body),
                 () => Visible && WindowState != FormWindowState.Minimized && _tabs.SelectedTab == tab);
+            view.ApplyPreferences(_catalog.UiPreferences);
+            view.ManageNetworksRequested += async () => await RunAsync(ManageAsync);
             view.Dock = DockStyle.Fill;
             tab.Controls.Add(view); _tabs.TabPages.Add(tab);
             _running.Add(entry.Id, (network, view, tab));
+            _manageNetworksButton.Visible = false;
             view.UnreadCountChanged += UpdateUnreadBadges;
             view.DialogOperationCompleted += async () => await OpenPendingNotificationAsync();
             view.Show();
@@ -184,6 +200,7 @@ internal sealed partial class NetworkWorkspace : DpiForm
         catch
         {
             _running.Remove(entry.Id);
+            _manageNetworksButton.Visible = _running.Count == 0;
             _updateNetworks.TryRemove(entry.Id, out _);
             if (tab is not null) { _tabs.TabPages.Remove(tab); tab.Dispose(); }
             else view?.Dispose();
@@ -272,6 +289,14 @@ internal sealed partial class NetworkWorkspace : DpiForm
         }
     }
 
+    private async Task ShowGettingStartedAsync()
+    {
+        using var guide = new GettingStartedForm(() => _catalog.Profile.Name, () => _running.Count > 0,
+            SettingsAsync, ManageAsync, ScanAsync);
+        UiInteraction.ShowDialog(guide, this);
+        await _catalog.SaveUiPreferencesAsync(_catalog.UiPreferences with { OnboardingCompleted = true });
+    }
+
     private Task SettingsAsync()
     {
         var profile = _catalog.Profile;
@@ -284,7 +309,11 @@ internal sealed partial class NetworkWorkspace : DpiForm
                 await _catalog.ApplyProfileAsync(network.Network.Services.GetRequiredService<IChatStore>());
                 await network.View.UpdateProfileAsync();
             }
-        }, ShowUpdateSettings);
+        }, ShowUpdateSettings, _catalog.UiPreferences, async preferences =>
+        {
+            await _catalog.SaveUiPreferencesAsync(preferences);
+            foreach (var network in _running.Values) network.View.ApplyPreferences(preferences);
+        });
         UiInteraction.ShowDialog(dialog, this);
         return Task.CompletedTask;
     }
@@ -303,6 +332,7 @@ internal sealed partial class NetworkWorkspace : DpiForm
         var entry = _catalog.Entries.FirstOrDefault(_catalog.IsDefault) ?? await _catalog.RestoreDefaultAsync();
         await OpenNetworkAsync(entry);
         _tabs.SelectedTab = _running[entry.Id].Tab;
+        _restoreDefaultButton.Visible = false;
         _feedback.Text = "Đã mở mạng mặc định.";
     }
 
@@ -315,6 +345,8 @@ internal sealed partial class NetworkWorkspace : DpiForm
             _feedback.Text = _running.Count == 0 ? NoNetworkMessage : "";
         foreach (var entry in _catalog.Entries)
             if (_running.TryGetValue(entry.Id, out var item)) item.Tab.Text = entry.Name;
+        _restoreDefaultButton.Visible = _catalog.CanRestoreDefaultNetwork && !_catalog.Entries.Any(_catalog.IsDefault);
+        _manageNetworksButton.Visible = _running.Count == 0;
         return Task.CompletedTask;
     }
 
@@ -352,6 +384,7 @@ internal sealed partial class NetworkWorkspace : DpiForm
     {
         if (!_running.TryGetValue(entry.Id, out var item)) return;
         _running.Remove(entry.Id);
+        _manageNetworksButton.Visible = _running.Count == 0;
         _updateNetworks.TryRemove(entry.Id, out _);
         item.View.Close(); _tabs.TabPages.Remove(item.Tab); item.Tab.Dispose();
         UpdateUnreadBadges();

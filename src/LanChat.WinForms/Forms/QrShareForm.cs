@@ -34,6 +34,7 @@ internal sealed class QrShareForm : DpiForm
         status.Text = $"{text.Count} tin · {Math.Max(0, text.Bytes)} / {QrText.MaximumBytes} byte UTF-8 · Plain Text · ECC M" +
             (Version > 0 ? $" · Version {Version}/{QrText.MaximumVersion}" : "") + "\n" +
             (error ?? (text.CanExport ? "QR chỉ chứa nguyên văn các tin được chọn, ghép theo thời gian. Xử lý hoàn toàn trên máy." : "Hãy chọn tin có văn bản để xuất QR."));
+        var summary = status.Text;
         var body = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1, Margin = Padding.Empty };
         body.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50)); body.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
         var preview = new QrPreview(_image, Version == 0 ? 0 : 17 + 4 * Version + 8) { Dock = DockStyle.Fill, AccessibleName = "Bản xem trước QR" };
@@ -49,12 +50,30 @@ internal sealed class QrShareForm : DpiForm
             picker.Title = "Xuất QR thành PNG";
             if (picker.ShowDialog(UiInteraction.Owner(this)) != DialogResult.OK) return;
             save.Enabled = false;
-            try { SavePng(picker.FileName); status.Text = "Đã xuất PNG: " + picker.FileName; }
-            catch (Exception ex) { status.Text = "Chưa xuất được PNG: " + ex.Message; }
+            try { SavePng(picker.FileName); status.Text = summary + "\nĐã xuất PNG: " + picker.FileName; }
+            catch (Exception ex) { status.Text = summary + "\nChưa xuất được PNG: " + ex.Message; }
             finally { save.Enabled = CanExport; }
         };
-        footer.Controls.Add(save); footer.Controls.Add(UiInteraction.CloseButton(this));
+        var copy = Theme.Secondary("Sao chép văn bản", UiIcon.Copy);
+        copy.Enabled = text.Text.Length > 0;
+        copy.Click += (_, _) => { if (UiInteraction.Copy(this, text.Text)) status.Text = summary + "\nĐã sao chép nguyên văn."; };
+        footer.Controls.Add(copy); footer.Controls.Add(save); footer.Controls.Add(UiInteraction.CloseButton(this));
         root.Controls.Add(status, 0, 0); root.Controls.Add(body, 0, 1); root.Controls.Add(footer, 0, 2); Controls.Add(root);
+        void FitBody()
+        {
+            var stacked = body.ClientSize.Width < this.ScalePixels(560);
+            body.SuspendLayout();
+            body.ColumnCount = stacked ? 1 : 2; body.RowCount = stacked ? 2 : 1;
+            body.ColumnStyles.Clear(); body.RowStyles.Clear();
+            body.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, stacked ? 100 : 50));
+            if (!stacked) body.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+            body.RowStyles.Add(new RowStyle(SizeType.Percent, stacked ? 65 : 100));
+            if (stacked) body.RowStyles.Add(new RowStyle(SizeType.Percent, 35));
+            body.SetCellPosition(content, stacked ? new TableLayoutPanelCellPosition(0, 1) : new TableLayoutPanelCellPosition(1, 0));
+            body.ResumeLayout(true);
+        }
+        body.SizeChanged += (_, _) => FitBody();
+        DpiChangedAfterParent += (_, _) => FitBody();
         Disposed += (_, _) => _image?.Dispose(); Shown += (_, _) => { content.Focus(); content.Select(0, 0); };
     }
     internal void SavePng(string path)

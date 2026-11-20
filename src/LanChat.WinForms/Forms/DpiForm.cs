@@ -5,6 +5,8 @@ namespace LanChat.WinForms.Forms;
 public class DpiForm : Form
 {
     private Size _minimumAt96Dpi;
+    // Scoped layout test seam: Windows DeviceDpi always returns the real HWND monitor DPI.
+    internal int? SimulatedLayoutDpi { get; set; }
 
     internal DpiForm()
     {

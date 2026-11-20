@@ -512,7 +512,7 @@ public sealed partial class MainForm
             var original = control.RectangleToScreen(control.ClientRectangle); var visible = original;
             for (var parent = control.Parent; parent is not null; parent = parent.Parent)
                 visible = Rectangle.Intersect(visible, parent.RectangleToScreen(parent.ClientRectangle));
-            if (!control.Visible || original.Width < 80 || original.Height < 25 || visible.Width < original.Width * 0.9 || visible.Height < original.Height * 0.9)
+            if (!control.Visible || original.Width < (control is NavigationItemControl ? this.ScalePixels(44) : 80) || original.Height < 25 || visible.Width < original.Width * 0.9 || visible.Height < original.Height * 0.9)
                 throw new InvalidOperationException($"Control bị khuất: {control.GetType().Name}, bounds={original}, visible={visible}");
         }
     }
@@ -524,9 +524,9 @@ public sealed partial class MainForm
         var layout = (TableLayoutPanel)composer.Parent;
         var messages = Descendants(_chat).OfType<MessageListControl>().Single();
         var composerActions = Descendants(composer).OfType<Button>().Where(button =>
-            button.AccessibleName is "Chọn tệp hoặc thư mục" or "Dán ảnh" or "Chụp vùng").ToArray();
+            button.AccessibleName == "Đính kèm tệp, thư mục, ảnh hoặc chụp vùng").ToArray();
         if (layout.GetRowHeights().Any(h => h < 0) || messages.Height < this.ScalePixels(24) ||
-            editor.Height < this.ScalePixels(32) || editor.Width < this.ScalePixels(80) || composerActions.Length != 3 ||
+            editor.Height < this.ScalePixels(32) || editor.Width < this.ScalePixels(80) || composerActions.Length != 1 || composerActions[0].ContextMenuStrip?.Items.Count != 4 ||
             composerActions.Any(button => !button.Visible || button.Right > button.Parent.ClientSize.Width ||
                 button.Image?.Width != this.ScalePixels(16)))
             throw new InvalidOperationException("Bố cục nhập tin hoặc lịch sử bị thu hẹp khi thêm tệp.");

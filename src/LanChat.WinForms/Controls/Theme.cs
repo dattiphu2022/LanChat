@@ -3,9 +3,12 @@ namespace LanChat.WinForms.Controls;
 internal static class Theme
 {
     private static readonly Dictionary<(float Size, bool Bold), Font> Fonts = [];
+    public static readonly Color Warning = Color.FromArgb(142, 83, 0);
+    public static readonly Color Success = Color.FromArgb(28, 110, 65);
+    public static readonly Color Error = Color.FromArgb(174, 43, 43);
     public static readonly Color Blue = Color.FromArgb(35, 100, 220);
     public static readonly Color Ink = Color.FromArgb(30, 42, 61);
-    public static readonly Color Muted = Color.FromArgb(107, 120, 141);
+    public static readonly Color Muted = Color.FromArgb(89, 105, 126);
     public static readonly Font DefaultFont = GetFont(10, false);
     public static readonly Color Rail = Color.FromArgb(21, 73, 159);
     public static readonly Color Border = Color.FromArgb(221, 229, 239);
@@ -78,6 +81,8 @@ internal static class Theme
     {
         var form = control.FindForm();
         if (form is null) return control.DeviceDpi;
+        if (form is Forms.DpiForm { SimulatedLayoutDpi: int simulated }) return simulated;
+        if ((form.TopLevelControl as Forms.DpiForm)?.SimulatedLayoutDpi is int topLevelDpi) return topLevelDpi;
         if (form.AutoScaleMode != AutoScaleMode.Dpi) return 96;
         return (form.TopLevelControl ?? form).DeviceDpi;
     }

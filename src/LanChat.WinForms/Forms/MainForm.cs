@@ -9,6 +9,13 @@ namespace LanChat.WinForms.Forms;
 
 public sealed partial class MainForm : DpiForm
 {
+    private UiPreferences _appearance = new();
+    internal void ApplyPreferences(UiPreferences preferences)
+    {
+        _appearance = preferences.Validated();
+        _conversations.ApplyPreferences(_appearance);
+        _chat.ApplyPreferences(_appearance);
+    }
     private readonly IChatStore _store;
     private readonly ILanScanner _scanner;
     private readonly IServiceProvider _services;
@@ -28,7 +35,11 @@ public sealed partial class MainForm : DpiForm
     private readonly NavigationItemControl _scanNav = new() { Caption = "Quét lại", Icon = UiIcon.Scan };
     private readonly NavigationItemControl _networkNav = new() { Caption = "Mạng chat", Icon = UiIcon.Network };
     private readonly ToolStripStatusLabel _status = new() { Spring = true, TextAlign = ContentAlignment.MiddleLeft };
-    private readonly ToolStripStatusLabel _scanState = new();
+    private readonly ToolStripStatusLabel _scanState = new() { Overflow = ToolStripItemOverflow.Always };
+    private bool _wasConnected;
+    private DateTime _lastStatusRead;
+    private long _statusRevision = -1, _statusPresenceRevision = -1;
+    private readonly ToolStripDropDownButton _connectionActions = new("Kết nối") { AccessibleName = "Hành động kết nối mạng hiện tại" };
     private readonly System.Windows.Forms.Timer _timer = new() { Interval = 500 };
     private readonly CancellationTokenSource _lifetime = new();
     private readonly SemaphoreSlim _refresh = new(1, 1);
@@ -51,7 +62,12 @@ public sealed partial class MainForm : DpiForm
     private bool _groupLeaderReady;
     private string? _memberSaveError;
     private bool _showPeople;
+    private bool _showCompactChat;
+    private readonly List<NavigationItemControl> _navigationItems = [];
+    private readonly Panel _conversationColumn = new() { Dock = DockStyle.Fill, Margin = new Padding(0, 0, 1, 0), BackColor = Theme.Border };
+    private Panel? _navigationRail;
     private bool _layoutQueued;
+    private (int Width, int Dpi, bool ShowingChat)? _workspaceLayoutState;
     private bool _ticking;
     private int _userOperations;
     private Message[] _olderMessages = [];
@@ -75,9 +91,10 @@ public sealed partial class MainForm : DpiForm
     private long? _incomingPosition;
     internal int UnreadCount { get; private set; }
     internal bool HasUnsentDrafts => _chat.Draft().HasContent || _drafts.Values.Any(draft => draft.HasContent) || _info.HasMemberDrafts;
-    internal bool HasActiveWork => _chat.ComposerWorking || _scanCancellation is not null || _userOperations > 0;
+    internal bool HasActiveWork => _attachmentActions.HasActiveOperations || _chat.ComposerWorking || _scanCancellation is not null || _userOperations > 0;
     internal bool HasDialogOperation => _openingDialogs.Count > 0;
     internal event Action? DialogOperationCompleted;
+    internal event Action? ManageNetworksRequested;
     internal event Action? UnreadCountChanged;
     private readonly NavigationItemControl _messageNav = new() { Caption = "Tin nhắn", Icon = UiIcon.Chat, Active = true };
     private readonly NavigationItemControl _usersNav = new() { Caption = "Danh bạ", Icon = UiIcon.Contacts };
@@ -117,7 +134,7 @@ public sealed partial class MainForm : DpiForm
         {
             label.AutoSize = false; label.AutoEllipsis = true; label.UseMnemonic = false;
             label.TextAlign = ContentAlignment.MiddleCenter; label.ForeColor = Color.White;
-            navLayout.Controls.Add(label);
+            navLayout.Controls.Add(label, 0, navLayout.Controls.Count);
         }
         var groups = new NavigationItemControl { Caption = "Nhóm", Icon = UiIcon.People };
         var files = new NavigationItemControl { Caption = "Tệp", Icon = UiIcon.File };
@@ -126,11 +143,13 @@ public sealed partial class MainForm : DpiForm
         {
             item.Dock = DockStyle.Fill; item.MinimumSize = new Size(0, 54); item.Margin = Padding.Empty;
             navLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-            navLayout.Controls.Add(item);
+            navLayout.Controls.Add(item, 0, navLayout.Controls.Count);
+            _navigationItems.Add(item);
         }
+        _navigationRail = navigation;
         navigation.Controls.Add(navLayout);
         workspace.Controls.Add(navigation, 0, 0);
-        var left = new Panel { Dock = DockStyle.Fill, Margin = new Padding(0, 0, 1, 0), BackColor = Theme.Border };
+        var left = _conversationColumn;
         left.Controls.Add(_conversations); left.Controls.Add(_people); workspace.Controls.Add(left, 1, 0);
         var peopleLayout = Theme.Stack(3); peopleLayout.Padding = new Padding(10);
         peopleLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 44));
@@ -147,7 +166,13 @@ public sealed partial class MainForm : DpiForm
         _chatArea.Controls.Add(_chat, 0, 0); _chatArea.Controls.Add(_info, 1, 0);
         workspace.Controls.Add(_chatArea, 2, 0);
         var status = new StatusStrip { Dock = DockStyle.Fill, SizingGrip = false };
-        status.Items.AddRange([_status, _scanState]);
+        status.ShowItemToolTips = true;
+        _connectionActions.DropDownItems.Add("Quét lại mạng hiện tại", UiIcons.ForMenu(UiIcon.Scan), async (_, _) => await ScanAsync(_scanNav));
+        _connectionActions.DropDownItems.Add("Kiểm tra mạng…", UiIcons.ForMenu(UiIcon.Network), (_, _) =>
+        { using var form = ActivatorUtilities.CreateInstance<NetworkForm>(_services); UiInteraction.ShowDialog(form, this); });
+        _connectionActions.DropDownItems.Add("Xem chẩn đoán…", UiIcons.ForMenu(UiIcon.Diagnostics), (_, _) =>
+        { using var form = ActivatorUtilities.CreateInstance<ClusterDiagnosticsForm>(_services); UiInteraction.ShowDialog(form, this); });
+        status.Items.AddRange([_status, _connectionActions, _scanState]);
         root.Controls.Add(status, 0, 1); Controls.Add(root);
 
         _messageNav.Selected += (_, _) => ShowPeople(false);
@@ -163,7 +188,11 @@ public sealed partial class MainForm : DpiForm
         }));
         files.Selected += async (_, _) => await RunUiAsync(() => RunDialogAsync("files", OpenFilesAsync));
         scan.Selected += async (_, _) => await ScanAsync(scan);
-        _networkNav.Selected += (_, _) => { using var form = ActivatorUtilities.CreateInstance<NetworkForm>(services); UiInteraction.ShowDialog(form, this); };
+        _networkNav.Selected += (_, _) =>
+        {
+            if (ManageNetworksRequested is not null) { ManageNetworksRequested(); return; }
+            using var form = ActivatorUtilities.CreateInstance<NetworkForm>(services); UiInteraction.ShowDialog(form, this);
+        };
         _userSearch.TextChanged += (_, _) => BindPeople();
         _conversations.SearchChanged += (_, _) => BindConversations();
         _conversations.Selected += async c => await RunUiAsync(async () =>
@@ -189,6 +218,7 @@ public sealed partial class MainForm : DpiForm
                     action == "mute" ? !c.IsMuted : (bool?)null, action == "read", _lifetime.Token);
             await RefreshAsync();
         });
+        _chat.BackRequested += () => ShowPeople(false);
         _chat.SendRequested += SendSubmissionAsync;
         _chat.ForwardRequested += async ids => await RunUiAsync(() => RunDialogAsync("forward", () => ForwardMessagesAsync(ids)), userOperation: true);
         _chat.ActionRequested += async (m, action) => await RunUiAsync(() => MessageActionAsync(m, action), userOperation: true);
@@ -203,6 +233,7 @@ public sealed partial class MainForm : DpiForm
         _info.AttachmentCommandRequested += async (file, command) => await RunUiAsync(() => AttachmentCommandAsync(file, command), userOperation: true);
         _info.SearchRequested += async query => await RunUiAsync(() => SearchInPanelAsync(query));
         _info.SearchChanged += CancelPanelSearch;
+        _info.GlobalSearchRequested += async () => await RunUiAsync(() => RunDialogAsync("search", SearchMessagesAsync));
         _info.ResultSelected += async result => await RunUiAsync(() => JumpAsync(result));
         _info.MemberSaveRequested += async changes => await RunUiAsync(() => SavePanelMembersAsync(changes), userOperation: true);
         _chatArea.SizeChanged += (_, _) => QueueWorkspaceLayout();
@@ -224,6 +255,7 @@ public sealed partial class MainForm : DpiForm
             _timer.Stop(); _timer.Dispose(); _lifetime.Cancel(); _scanCancellation?.Cancel();
             _historyRead?.Cancel(); _historyRead?.Dispose(); _historyRead = null;
             CancelPanelSearch();
+            _transferCenter?.Dispose();
             _attachmentActions.Dispose();
             _draftImages.Dispose();
             _notification.Dispose();
@@ -233,21 +265,25 @@ public sealed partial class MainForm : DpiForm
     protected override bool ProcessCmdKey(ref System.Windows.Forms.Message msg, Keys keyData)
     {
         if (keyData == (Keys.Control | Keys.K)) { ShowPeople(false); _conversations.FocusSearch(); return true; }
+        if (keyData == (Keys.Control | Keys.Shift | Keys.F)) { _ = RunUiAsync(() => RunDialogAsync("search", SearchMessagesAsync)); return true; }
         if (keyData == (Keys.Control | Keys.F))
         {
             _ = RunUiAsync(() => _activeConversation.HasValue ? OpenPanelAsync(true) : RunDialogAsync("search", SearchMessagesAsync));
             return true;
         }
+        if (keyData == (Keys.Alt | Keys.Left) && _showCompactChat) { ShowPeople(false); return true; }
         if (keyData == Keys.Escape && _panelOpen) { SetPanel(false); return true; }
         return base.ProcessCmdKey(ref msg, keyData);
     }
 
-    private void ShowPeople(bool value)
+    private void ShowPeople(bool value, bool showList = true)
     {
+        _showCompactChat = !showList && _activeConversation.HasValue;
         _showPeople = value;
         _people.Visible = value; _conversations.Visible = !value; _usersNav.Active = value; _messageNav.Active = !value;
         if (value) { _people.BringToFront(); BindPeople(); }
         else _conversations.BringToFront();
+        LayoutWorkspace(); LayoutPanel();
     }
     internal void EmbedInWorkspace(Action<Guid, Guid, string, string> notify, Func<bool> isSelectedNetwork)
     {
@@ -255,7 +291,6 @@ public sealed partial class MainForm : DpiForm
         _notification.Visible = false;
         _showNotification = notify;
         _isSelectedNetwork = isSelectedNetwork;
-        _networkNav.Visible = false;
         _scanNav.Visible = false; _scanNav.MinimumSize = Size.Empty;
     }
 
@@ -289,7 +324,7 @@ public sealed partial class MainForm : DpiForm
     {
         _conversations.SetActive(id);
         if (_activeConversation == id && _boundConversation == id)
-        { ShowPeople(false); _chat.FocusComposer(); return; }
+        { ShowPeople(false, showList: false); _chat.FocusComposer(); return; }
         if (_activeConversation != id)
         {
             _historyRead?.Cancel(); _historyRead?.Dispose();
@@ -305,7 +340,7 @@ public sealed partial class MainForm : DpiForm
             ResetConversationPanel(_summaries.Any(conversation => conversation.Id == id && conversation.Kind == ConversationKind.Group));
             if (IsCompactChat) SetPanel(false);
         }
-        _activeConversation = id; ShowPeople(false);
+        _activeConversation = id; ShowPeople(false, showList: false);
         var selected = _summaries.FirstOrDefault(item => item.Id == id);
         if (selected is not null) _chat.SelectConversation(new PersonName(selected.DisplayName, selected.Department),
             selected.Presence == PresenceStatus.Online, selected.Kind == ConversationKind.Group);
@@ -326,7 +361,9 @@ public sealed partial class MainForm : DpiForm
         _olderMessages = _visibleMessages = [];
         _hasOlder = true;
         ResetConversationPanel(isGroup: false);
+        _showCompactChat = false;
         _chat.ClearConversation();
+        LayoutWorkspace();
         SetPanel(false);
     }
 
@@ -356,7 +393,7 @@ public sealed partial class MainForm : DpiForm
             else await UpdateStatusAsync();
         }
         catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { }
-        catch (Exception ex) { if (!IsDisposed) _status.Text = UiText.HideIpAddresses(ex.Message); }
+        catch (Exception) { if (!IsDisposed) { _status.Text = "! Chưa kiểm tra được kết nối"; _status.ToolTipText = "Chọn Kết nối → Kiểm tra mạng để xem thêm."; } }
         finally { _ticking = false; }
     }
 
@@ -443,6 +480,7 @@ public sealed partial class MainForm : DpiForm
                         await LoadPanelAsync(id.Value);
                 }
             }
+            if (changed && _transferCenter is { IsDisposed: false } transferCenter) _ = transferCenter.RefreshMetadataAsync();
             _revision = revision; _presenceRevision = presenceRevision;
             await UpdateStatusAsync();
         }
@@ -498,6 +536,7 @@ public sealed partial class MainForm : DpiForm
         if (preview.Length > 160) preview = preview.Substring(0, 160) + "…";
         var body = pending.Length > 1 ? $"{pending.Length} tin nhắn mới · {preview}" : preview;
         if (latest.Mentioned) body = latest.SenderName + " đã nhắc tới bạn · " + body;
+        if (_appearance.HideNotificationContent) body = latest.Mentioned ? "Có tin nhắn nhắc tới bạn." : $"Có {pending.Length} tin nhắn mới.";
         var title = new PersonName(conversation.DisplayName, conversation.Department).ToString();
         if (_showNotification is not null) _showNotification(conversation.Id, latest.MessageId, title, body);
         else
@@ -521,18 +560,32 @@ public sealed partial class MainForm : DpiForm
 
     private async Task UpdateStatusAsync()
     {
+        var revision = _store.Revision; var presence = _store.PresenceRevision;
+        // Conversation switches share the snapshot from the existing 500 ms refresh cycle.
+        if (revision == _statusRevision && presence == _statusPresenceRevision && DateTime.UtcNow - _lastStatusRead < TimeSpan.FromMilliseconds(500)) return;
         var ct = _lifetime.Token;
         var state = await Task.Run(async () => (await Consensus.GetStatusAsync(ct), await _store.GetPendingCountAsync(ct)), ct);
         if (!IsDisposed)
         {
+            _statusRevision = revision; _statusPresenceRevision = presence; _lastStatusRead = DateTime.UtcNow;
             if (_groupLeaderReady != state.Item1.LeaderReady)
             {
                 _groupLeaderReady = state.Item1.LeaderReady;
                 if (_panelOpen) UpdatePanelMemberActions();
             }
             var online = _contacts.Count(x => x.Presence == PresenceStatus.Online);
-            _status.Text = UiText.HideIpAddresses(_health.Error ?? (online == 0 ? _health.DiscoveryIssue : null)
-                ?? $"{state.Item1.StatusText}   ·   {online} máy trực tuyến   ·   {state.Item2} tin chờ");
+            var issue = _health.Error ?? (online == 0 ? _health.DiscoveryIssue : null);
+            var scanning = _scanCancellation is not null;
+            var connection = issue is not null ? "! Có lỗi kết nối" : scanning ? "◷ Đang tìm kết nối" : online > 0 ? "● Đã kết nối" :
+                _wasConnected ? "○ Kết nối bị gián đoạn" : "○ Chưa kết nối";
+            _wasConnected |= online > 0;
+            _status.Text = connection + (online > 0 ? $" · {online} máy" : " · Tin vẫn được lưu trên máy") +
+                (state.Item2 > 0 ? $" · {state.Item2} tin chờ đồng bộ" : "");
+            _status.ForeColor = issue is not null ? Theme.Error : online > 0 ? Theme.Success : Theme.Muted;
+            _status.ToolTipText = issue is not null ? "Có vấn đề khi kết nối. Chọn Kết nối để quét lại hoặc kiểm tra mạng." :
+                "Kết nối phản ánh các máy trực tuyến; khả năng chat không phụ thuộc máy điều phối.";
+            _connectionActions.ToolTipText = _scanState.Text.Length > 0 ? _scanState.Text : "Quét lại mạng hiện tại, kiểm tra mạng hoặc xem chẩn đoán.";
+
         }
     }
 
@@ -542,8 +595,8 @@ public sealed partial class MainForm : DpiForm
         IEnumerable<ConversationSummary> matches = _summaries;
         if (text.Length > 0)
         {
-            matches = matches.Where(c => ChatStore.NameMatches(new PersonName(c.DisplayName, c.Department).ToString(), text));
-            matches = matches.Concat(_contacts.Where(u => ChatStore.NameMatches(new PersonName(u.DisplayName, u.Department).ToString(), text) &&
+            matches = matches.Where(c => MentionDraft.Matches(new PersonName(c.DisplayName, c.Department).ToString(), text));
+            matches = matches.Concat(_contacts.Where(u => MentionDraft.Matches(new PersonName(u.DisplayName, u.Department).ToString(), text) &&
                 !_summaries.Any(c => c.OtherUserId == u.UserId))
                 .Select(u => new ConversationSummary(Guid.Empty, u.UserId, u.DisplayName, "Bắt đầu trò chuyện", 0, 0, false, false, u.Presence)
                     { Department = u.Department }));
@@ -554,7 +607,7 @@ public sealed partial class MainForm : DpiForm
     private void BindPeople()
     {
         var query = _userSearch.Text.Trim();
-        var contacts = _contacts.Where(u => query.Length == 0 || ChatStore.NameMatches(new PersonName(u.DisplayName, u.Department).ToString(), query)).ToArray();
+        var contacts = _contacts.Where(u => query.Length == 0 || MentionDraft.Matches(new PersonName(u.DisplayName, u.Department).ToString(), query)).ToArray();
         _userRows.SuspendLayout();
         foreach (var id in _users.Keys.Except(contacts.Select(x => x.UserId)).ToArray()) { _users[id].Dispose(); _users.Remove(id); }
         for (var index = 0; index < contacts.Length; index++)
@@ -653,11 +706,36 @@ public sealed partial class MainForm : DpiForm
     private void LayoutWorkspace()
     {
         var width = _workspace.ClientSize.Width;
-        var railWidth = this.ScalePixels(width < this.ScalePixels(1000) ? 80 : 104);
-        if (_workspace.ColumnStyles[0].Width != railWidth) _workspace.ColumnStyles[0].Width = railWidth;
-        var preferredListWidth = this.ScalePixels(width < this.ScalePixels(1000) ? 248 : 292);
-        var listWidth = Math.Min(preferredListWidth, width * 3 / 10);
-        if (_workspace.ColumnStyles[1].Width != listWidth) _workspace.ColumnStyles[1].Width = listWidth;
+        // Compare device pixels with scaled logical sizes, including the minimum readable chat width.
+        var compactRail = width < this.ScalePixels(1100);
+        var railWidth = this.ScalePixels(compactRail ? 60 : 96);
+        var listMinimum = this.ScalePixels(264);
+        var narrow = width < Math.Max(this.ScalePixels(800), railWidth + listMinimum + this.ScalePixels(430));
+        var showingChat = narrow && _showCompactChat && _activeConversation.HasValue;
+        var state = (width, this.LayoutDpi(), showingChat);
+        if (_workspaceLayoutState == state) return;
+        _workspaceLayoutState = state;
+        _workspace.SuspendLayout();
+        try
+        {
+            if (showingChat) railWidth = 0;
+            var listWidth = narrow ? (showingChat ? 0 : Math.Max(0, width - railWidth)) :
+                Math.Min(this.ScalePixels(compactRail ? 280 : 316), Math.Max(listMinimum, width - railWidth - this.ScalePixels(430)));
+            if (_workspace.ColumnStyles[0].Width != railWidth) _workspace.ColumnStyles[0].Width = railWidth;
+            if (_workspace.ColumnStyles[1].Width != listWidth) _workspace.ColumnStyles[1].Width = listWidth;
+            _conversationColumn.Visible = !showingChat;
+            if (_navigationRail is not null) _navigationRail.Visible = !showingChat;
+            _chatArea.Visible = !narrow || showingChat;
+            foreach (var item in _navigationItems) item.SetCompact(compactRail);
+            _profile.Visible = !compactRail;
+            if (_profile.Parent is TableLayoutPanel navigation)
+            {
+                var profileHeight = compactRail ? 0 : this.ScalePixels(32);
+                if (navigation.RowStyles[1].Height != profileHeight) navigation.RowStyles[1].Height = profileHeight;
+            }
+            _chat.ShowBackButton(narrow);
+        }
+        finally { _workspace.ResumeLayout(true); }
     }
     private void LayoutPanel()
     {
@@ -713,7 +791,7 @@ public sealed partial class MainForm : DpiForm
     {
         var allowChecks = !_savingMembers && !WaitingForMemberCommit;
         var status = _savingMembers ? "Đang lưu thành viên…" :
-            WaitingForMemberCommit ? "Đang đồng bộ thay đổi nhóm…" : _memberSaveError;
+            WaitingForMemberCommit ? "Đang đồng bộ thay đổi nhóm…" : _memberSaveError ?? (!_groupLeaderReady ? "Chưa đủ máy điều phối để xác nhận thay đổi. Lựa chọn của bạn được giữ lại." : null);
         _info.SetMemberActions(allowChecks, allowChecks && _groupLeaderReady, status);
     }
 
