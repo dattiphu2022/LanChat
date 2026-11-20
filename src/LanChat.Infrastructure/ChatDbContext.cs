@@ -67,6 +67,7 @@ public sealed class ChatDbContext : IDisposable
     private readonly Dictionary<(Type Type, Guid Id), (object Row, object?[] Values)> _tracked = new();
     internal bool ContentChanged { get; private set; }
     internal bool PresenceChanged { get; private set; }
+    internal bool ControlLogChanged { get; private set; }
     internal ChatDbContext(SqliteConnection connection, CancellationToken ct) { _connection = connection; _ct = ct; }
     internal void Begin() => _transaction = _connection.BeginTransaction();
     internal void Commit() { SaveChanges(); _ct.ThrowIfCancellationRequested(); _transaction!.Commit(); }
@@ -142,7 +143,8 @@ public sealed class ChatDbContext : IDisposable
     {
         var values = Table<T>.Properties.Select(p => p.GetValue(row)).ToArray();
         Execute($"INSERT INTO {Table<T>.Name} ({Table<T>.Columns}) VALUES ({Parameters(values.Length)})", values);
-        if (typeof(T) != typeof(ClusterState) && typeof(T) != typeof(ControlLogEntry) && typeof(T) != typeof(PeerNode)) ContentChanged = true;
+        if (typeof(T) == typeof(ControlLogEntry)) ControlLogChanged = true;
+        else if (typeof(T) != typeof(ClusterState) && typeof(T) != typeof(PeerNode)) ContentChanged = true;
         if (_transaction is not null) _tracked.Add((typeof(T), (Guid)Table<T>.Id.GetValue(row)!), (row, values));
     }
 
@@ -150,7 +152,11 @@ public sealed class ChatDbContext : IDisposable
     {
         var removed = Rows<T>(where, args);
         var count = Execute($"DELETE FROM {Table<T>.Name} WHERE {where}", args);
-        if (count != 0 && typeof(T) != typeof(ControlLogEntry)) ContentChanged = true;
+        if (count != 0)
+        {
+            if (typeof(T) == typeof(ControlLogEntry)) ControlLogChanged = true;
+            else ContentChanged = true;
+        }
         foreach (var row in removed) _tracked.Remove((typeof(T), (Guid)Table<T>.Id.GetValue(row)!));
         return count;
     }
@@ -173,6 +179,7 @@ public sealed class ChatDbContext : IDisposable
                 previous[j] = value;
             }
             if (columns.Count == 0) continue;
+            if (entry.Key.Type == typeof(ControlLogEntry)) ControlLogChanged = true;
             if (entry.Key.Type != typeof(ClusterState) && (entry.Key.Type != typeof(PeerNode) ||
                 columns.Any(c => c.StartsWith("\"IPAddress\"", StringComparison.Ordinal) || c.StartsWith("\"ServicePort\"", StringComparison.Ordinal))))
                 ContentChanged = true;

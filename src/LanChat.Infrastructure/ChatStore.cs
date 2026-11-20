@@ -8,6 +8,8 @@ public sealed partial class ChatStore(ChatDatabase database, NodeOptions options
     private readonly SemaphoreSlim _write = new(1, 1);
     private long _revision;
     private long _presenceRevision;
+    private long _controlLogRevision;
+    internal long ControlLogRevision => Interlocked.Read(ref _controlLogRevision);
     public long PresenceRevision => Interlocked.Read(ref _presenceRevision);
     public long Revision => Interlocked.Read(ref _revision);
     internal async Task<T> WriteAsync<T>(Func<ChatDbContext, Task<T>> action, CancellationToken ct)
@@ -19,6 +21,7 @@ public sealed partial class ChatStore(ChatDatabase database, NodeOptions options
             db.Begin();
             var result = await action(db).ConfigureAwait(false);
             db.Commit();
+            if (db.ControlLogChanged) Interlocked.Increment(ref _controlLogRevision);
             if (db.ContentChanged) Interlocked.Increment(ref _revision);
             if (db.PresenceChanged) Interlocked.Increment(ref _presenceRevision);
             return result;
@@ -91,11 +94,11 @@ public sealed partial class ChatStore(ChatDatabase database, NodeOptions options
     }
     public async Task<NodeInfoDto> GetNodeInfoAsync(CancellationToken ct = default)
     {
-        var identity = await GetIdentityAsync(ct);
-        var p = await GetProfileAsync(ct);
         using var db = database.Open(ct);
+        var identity = db.Required<LocalSettings>();
+        var p = db.Required<LocalUserProfile>("Id=$0", identity.UserId);
         var state = db.One<ClusterState>();
-        var info = new NodeInfoDto(identity.NodeId, identity.DeviceName, options.ServicePort,
+        var info = new NodeInfoDto(identity.NodeId, Environment.MachineName, options.ServicePort,
             new(p.Id, p.DisplayName, p.FullName, p.Nickname, p.Department, p.Position, p.Phone, p.StatusMessage),
             Role: runtime.Role, Term: state?.CurrentTerm ?? 0, CanLead: runtime.CanLead, DeviceKeys: Device.PublicKeys);
         return info with { KeyProof = Device.Sign(options.ClusterId, "discovery", info) };

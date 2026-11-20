@@ -76,13 +76,14 @@ public sealed partial class ChatInputControl
     {
         if (_restoringMentions || _text.IsComposing || !_text.Focused || _mentionCandidates.Length == 0 || _sending || _text.SelectionLength != 0)
         { _mentionPopup.Hide(); return; }
+        var text = _text.Text;
         var end = _text.SelectionStart;
         var start = end - 1;
-        while (start >= 0 && _text.Text[start] != '@' && _text.Text[start] is not ('\r' or '\n') && end - start <= 100) start--;
-        if (start < 0 || _text.Text[start] != '@' || (start > 0 && !char.IsWhiteSpace(_text.Text[start - 1]) && "([{,:;".IndexOf(_text.Text[start - 1]) < 0) ||
+        while (start >= 0 && text[start] != '@' && text[start] is not ('\r' or '\n') && end - start <= 100) start--;
+        if (start < 0 || text[start] != '@' || (start > 0 && !char.IsWhiteSpace(text[start - 1]) && "([{,:;".IndexOf(text[start - 1]) < 0) ||
             _mentions.Values.Any(m => start >= m.Start && start < m.Start + m.Length))
         { _mentionPopup.Hide(); return; }
-        var query = _text.Text.Substring(start + 1, end - start - 1);
+        var query = text.Substring(start + 1, end - start - 1);
         var candidates = _mentionCandidates.Where(c => MentionDraft.Matches(c.All ? "All" : c.Name, query)).Take(30).ToArray();
         if (candidates.Length == 0) { _mentionPopup.Hide(); return; }
         _mentionStart = start;

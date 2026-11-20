@@ -68,10 +68,13 @@ public sealed class MessageBubbleControl : UserControl
     public event Action<AttachmentDto>? FileRequested;
     internal event Action<AttachmentDto, AttachmentCommand>? AttachmentCommandRequested;
     internal event Action<Guid, Guid>? QuoteRequested;
-    public MessageBubbleControl() : this(false) { }
+    private readonly ChatDrawingCache _drawing;
 
-    internal MessageBubbleControl(bool managedLayout)
+    public MessageBubbleControl() : this(null) { }
+
+    internal MessageBubbleControl(ChatDrawingCache? drawing)
     {
+        _drawing = drawing ?? new ChatDrawingCache();
         Size = new Size(400, 120); Margin = Padding.Empty;
         BackColor = Theme.Canvas; DoubleBuffered = true; ResizeRedraw = true;
         _card.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
@@ -146,8 +149,9 @@ public sealed class MessageBubbleControl : UserControl
         Disposed += (_, _) => { _menu.Dispose(); _reactionMenu.Dispose(); };
         _menu.Opening += (_, _) => { foreach (ToolStripItem item in _menu.Items) item.Enabled = _message is not null && _message.Kind != MessageKind.System && ((string?)item.Tag == "delete" || (!_message.IsRecalled && ((string?)item.Tag is not ("edit" or "recall") || _own))); };
         ContextMenuStrip = _card.ContextMenuStrip = _sender.ContextMenuStrip = _body.ContextMenuStrip = _state.ContextMenuStrip = _menu;
-        if (!managedLayout)
+        if (drawing is null)
         {
+            Disposed += (_, _) => _drawing.Dispose();
             SizeChanged += (_, _) => EnsureLayout();
             DpiChangedAfterParent += (_, _) => EnsureLayout();
         }
@@ -189,11 +193,12 @@ public sealed class MessageBubbleControl : UserControl
         _layoutSize = (Width, this.LayoutDpi());
         try
         {
+            var scale = ChatDrawingCache.ForDpi(_layoutSize.Dpi);
             var system = _message.Kind == MessageKind.System;
-            var gutter = Math.Min(this.ScalePixels(8), Width / 8);
-            var selectionSpace = _selectionMode ? this.ScalePixels(26) : 0;
-            var avatarSpace = !system && Width >= this.ScalePixels(130) ? this.ScalePixels(34) : 0;
-            var maximum = Math.Max(1, Math.Min(Width - gutter * 2 - avatarSpace - selectionSpace, this.ScalePixels(system ? 480 : 620)));
+            var gutter = Math.Min(scale.Pixels(8), Width / 8);
+            var selectionSpace = _selectionMode ? scale.Pixels(26) : 0;
+            var avatarSpace = !system && Width >= scale.Pixels(130) ? scale.Pixels(34) : 0;
+            var maximum = Math.Max(1, Math.Min(Width - gutter * 2 - avatarSpace - selectionSpace, scale.Pixels(system ? 480 : 620)));
             int CardLeft(int cardWidth) => system ? selectionSpace + (Width - selectionSpace - cardWidth) / 2 :
                 _own ? Width - gutter - avatarSpace - cardWidth : gutter + selectionSpace + avatarSpace;
 
@@ -213,66 +218,65 @@ public sealed class MessageBubbleControl : UserControl
                 return;
             }
             _layoutConstraints = constraints;
-            var insetX = Math.Min(this.ScalePixels(10), (maximum - 1) / 2);
-            var insetY = this.ScalePixels(_appearance.Density == UiDensity.Compact ? 3 : _appearance.Density == UiDensity.Comfortable ? 8 : 5);
-            var flags = TextFormatFlags.WordBreak | TextFormatFlags.TextBoxControl | TextFormatFlags.NoPrefix;
-            int TextWidth(string text, Font font) => text.Length == 0 ? 0 : TextRenderer.MeasureText(text, font,
-                new Size(Math.Max(1, maximum - insetX * 2), int.MaxValue), flags).Width;
-            var buttonSize = new Size(this.ScalePixels(26), this.ScalePixels(24));
+            var insetX = Math.Min(scale.Pixels(10), (maximum - 1) / 2);
+            var insetY = scale.Pixels(_appearance.Density == UiDensity.Compact ? 3 : _appearance.Density == UiDensity.Comfortable ? 8 : 5);
+            var measurementWidth = Math.Max(1, maximum - insetX * 2);
+            int TextWidth(string text, Font font) => _drawing.Measure(text, font, measurementWidth, _layoutSize.Dpi).Width;
+            var buttonSize = new Size(scale.Pixels(26), scale.Pixels(24));
             foreach (Button button in _actions.Controls) button.Size = buttonSize;
             var actionsWidth = system ? 0 : buttonSize.Width * 3;
-            var natural = Math.Max(this.ScalePixels(184), Math.Min(TextWidth(_state.Text, _state.Font) + _state.Padding.Horizontal, this.ScalePixels(220)) + actionsWidth + this.ScalePixels(12));
+            var natural = Math.Max(scale.Pixels(184), Math.Min(TextWidth(_state.Text, _state.Font) + _state.Padding.Horizontal, scale.Pixels(220)) + actionsWidth + scale.Pixels(12));
             natural = Math.Max(natural, TextWidth(_body.Text, _body.Font));
-            if (_startsGroup) natural = Math.Max(natural, Math.Min(TextWidth(_sender.Text, _sender.Font), this.ScalePixels(240)));
-            if (_presentation?.Quote is not null) natural = Math.Max(natural, this.ScalePixels(300));
-            var pictureWidth = this.ScalePixels(176);
+            if (_startsGroup) natural = Math.Max(natural, Math.Min(TextWidth(_sender.Text, _sender.Font), scale.Pixels(240)));
+            if (_presentation?.Quote is not null) natural = Math.Max(natural, scale.Pixels(300));
+            var pictureWidth = scale.Pixels(176);
             if (_pictures.Controls.Count > 0)
             {
-                var padding = this.ScalePixels(6);
+                var padding = scale.Pixels(6);
                 foreach (AttachmentItemControl item in _pictures.Controls) pictureWidth = Math.Max(pictureWidth, item.ActionWidth + padding);
-                natural = Math.Max(natural, Math.Min(3, _pictures.Controls.Count) * (pictureWidth + this.ScalePixels(4)));
+                natural = Math.Max(natural, Math.Min(3, _pictures.Controls.Count) * (pictureWidth + scale.Pixels(4)));
             }
             foreach (AttachmentItemControl item in _files.Controls) natural = Math.Max(natural, item.PreferredRowWidth);
             var cardWidth = Math.Max(1, Math.Min(maximum, natural + insetX * 2));
             var contentWidth = Math.Max(1, cardWidth - insetX * 2);
             var x = CardLeft(cardWidth);
-            var y = this.ScalePixels(_startsGroup ? 8 : _appearance.Density == UiDensity.Compact ? 1 : _appearance.Density == UiDensity.Comfortable ? 5 : 2) + (_separateBefore ? 2 : 0);
-            if (_selectionMode) _select.SetBounds(gutter, y + this.ScalePixels(6), this.ScalePixels(20), this.ScalePixels(20));
+            var y = scale.Pixels(_startsGroup ? 8 : _appearance.Density == UiDensity.Compact ? 1 : _appearance.Density == UiDensity.Comfortable ? 5 : 2) + (_separateBefore ? 2 : 0);
+            if (_selectionMode) _select.SetBounds(gutter, y + scale.Pixels(6), scale.Pixels(20), scale.Pixels(20));
 
             _card.SuspendLayout();
             var picturesHeight = 0;
             if (_pictures.Controls.Count > 0)
             {
                 var tileWidth = Math.Max(1, Math.Min(pictureWidth, contentWidth));
-                var gap = this.ScalePixels(4);
+                var gap = scale.Pixels(4);
                 var columns = Math.Max(1, contentWidth / (tileWidth + gap));
                 tileWidth = Math.Max(1, Math.Min(tileWidth, contentWidth / columns - gap));
                 foreach (AttachmentItemControl item in _pictures.Controls)
                 {
-                    item.Margin = new Padding(0, 0, this.ScalePixels(4), this.ScalePixels(4)); item.FitWidth(tileWidth);
+                    item.Margin = new Padding(0, 0, scale.Pixels(4), scale.Pixels(4)); item.FitWidth(tileWidth);
                 }
                 var rows = (_pictures.Controls.Count + columns - 1) / columns;
-                picturesHeight = rows * (_pictures.Controls[0].Height + this.ScalePixels(4));
+                picturesHeight = rows * (_pictures.Controls[0].Height + scale.Pixels(4));
             }
             var filesHeight = 0;
             foreach (AttachmentItemControl item in _files.Controls)
             {
-                item.Margin = new Padding(0, 0, 0, this.ScalePixels(4)); item.FitWidth(contentWidth);
+                item.Margin = new Padding(0, 0, 0, scale.Pixels(4)); item.FitWidth(contentWidth);
                 filesHeight += item.Height + item.Margin.Vertical;
             }
-            var bodyHeight = _body.Text.Length == 0 ? 0 : TextRenderer.MeasureText(_body.Text, _body.Font,
-                new Size(contentWidth, int.MaxValue), flags).Height + this.ScalePixels(4);
-            _body.Margin = new Padding(0, 0, 0, bodyHeight > 0 && _attachments.Length > 0 ? this.ScalePixels(4) : 0);
-            var top = this.ScalePixels(2);
-            var showQuickActions = !system && contentWidth >= this.ScalePixels(174);
+            var bodyHeight = _body.Text.Length == 0 ? 0 :
+                _drawing.Measure(_body.Text, _body.Font, contentWidth, _layoutSize.Dpi).Height + scale.Pixels(4);
+            _body.Margin = new Padding(0, 0, 0, bodyHeight > 0 && _attachments.Length > 0 ? scale.Pixels(4) : 0);
+            var top = scale.Pixels(2);
+            var showQuickActions = !system && contentWidth >= scale.Pixels(174);
             _reply.Visible = _react.Visible = showQuickActions;
             actionsWidth = system ? 0 : buttonSize.Width * (showQuickActions ? 3 : 1);
             var footerHeight = Math.Max(_state.PreferredHeight, system ? 0 : buttonSize.Height) + top;
             _actions.SetBounds(contentWidth - actionsWidth, top, actionsWidth, buttonSize.Height);
-            _state.SetBounds(0, top, Math.Max(1, contentWidth - actionsWidth - (system ? 0 : this.ScalePixels(6))), footerHeight - top);
-            _quote.Margin = new Padding(0, 0, 0, this.ScalePixels(4));
+            _state.SetBounds(0, top, Math.Max(1, contentWidth - actionsWidth - (system ? 0 : scale.Pixels(6))), footerHeight - top);
+            _quote.Margin = new Padding(0, 0, 0, scale.Pixels(4));
             var quoteHeight = _quote.HeightForWidth(contentWidth);
-            var senderHeight = !system && _startsGroup ? _sender.PreferredHeight + this.ScalePixels(2) : 0;
+            var senderHeight = !system && _startsGroup ? _sender.PreferredHeight + scale.Pixels(2) : 0;
             var replyHeight = quoteHeight == 0 ? 0 : quoteHeight + _quote.Margin.Vertical;
             var textHeight = bodyHeight + _body.Margin.Vertical;
             void SetRowHeight(int row, int height)
@@ -290,9 +294,9 @@ public sealed class MessageBubbleControl : UserControl
             _card.SetBounds(x + insetX, y + insetY, contentWidth, height);
             _card.ResumeLayout(true);
             _bubbleBounds = new Rectangle(x, y, cardWidth, height + insetY * 2);
-            _avatarBounds = avatarSpace == 0 || !_startsGroup ? Rectangle.Empty : new Rectangle(_own ? _bubbleBounds.Right + this.ScalePixels(6) : gutter + selectionSpace,
-                y + this.ScalePixels(2), this.ScalePixels(26), this.ScalePixels(26));
-            var rowHeight = Math.Max(_bubbleBounds.Bottom, _avatarBounds.Bottom) + this.ScalePixels(2);
+            _avatarBounds = avatarSpace == 0 || !_startsGroup ? Rectangle.Empty : new Rectangle(_own ? _bubbleBounds.Right + scale.Pixels(6) : gutter + selectionSpace,
+                y + scale.Pixels(2), scale.Pixels(26), scale.Pixels(26));
+            var rowHeight = Math.Max(_bubbleBounds.Bottom, _avatarBounds.Bottom) + scale.Pixels(2);
             if (Height != rowHeight) Height = rowHeight;
             Invalidate();
         }
@@ -308,21 +312,19 @@ public sealed class MessageBubbleControl : UserControl
         }
         if (_bubbleBounds.Width <= 1 || _bubbleBounds.Height <= 1) return;
         e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-        var bounds = _bubbleBounds;
-        bounds.Width--; bounds.Height--;
-        var diameter = Math.Min(this.ScalePixels(12), Math.Min(bounds.Width, bounds.Height));
-        using var shape = new GraphicsPath();
-        shape.AddArc(bounds.X, bounds.Y, diameter, diameter, 180, 90);
-        shape.AddArc(bounds.Right - diameter, bounds.Y, diameter, diameter, 270, 90);
-        shape.AddArc(bounds.Right - diameter, bounds.Bottom - diameter, diameter, diameter, 0, 90);
-        shape.AddArc(bounds.X, bounds.Bottom - diameter, diameter, diameter, 90, 90);
-        shape.CloseFigure();
-        using var fill = new SolidBrush(_card.BackColor);
-        using var edge = new Pen(_highlighted || _selected ? Theme.Blue : _unread ? Color.FromArgb(151, 183, 231) : _border, _highlighted || _selected ? 2 : 1);
-        e.Graphics.FillPath(fill, shape);
-        e.Graphics.DrawPath(edge, shape);
+        if (e.ClipRectangle.IntersectsWith(Rectangle.Inflate(_bubbleBounds, 1, 1)))
+        {
+            var bounds = _bubbleBounds;
+            bounds.Width--; bounds.Height--;
+            var diameter = Math.Min(this.ScalePixels(12), Math.Min(bounds.Width, bounds.Height));
+            var shape = _drawing.RoundedOutline(bounds, diameter);
+            using var fill = new SolidBrush(_card.BackColor);
+            using var edge = new Pen(_highlighted || _selected ? Theme.Blue : _unread ? Color.FromArgb(151, 183, 231) : _border, _highlighted || _selected ? 2 : 1);
+            e.Graphics.FillPath(fill, shape);
+            e.Graphics.DrawPath(edge, shape);
+        }
 
-        if (_avatarBounds.IsEmpty) return;
+        if (_avatarBounds.IsEmpty || !e.ClipRectangle.IntersectsWith(_avatarBounds)) return;
         using var avatar = new SolidBrush(_avatarColor.Background);
         e.Graphics.FillEllipse(avatar, _avatarBounds);
         TextRenderer.DrawText(e.Graphics, _initials, _sender.Font, _avatarBounds, _avatarColor.Ink,
@@ -426,6 +428,7 @@ public sealed class MessageListControl : UserControl
         WrapContents = false, BackColor = Theme.Canvas, Padding = new Padding(0, 0, 0, 10) };
     private readonly Label _unreadDivider = Theme.Label("Tin nhắn chưa đọc", 9, true);
     private readonly ToolTip _actionToolTips = new();
+    private readonly ChatDrawingCache _drawing = new();
     private readonly Dictionary<Guid, MessageBubbleControl> _bubbles = [];
     private readonly Queue<MessageBubbleControl> _prepared = new();
     private bool IsBoundBubble(MessageBubbleControl bubble) =>
@@ -502,6 +505,7 @@ public sealed class MessageListControl : UserControl
             _resizeTimer.Dispose();
             _unreadDivider.Dispose();
             _actionToolTips.Dispose();
+            _drawing.Dispose();
         };
         _resizeTimer.Tick += (_, _) => { _resizeTimer.Stop(); ResizeItems(); };
         HandleCreated += (_, _) => ResizeItems();
@@ -513,8 +517,14 @@ public sealed class MessageListControl : UserControl
     private void OnScrolled()
     {
         if (_binding || _resizing) return;
-        foreach (var bubble in _bubbles.Values) bubble.EnsureImagesLoaded();
+        LoadVisibleImages();
         if (AtBottom) { NewMessages?.Invoke(false); ReachedBottom?.Invoke(); }
+    }
+    private void LoadVisibleImages()
+    {
+        var viewportHeight = _flow.ClientSize.Height;
+        foreach (var bubble in _bubbles.Values)
+            if (bubble.Bottom > 0 && bubble.Top < viewportHeight) bubble.EnsureImagesLoaded();
     }
     public void ConfigureImages(ChatImageService images) { _images = images; foreach (var bubble in _bubbles.Values) bubble.ConfigureImages(images); }
 
@@ -589,7 +599,7 @@ public sealed class MessageListControl : UserControl
     }
     private MessageBubbleControl CreateBubble(bool hidden = false)
     {
-        var bubble = new MessageBubbleControl(managedLayout: true) { Visible = !hidden };
+        var bubble = new MessageBubbleControl(_drawing) { Visible = !hidden };
         bubble.SelectionChanged += (id, selected) => { _selection.Select(id, selected); RefreshSelection(false); };
         bubble.ActionRequested += (message, action) => ActionRequested?.Invoke(message, action);
         bubble.FileRequested += file => FileRequested?.Invoke(file);
@@ -710,7 +720,7 @@ public sealed class MessageListControl : UserControl
             while (reusable.Count > 0) reusable.Dequeue().Dispose();
             _flow.ResumeLayout(true); _binding = false;
         }
-        foreach (var bubble in _bubbles.Values) bubble.EnsureImagesLoaded();
+        LoadVisibleImages();
         SelectionChanged?.Invoke();
     }
 

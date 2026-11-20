@@ -123,7 +123,11 @@ internal static class Program
                     acquired = false;
                     return existing;
                 }
-                catch (WaitHandleCannotBeOpenedException) { }
+                catch (WaitHandleCannotBeOpenedException)
+                {
+                    // The other process can close the mutex between create and open.
+                    Thread.Sleep(1);
+                }
             }
         }
     }

@@ -37,8 +37,10 @@ public sealed partial class MainForm : DpiForm
     private readonly ToolStripStatusLabel _status = new() { Spring = true, TextAlign = ContentAlignment.MiddleLeft };
     private readonly ToolStripStatusLabel _scanState = new() { Overflow = ToolStripItemOverflow.Always };
     private bool _wasConnected;
-    private DateTime _lastStatusRead;
-    private long _statusRevision = -1, _statusPresenceRevision = -1;
+    private DateTime _lastMemberStatusRead;
+    private long _pendingCountRevision = -1;
+    private int _pendingMessageCount, _onlineCount;
+    private (string Connection, int Online, int Pending, bool HasIssue)? _shownStatus;
     private readonly ToolStripDropDownButton _connectionActions = new("Kết nối") { AccessibleName = "Hành động kết nối mạng hiện tại" };
     private readonly System.Windows.Forms.Timer _timer = new() { Interval = 500 };
     private readonly CancellationTokenSource _lifetime = new();
@@ -393,7 +395,7 @@ public sealed partial class MainForm : DpiForm
             else await UpdateStatusAsync();
         }
         catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { }
-        catch (Exception) { if (!IsDisposed) { _status.Text = "! Chưa kiểm tra được kết nối"; _status.ToolTipText = "Chọn Kết nối → Kiểm tra mạng để xem thêm."; } }
+        catch (Exception) { _shownStatus = null; if (!IsDisposed) { _status.Text = "! Chưa kiểm tra được kết nối"; _status.ToolTipText = "Chọn Kết nối → Kiểm tra mạng để xem thêm."; } }
         finally { _ticking = false; }
     }
 
@@ -422,6 +424,7 @@ public sealed partial class MainForm : DpiForm
                 if (IsDisposed) return;
                 var presence = contacts.ToDictionary(u => u.UserId, u => u.Presence);
                 _contacts = contacts;
+                _onlineCount = contacts.Count(u => u.Presence == PresenceStatus.Online);
                 _summaries = summaries.Select(c => c.Kind == ConversationKind.Direct && presence.TryGetValue(c.OtherUserId, out var online)
                     ? c with { Presence = online } : c).ToArray();
                 BindConversations(); if (_showPeople) BindPeople();
@@ -560,33 +563,54 @@ public sealed partial class MainForm : DpiForm
 
     private async Task UpdateStatusAsync()
     {
-        var revision = _store.Revision; var presence = _store.PresenceRevision;
-        // Conversation switches share the snapshot from the existing 500 ms refresh cycle.
-        if (revision == _statusRevision && presence == _statusPresenceRevision && DateTime.UtcNow - _lastStatusRead < TimeSpan.FromMilliseconds(500)) return;
         var ct = _lifetime.Token;
-        var state = await Task.Run(async () => (await Consensus.GetStatusAsync(ct), await _store.GetPendingCountAsync(ct)), ct);
-        if (!IsDisposed)
+        var revision = _store.Revision;
+        if (_pendingCountRevision != revision)
         {
-            _statusRevision = revision; _statusPresenceRevision = presence; _lastStatusRead = DateTime.UtcNow;
-            if (_groupLeaderReady != state.Item1.LeaderReady)
+            // Pending is a message state. The store advances its revision when
+            // that state changes, so an idle tick needs no database connection.
+            var pending = await Task.Run(() => _store.GetPendingCountAsync(ct), ct);
+            if (IsDisposed) return;
+            _pendingMessageCount = pending;
+            _pendingCountRevision = revision;
+        }
+
+        if (_panelOpen && _activeConversation is Guid group &&
+            DateTime.UtcNow - _lastMemberStatusRead >= TimeSpan.FromSeconds(2) &&
+            _summaries.Any(item => item.Id == group && item.Kind == ConversationKind.Group))
+        {
+            // Leader readiness only enables the group-membership controls.
+            // The ordinary connection label uses LAN presence instead.
+            var request = _panelRequest;
+            var state = await Task.Run(() => Consensus.GetStatusAsync(ct), ct);
+            if (IsDisposed) return;
+            if (_panelOpen && _activeConversation == group && request == _panelRequest)
             {
-                _groupLeaderReady = state.Item1.LeaderReady;
-                if (_panelOpen) UpdatePanelMemberActions();
+                _lastMemberStatusRead = DateTime.UtcNow;
+                if (_groupLeaderReady != state.LeaderReady)
+                {
+                    _groupLeaderReady = state.LeaderReady;
+                    UpdatePanelMemberActions();
+                }
             }
-            var online = _contacts.Count(x => x.Presence == PresenceStatus.Online);
-            var issue = _health.Error ?? (online == 0 ? _health.DiscoveryIssue : null);
-            var scanning = _scanCancellation is not null;
-            var connection = issue is not null ? "! Có lỗi kết nối" : scanning ? "◷ Đang tìm kết nối" : online > 0 ? "● Đã kết nối" :
-                _wasConnected ? "○ Kết nối bị gián đoạn" : "○ Chưa kết nối";
-            _wasConnected |= online > 0;
-            _status.Text = connection + (online > 0 ? $" · {online} máy" : " · Tin vẫn được lưu trên máy") +
-                (state.Item2 > 0 ? $" · {state.Item2} tin chờ đồng bộ" : "");
-            _status.ForeColor = issue is not null ? Theme.Error : online > 0 ? Theme.Success : Theme.Muted;
+        }
+
+        var issue = _health.Error ?? (_onlineCount == 0 ? _health.DiscoveryIssue : null);
+        var scanning = _scanCancellation is not null;
+        var connection = issue is not null ? "! Có lỗi kết nối" : scanning ? "◷ Đang tìm kết nối" : _onlineCount > 0 ? "● Đã kết nối" :
+            _wasConnected ? "○ Kết nối bị gián đoạn" : "○ Chưa kết nối";
+        _wasConnected |= _onlineCount > 0;
+        var shown = (connection, _onlineCount, _pendingMessageCount, issue is not null);
+        if (_shownStatus != shown)
+        {
+            _shownStatus = shown;
+            _status.Text = connection + (_onlineCount > 0 ? $" · {_onlineCount} máy" : " · Tin vẫn được lưu trên máy") +
+                (_pendingMessageCount > 0 ? $" · {_pendingMessageCount} tin chờ đồng bộ" : "");
+            _status.ForeColor = issue is not null ? Theme.Error : _onlineCount > 0 ? Theme.Success : Theme.Muted;
             _status.ToolTipText = issue is not null ? "Có vấn đề khi kết nối. Chọn Kết nối để quét lại hoặc kiểm tra mạng." :
                 "Kết nối phản ánh các máy trực tuyến; khả năng chat không phụ thuộc máy điều phối.";
-            _connectionActions.ToolTipText = _scanState.Text.Length > 0 ? _scanState.Text : "Quét lại mạng hiện tại, kiểm tra mạng hoặc xem chẩn đoán.";
-
         }
+        _connectionActions.ToolTipText = _scanState.Text.Length > 0 ? _scanState.Text : "Quét lại mạng hiện tại, kiểm tra mạng hoặc xem chẩn đoán.";
     }
 
     private void BindConversations()
@@ -780,6 +804,7 @@ public sealed partial class MainForm : DpiForm
         {
             _panelCommitIndex = state.CommitIndex;
             _groupLeaderReady = state.LeaderReady;
+            _lastMemberStatusRead = DateTime.UtcNow;
         }
         _info.Bind(data.attachments, data.groups, id, _contacts, _localUser, _profile.Person);
         UpdatePanelMemberActions();

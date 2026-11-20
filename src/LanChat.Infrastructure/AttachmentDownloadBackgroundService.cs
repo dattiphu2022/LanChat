@@ -8,6 +8,7 @@ public sealed class AttachmentDownloadBackgroundService(IDistributedStore store,
     PeerFileTransferService files, ILogger<AttachmentDownloadBackgroundService> logger) : BackgroundService
 {
     private static readonly TimeSpan RetryDelay = TimeSpan.FromSeconds(10);
+    private static readonly TimeSpan PreparedFileRecheck = TimeSpan.FromMinutes(1);
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -34,18 +35,21 @@ public sealed class AttachmentDownloadBackgroundService(IDistributedStore store,
 
                 var currentRevision = chat.Revision;
                 var currentPresence = chat.PresenceRevision;
-                if (revision != currentRevision || presenceRevision != currentPresence || DateTimeOffset.UtcNow >= nextScan)
+                if (presenceRevision != currentPresence)
+                {
+                    retryAfter.Clear();
+                    presenceRevision = currentPresence;
+                }
+                if (revision != currentRevision || DateTimeOffset.UtcNow >= nextScan)
                 {
                     try
                     {
                         // The store filters out recalled/deleted messages and conversations belonging to other users.
                         var attachments = await store.GetAttachmentsAsync(ct: stoppingToken).ConfigureAwait(false);
                         pending = attachments.Where(file => !files.IsPrepared(file)).ToDictionary(file => file.Id);
-                        if (presenceRevision != currentPresence) retryAfter.Clear();
                         foreach (var id in retryAfter.Keys.Where(id => !pending.ContainsKey(id)).ToArray()) retryAfter.Remove(id);
                         revision = currentRevision;
-                        presenceRevision = currentPresence;
-                        nextScan = DateTimeOffset.UtcNow + RetryDelay;
+                        nextScan = DateTimeOffset.UtcNow + PreparedFileRecheck;
                     }
                     catch (Exception ex) when (!stoppingToken.IsCancellationRequested)
                     {

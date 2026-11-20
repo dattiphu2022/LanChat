@@ -105,6 +105,8 @@ public sealed partial class ChatStore
             }, ct).ConfigureAwait(false);
             if (repaired.Count == 0) return;
             after = repaired.Last().Position;
+            // Yield between committed batches, outside the database writer.
+            await Task.Delay(1, ct).ConfigureAwait(false);
         }
     }
 }

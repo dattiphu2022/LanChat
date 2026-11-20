@@ -388,6 +388,30 @@ public sealed partial class WindowsUiTests
     }
 
     [Fact]
+    public Task ChatDrawingCacheReusesGeometryAndKeepsNarrowTextWrapped() => OnUi(_ =>
+    {
+        Assert.Equal(100, ChatDrawingCache.ForDpi(96).Pixels(100));
+        Assert.Equal(125, ChatDrawingCache.ForDpi(120).Pixels(100));
+        Assert.Equal(150, ChatDrawingCache.ForDpi(144).Pixels(100));
+        Assert.Equal(175, ChatDrawingCache.ForDpi(168).Pixels(100));
+        Assert.Equal(200, ChatDrawingCache.ForDpi(192).Pixels(100));
+        Assert.Equal(225, ChatDrawingCache.ForDpi(216).Pixels(100));
+        Assert.Equal(12, ChatDrawingCache.ForDpi(120).Pixels(10));
+        using var cache = new ChatDrawingCache();
+        var bounds = new System.Drawing.Rectangle(10, 10, 260, 48);
+        var outline = cache.RoundedOutline(bounds, 12);
+        Assert.NotSame(outline, cache.RoundedOutline(bounds, 16));
+        Assert.Same(outline, cache.RoundedOutline(bounds, 12));
+
+        var text = string.Join(" ", Enumerable.Repeat("Tin nhắn tiếng Việt", 8));
+        var wide = cache.Measure(text, Theme.DefaultFont, 340, 96);
+        var narrow = cache.Measure(text, Theme.DefaultFont, 150, 96);
+        Assert.True(narrow.Height > wide.Height);
+        Assert.Equal(wide, cache.Measure(text, Theme.DefaultFont, 340, 96));
+        return Task.CompletedTask;
+    });
+
+    [Fact]
     public Task MessageResizeBatchesWidthChangesAndSkipsHeightOnlyReflow() => OnUi(async host =>
     {
         using var view = new Form { ClientSize = new System.Drawing.Size(530, 430) };

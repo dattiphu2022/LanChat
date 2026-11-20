@@ -148,6 +148,13 @@ public sealed partial class ChatStore
         using var db = database.Open(ct);
         return ReadPeerEndpoints(db, "1");
     }
+    internal long NextOutboxRetryTicks(CancellationToken ct)
+    {
+        using var db = database.Open(ct);
+        return db.Scalar("SELECT COALESCE(MIN(NextRetryTicks),$1) FROM OutboxItems WHERE Status=$0",
+            OutboxStatus.Pending, long.MaxValue);
+    }
+
     public async Task<EventDto[]> GetOutboxAsync(CancellationToken ct = default)
     {
         using var db = database.Open(ct); var now = DateTime.UtcNow.Ticks;

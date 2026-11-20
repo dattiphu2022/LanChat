@@ -10,6 +10,7 @@ public sealed class ReplicationBackgroundService(IDistributedStore store, ChatSt
     NodeOptions options, FaultInjection faults, NodeRuntimeState runtime, ILogger<ReplicationBackgroundService> logger) : BackgroundService
 {
     private static readonly TimeSpan ActiveReconciliationInterval = TimeSpan.FromSeconds(6);
+    private static readonly TimeSpan QuietReconciliationInterval = TimeSpan.FromSeconds(12);
     private readonly SemaphoreSlim _sync = new(1, 1);
     private readonly SemaphoreSlim _wake = new(0, 1);
     private readonly object _leaderGate = new();
@@ -27,50 +28,65 @@ public sealed class ReplicationBackgroundService(IDistributedStore store, ChatSt
         try { _wake.Release(); } catch (SemaphoreFullException) { }
     }
     public Task SynchronizeAsync(CancellationToken ct) => SynchronizeAsync(null, ct);
-    private async Task SynchronizeAsync(Guid? preferred, CancellationToken ct, bool activeOnly = false)
+    internal async Task<bool> SynchronizeAsync(Guid? preferred, CancellationToken ct, bool activeOnly = false)
     {
-        if (faults.PauseReplication) return;
+        if (faults.PauseReplication) return false;
         await _sync.WaitAsync(ct).ConfigureAwait(false);
         try
         {
             var peers = activeOnly ? chat.GetActivePeerEndpoints(ct) : await store.GetPeerEndpointsAsync(ct);
-            if (activeOnly && peers.Length == 0) return;
+            if (activeOnly && peers.Length == 0) return false;
+            var pending = await store.GetOutboxAsync(ct);
+            if (peers.Length == 0)
+            {
+                if (pending.Length > 0)
+                    await store.RecordOutboxResultAsync(pending.Select(x => x.Id).ToArray(), false, ct);
+                return false;
+            }
+
             var self = await chat.GetNodeInfoAsync(ct);
             var leader = preferred;
-            if (leader is null)
+            if (leader is null && peers.Length > 1)
             {
                 var state = await consensus.GetStatusAsync(ct);
                 leader = state.PairCoordinatorNodeId ?? state.LeaderNodeId;
             }
-            if (preferred.HasValue && peers.FirstOrDefault(p => p.NodeId == preferred) is { } center)
-            {
-                logger.LogInformation("Immediate sync started with leader {Node}", center.NodeId);
-                try { await ReconcilePeerAsync(center, self, ct).ConfigureAwait(false); }
-                catch (Exception ex) when (!ct.IsCancellationRequested && NetworkFailure(ex))
-                { logger.LogDebug("Immediate sync with leader deferred: {Error}", ex.GetType().Name); }
-            }
-            var pending = await store.GetOutboxAsync(ct); var acknowledged = new HashSet<Guid>();
+
+            var pendingIds = new HashSet<Guid>(pending.Select(x => x.Id));
+            var acknowledged = new HashSet<Guid>();
             var synced = 0;
-            await FrameworkIO.ForEachAsync(peers.OrderByDescending(x => x.NodeId == leader), 4, ct, async (peer, token) =>
+            var changed = 0;
+            async Task SyncPeer(PeerEndpoint peer, CancellationToken token)
             {
                 try
                 {
                     if (pending.Length > 0)
                     {
                         var ack = await transport.CallAsync<EventAck>(peer, "EventPush", new EventBatch(pending), token);
-                        lock (acknowledged) foreach (var id in ack.EventIds) if (pending.Any(x => x.Id == id)) acknowledged.Add(id);
+                        lock (acknowledged) foreach (var id in ack.EventIds) if (pendingIds.Contains(id)) acknowledged.Add(id);
                     }
-                    await ReconcilePeerAsync(peer, self, token);
+                    if (await ReconcilePeerAsync(peer, self, token)) Interlocked.Increment(ref changed);
                     Interlocked.Increment(ref synced);
                 }
-                catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+                catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
                 catch (Exception ex) when (NetworkFailure(ex))
                 { logger.LogDebug("Replication peer unavailable {Node}: {Type}", peer.NodeId, ex.GetType().Name); }
-            });
+            }
+
+            var first = preferred.HasValue ? peers.FirstOrDefault(peer => peer.NodeId == preferred) : null;
+            if (first is not null)
+            {
+                logger.LogInformation("Immediate sync started with leader {Node}", first.NodeId);
+                await SyncPeer(first, ct);
+            }
+
+            await FrameworkIO.ForEachAsync(peers.Where(peer => peer.NodeId != first?.NodeId)
+                .OrderByDescending(peer => peer.NodeId == leader), 4, ct, SyncPeer);
             if (acknowledged.Count > 0) await store.RecordOutboxResultAsync(acknowledged.ToArray(), true, ct);
-            var failed = pending.Select(x => x.Id).Except(acknowledged).ToArray();
+            var failed = pendingIds.Except(acknowledged).ToArray();
             if (failed.Length > 0) await store.RecordOutboxResultAsync(failed, false, ct);
             if (synced > 0) faults.LastSync = DateTimeOffset.UtcNow;
+            return synced == peers.Length && pending.Length == 0 && changed == 0;
         }
         finally { _sync.Release(); }
     }
@@ -78,10 +94,12 @@ public sealed class ReplicationBackgroundService(IDistributedStore store, ChatSt
     public async Task ReconcilePeerAsync(PeerEndpoint peer, CancellationToken ct) =>
         await ReconcilePeerAsync(peer, await chat.GetNodeInfoAsync(ct), ct);
 
-    private async Task ReconcilePeerAsync(PeerEndpoint peer, NodeInfoDto self, CancellationToken ct)
+    private async Task<bool> ReconcilePeerAsync(PeerEndpoint peer, NodeInfoDto self, CancellationToken ct)
     {
         var remote = await transport.CallAsync<ReplicationDigest>(peer, "Digest", self, ct);
+        var localRevision = chat.Revision;
         var localDigest = await store.GetDigestAsync(ct);
+        var transferred = false;
         var revision = (Local: localDigest.GroupHistoryRevision, Remote: remote.GroupHistoryRevision);
         var replayHistory = remote.SupportsGroupHistory &&
             (!_groupHistoryRevisions.TryGetValue(peer.NodeId, out var previous) || previous != revision);
@@ -91,6 +109,7 @@ public sealed class ReplicationBackgroundService(IDistributedStore store, ChatSt
             var cursor = replayHistory ? 0 : local.GetValueOrDefault(origin.OriginNodeId);
             while (cursor < origin.LastOriginSequence)
             {
+                transferred = true;
                 var batch = await transport.CallAsync<EventBatch>(peer, "EventRange",
                     new EventRangeRequest(origin.OriginNodeId, cursor) { IncludeGroupHistory = remote.SupportsGroupHistory }, ct);
                 if (batch.Events.Length == 0) break;
@@ -101,12 +120,13 @@ public sealed class ReplicationBackgroundService(IDistributedStore store, ChatSt
                 if (next <= cursor) break; cursor = next;
             }
         }
-        var ours = (await store.GetDigestAsync(ct)).Cursors;
+        var ours = localRevision == chat.Revision ? localDigest.Cursors : (await store.GetDigestAsync(ct)).Cursors;
         foreach (var origin in ours)
         {
             var after = replayHistory ? 0 : remote.Cursors.FirstOrDefault(x => x.OriginNodeId == origin.OriginNodeId)?.LastOriginSequence ?? 0;
             while (after < origin.LastOriginSequence)
             {
+                transferred = true;
                 var batch = await store.GetEventRangeAsync(new(origin.OriginNodeId, after), ct);
                 if (batch.Events.Length == 0) break;
                 if (remote.SupportsGroupHistory) batch = await chat.AddGroupHistoryAsync(batch, peer.NodeId, ct);
@@ -117,11 +137,15 @@ public sealed class ReplicationBackgroundService(IDistributedStore store, ChatSt
             }
         }
         if (remote.SupportsGroupHistory) _groupHistoryRevisions[peer.NodeId] = revision;
+        return transferred;
     }
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         var lastReconcile = DateTimeOffset.MinValue;
         var lastActiveReconcile = DateTimeOffset.MinValue;
+        var activeInterval = ActiveReconciliationInterval;
+        var outboxRevision = -1L;
+        var nextOutboxRetry = long.MaxValue;
         runtime.LeaderReady += OnLeaderReady;
         try
         {
@@ -142,12 +166,21 @@ public sealed class ReplicationBackgroundService(IDistributedStore store, ChatSt
                         try
                         {
                             var peerRevision = chat.PresenceRevision;
-                            var fullRound = preferred.HasValue || peerRevision != _lastPeerRevision ||
-                                (await store.GetOutboxAsync(round.Token)).Length > 0 || DateTimeOffset.UtcNow - lastReconcile >= options.ReconciliationInterval;
-                            if (fullRound || DateTimeOffset.UtcNow - lastActiveReconcile >= ActiveReconciliationInterval)
+                            var contentRevision = chat.Revision;
+                            var now = DateTimeOffset.UtcNow;
+                            if (outboxRevision != contentRevision)
                             {
-                                // A peer that can dial us can still pull its replies when our return path is down.
-                                await SynchronizeAsync(preferred, round.Token, activeOnly: !fullRound);
+                                nextOutboxRetry = chat.NextOutboxRetryTicks(round.Token);
+                                outboxRevision = contentRevision;
+                            }
+                            var fullRound = preferred.HasValue || peerRevision != _lastPeerRevision ||
+                                nextOutboxRetry <= now.UtcDateTime.Ticks || now - lastReconcile >= options.ReconciliationInterval;
+                            if (fullRound || now - lastActiveReconcile >= activeInterval)
+                            {
+                                // Keep pull available for one-way links, but poll a quiet
+                                // healthy network less often. Pending sends stay on the fast path.
+                                var quiet = await SynchronizeAsync(preferred, round.Token, activeOnly: !fullRound);
+                                activeInterval = quiet ? QuietReconciliationInterval : ActiveReconciliationInterval;
                                 lastActiveReconcile = DateTimeOffset.UtcNow;
                                 if (fullRound)
                                 {

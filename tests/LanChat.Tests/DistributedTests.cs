@@ -171,6 +171,35 @@ public sealed class DistributedTests
         Assert.Equal(101, window.Length); Assert.Equal(actual[100].Id, window[50].Id);
     }
     [Fact]
+    public async Task StatusTracksAppendedAndReplacedControlLog()
+    {
+        await using var node = new TestNode(Guid.NewGuid(), FrameworkIO.RandomBytes(32), "Follower");
+        var bootstrap = node.Options.BootstrapNodeId = Guid.NewGuid();
+        await node.InitializeAsync();
+        var consensus = node.Host.Services.GetRequiredService<ConsensusService>();
+        Assert.Equal(new[] { bootstrap }, (await consensus.GetStatusAsync()).Voters);
+
+        async Task ReplaceMembership(long term, Guid voter)
+        {
+            var command = new ControlCommand(Guid.NewGuid(), ControlCommandType.FinalMembership,
+                Guid.Empty, Guid.Empty, NewVoters: [voter]);
+            var append = new AppendRequest(term, bootstrap, 0, 0, [new(command.Id, 1, term, command)], 0);
+            Assert.True((await consensus.AppendAsync(append, bootstrap, CancellationToken.None)).Success);
+        }
+
+        var first = Guid.NewGuid();
+        await ReplaceMembership(1, first);
+        var current = await consensus.GetStatusAsync();
+        Assert.Equal(new[] { first }, current.Voters);
+        current.Voters[0] = Guid.Empty;
+        Assert.Equal(new[] { first }, (await consensus.GetStatusAsync()).Voters);
+
+        var replacement = Guid.NewGuid();
+        await ReplaceMembership(2, replacement);
+        Assert.Equal(new[] { replacement }, (await consensus.GetStatusAsync()).Voters);
+    }
+
+    [Fact]
     public async Task PersistedVotePreventsTwoCandidatesWinningTheSameTermAfterRestart()
     {
         var cluster = Guid.NewGuid(); var secret = FrameworkIO.RandomBytes(32); var first = Guid.NewGuid(); var second = Guid.NewGuid(); string directory;

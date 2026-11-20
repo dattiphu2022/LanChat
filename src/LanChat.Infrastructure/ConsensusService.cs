@@ -27,6 +27,8 @@ public sealed partial class ConsensusService(ChatStore store, ChatDatabase datab
     private long _leaderTerm;
     private long _electedAt;
     private bool _remoteReady;
+    private long _decodedLogRevision = -1;
+    private LogEntryDto[] _decodedLog = [];
     private readonly Stopwatch _heartbeatSchedule = Stopwatch.StartNew();
     private Guid _nodeId;
 
@@ -50,12 +52,34 @@ public sealed partial class ConsensusService(ChatStore store, ChatDatabase datab
         return config is null ? new([options.BootstrapNodeId], null) : config.Type == ControlCommandType.JointMembership
             ? new(config.OldVoters!, config.NewVoters!) : new(config.NewVoters!, null);
     }
+    // Consensus writes and snapshot reads share _gate. ClusterState stays
+    // fresh on every read; only the decoded, unchanged log rows are reused.
     private Task<Snapshot> ReadAsync(CancellationToken ct)
     {
         using var db = database.Open(ct);
         var state = db.Required<ClusterState>();
-        var log = db.Rows<ControlLogEntry>("1 ORDER BY \"Index\"");
-        return Task.FromResult(new Snapshot(state, log.Select(x => new LogEntryDto(x.Id, x.Index, x.Term, JsonSerializer.Deserialize<ControlCommand>(x.CommandJson)!)).ToArray()));
+        var revision = store.ControlLogRevision;
+        if (_decodedLogRevision != revision)
+        {
+            _decodedLog = db.Rows<ControlLogEntry>("1 ORDER BY \"Index\"")
+                .Select(x => new LogEntryDto(x.Id, x.Index, x.Term, JsonSerializer.Deserialize<ControlCommand>(x.CommandJson)!)).ToArray();
+            _decodedLogRevision = revision;
+        }
+        return Task.FromResult(new Snapshot(state, _decodedLog));
+    }
+
+    private bool HasControlLog(CancellationToken ct)
+    {
+        using var db = database.Open(ct);
+        return db.Exists<ControlLogEntry>("1");
+    }
+
+    private bool IsCommitted(long index, Guid commandId, CancellationToken ct)
+    {
+        using var db = database.Open(ct);
+        if (db.Required<ClusterState>().CommitIndex < index) return false;
+        var entry = db.One<ControlLogEntry>("\"Index\"=$0", index);
+        return entry is not null && JsonSerializer.Deserialize<ControlCommand>(entry.CommandJson)!.Id == commandId;
     }
     private void Contact()
     { Interlocked.Exchange(ref _lastContact, Stopwatch.GetTimestamp()); _lastHeartbeatTicks = DateTime.UtcNow.Ticks; }
@@ -73,7 +97,7 @@ public sealed partial class ConsensusService(ChatStore store, ChatDatabase datab
             var text = quorum ? "Máy này đang điều phối" : ready ? "Đã kết nối mạng chat" :
                 pair is not null ? PairStatusText(pair) : _role == NodeRole.Candidate ? "Đang bầu máy trung tâm…" :
                 "Đang chờ máy trung tâm · tin nhắn vẫn được lưu";
-            return new(_role, state.State.CurrentTerm, state.State.CurrentLeaderNodeId, quorum, config.Old, config.New,
+            return new(_role, state.State.CurrentTerm, state.State.CurrentLeaderNodeId, quorum, config.Old.ToArray(), config.New?.ToArray(),
                 state.State.CommitIndex, _lastHeartbeatTicks, text, runtime.CanLead, ready)
             {
                 SupportsPairGroups = true,
@@ -304,8 +328,10 @@ public sealed partial class ConsensusService(ChatStore store, ChatDatabase datab
                 var commit = latest.Log.Where(e => e.Index > latest.State.CommitIndex && e.Term == latest.State.CurrentTerm &&
                     config.Quorum(_match.Where(x => x.Value >= e.Index).Select(x => x.Key))).Select(x => x.Index).DefaultIfEmpty(latest.State.CommitIndex).Max();
                 if (commit > latest.State.CommitIndex)
+                {
                     await store.WriteAsync(async db => { var s = db.Required<ClusterState>(); s.CommitIndex = commit; await ApplyCommittedAsync(db, s, ct); return true; }, ct);
-                latest = await ReadAsync(ct);
+                    latest = await ReadAsync(ct);
+                }
                 runtime.SetReadyLeader(CanPropose(latest) ? _nodeId : (Guid?)null, latest.State.CurrentTerm);
                 if (_transferring || !CanPropose(latest) || latest.LastIndex != latest.State.CommitIndex) return;
                 if (config.New is not null)
@@ -385,8 +411,8 @@ public sealed partial class ConsensusService(ChatStore store, ChatDatabase datab
             var deadline = Stopwatch.GetTimestamp();
             while (FrameworkIO.Elapsed(deadline) < TimeSpan.FromSeconds(5))
             {
-                await ReplicateRoundAsync(ct); var state = await ReadAsync(ct);
-                if (state.State.CommitIndex >= index && state.Log.Any(x => x.Index == index && x.Command.Id == command.Id))
+                await ReplicateRoundAsync(ct);
+                if (IsCommitted(index, command.Id, ct))
                     return new(true, null, index);
                 if (_role != NodeRole.Leader) break;
                 await Task.Delay(100, ct);
@@ -420,7 +446,7 @@ public sealed partial class ConsensusService(ChatStore store, ChatDatabase datab
                     {
                         var elapsed = FrameworkIO.Elapsed(Interlocked.Read(ref _lastContact));
                         var bootstrap = _nodeId == options.BootstrapNodeId && elapsed.TotalMilliseconds >= 150 &&
-                            _lastElectionAttempt == 0 && (await ReadAsync(stoppingToken)).LastIndex == 0;
+                            _lastElectionAttempt == 0 && !HasControlLog(stoppingToken);
                         var retryDue = _lastElectionAttempt == 0 || FrameworkIO.Elapsed(_lastElectionAttempt) >= TimeSpan.FromMilliseconds(700);
                         if (bootstrap || Volatile.Read(ref _handoffPending) != 0 || (retryDue && elapsed >= options.LeaderTimeout))
                         {
