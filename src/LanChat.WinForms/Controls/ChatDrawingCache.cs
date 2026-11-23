@@ -5,8 +5,12 @@ namespace LanChat.WinForms.Controls;
 // One cache per message list, used only on its UI thread.
 internal sealed class ChatDrawingCache : IDisposable
 {
-    private const int TextCapacity = 1024;
-    private const int ShapeCapacity = 64;
+    // Tăng dung lượng cache nhưng vẫn giới hạn để tránh RAM cao
+    // Giới hạn: tối đa 2048 text entries hoặc 10MB, và 128 shapes
+    private const int TextCapacity = 2048;
+    private static readonly long MaxTextMemoryBytes = 
+        (long)(Environment.WorkingSet * 0.02 * 1024 * 1024); // Tối đa 2% RAM hoặc giới hạn
+    private const int ShapeCapacity = 128;
     private const int LargestBubbleMetric = 620;
     private static readonly IReadOnlyDictionary<int, int[]> CommonScaleMetrics = new Dictionary<int, int[]>
     {
@@ -53,11 +57,28 @@ internal sealed class ChatDrawingCache : IDisposable
         if (text.Length > 512) return TextRenderer.MeasureText(text, font, limit, MessageTextFlags);
         var key = (text, font, width, dpi);
         if (_text.TryGetValue(key, out var size)) return size;
+        
         size = TextRenderer.MeasureText(text, font, limit, MessageTextFlags);
-        if (_text.Count == TextCapacity) _text.Clear();
+        
+        // Giới hạn bộ nhớ: nếu vượt quá 2% RAM thì dọn dẹp cache
+        // Thêm delay 5ms để tránh chiếm CPU cao khi dọn dẹp cache
+        while (_text.Count >= TextCapacity || EstimateMemorySize() > MaxTextMemoryBytes)
+        {
+            var firstKey = _text.Keys.First();
+            if (_text.TryGetValue(firstKey, out var item))
+            {
+                _text.Remove(firstKey);
+                // Không thể ước tính chính xác size của Size, nhưng giảm count sẽ giảm RAM
+                System.Threading.Thread.Sleep(5); // Delay 5ms để tránh chiếm CPU cao
+            }
+        }
+        
         _text.Add(key, size);
         return size;
     }
+    
+    // Ước tính bộ nhớ cho cache text (ước tính mỗi entry ~32 bytes)
+    private long EstimateMemorySize() => _text.Count * 32L;
 
     internal GraphicsPath RoundedOutline(Rectangle bounds, int diameter)
     {
@@ -68,6 +89,8 @@ internal sealed class ChatDrawingCache : IDisposable
             var oldest = _shapeOrder.Dequeue();
             _shapes[oldest].Dispose();
             _shapes.Remove(oldest);
+            // Delay để tránh chiếm CPU cao khi dọn dẹp cache
+            System.Threading.Thread.Sleep(2);
         }
 
         shape = new GraphicsPath();

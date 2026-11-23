@@ -1,3 +1,4 @@
+
 using System.Reflection;
 using LanChat.Domain;
 using Microsoft.Data.Sqlite;
@@ -71,7 +72,17 @@ public sealed class ChatDbContext : IDisposable
     internal ChatDbContext(SqliteConnection connection, CancellationToken ct) { _connection = connection; _ct = ct; }
     internal void Begin() => _transaction = _connection.BeginTransaction();
     internal void Commit() { SaveChanges(); _ct.ThrowIfCancellationRequested(); _transaction!.Commit(); }
-    public void Dispose() { _transaction?.Dispose(); _connection.Dispose(); }
+    public void Dispose()
+    {
+        try
+        {
+            _transaction?.Dispose();
+        }
+        finally
+        {
+            _connection.Dispose();
+        }
+    }
 
     internal SqliteCommand Command(string sql, params object?[] args)
     {
@@ -191,7 +202,10 @@ public sealed class ChatDbContext : IDisposable
 
     private static object Encode(object? value) => value switch
     {
-        null => DBNull.Value, Guid id => id.ToString().ToUpperInvariant(), Enum e => Convert.ToInt32(e), _ => value
+        null => DBNull.Value,
+        Guid id => id.ToString().ToUpperInvariant(),
+        Enum e => Convert.ToInt32(e),
+        _ => value
     };
     private static object Decode(object value, Type property)
     {

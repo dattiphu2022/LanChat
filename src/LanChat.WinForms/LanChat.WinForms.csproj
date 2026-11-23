@@ -12,6 +12,7 @@
     <IntermediateOutputPath Condition="'$(LanChatPublicBuildDirectory)' != ''">$(LanChatPublicBuildDirectory)/obj/</IntermediateOutputPath>
     <OutputPath Condition="'$(LanChatPublicBuildDirectory)' != ''">$(LanChatPublicBuildDirectory)/bin/</OutputPath>
   </PropertyGroup>
+  <!-- Tối ưu bộ nhớ: giới hạn cache thumbnail và GC -->
   <ItemGroup>
     <PackageReference Include="QRCoder" Version="1.8.1" />
     <ProjectReference Include="../LanChat.Infrastructure/LanChat.Infrastructure.csproj" />

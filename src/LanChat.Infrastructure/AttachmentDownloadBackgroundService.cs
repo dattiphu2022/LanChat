@@ -1,3 +1,4 @@
+
 using LanChat.Application;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -18,6 +19,7 @@ public sealed class AttachmentDownloadBackgroundService(IDistributedStore store,
         long revision = -1;
         long presenceRevision = -1;
         var nextScan = DateTimeOffset.MinValue;
+
         try
         {
             while (!stoppingToken.IsCancellationRequested)
@@ -40,14 +42,19 @@ public sealed class AttachmentDownloadBackgroundService(IDistributedStore store,
                     retryAfter.Clear();
                     presenceRevision = currentPresence;
                 }
+
                 if (revision != currentRevision || DateTimeOffset.UtcNow >= nextScan)
                 {
                     try
                     {
-                        // The store filters out recalled/deleted messages and conversations belonging to other users.
+                        // Only re-query when content changes or the scheduled scan is due.
                         var attachments = await store.GetAttachmentsAsync(ct: stoppingToken).ConfigureAwait(false);
                         pending = attachments.Where(file => !files.IsPrepared(file)).ToDictionary(file => file.Id);
-                        foreach (var id in retryAfter.Keys.Where(id => !pending.ContainsKey(id)).ToArray()) retryAfter.Remove(id);
+
+                        // Remove retry markers for deleted/recalled or already prepared files.
+                        foreach (var id in retryAfter.Keys.Where(id => !pending.ContainsKey(id)).ToArray())
+                            retryAfter.Remove(id);
+
                         revision = currentRevision;
                         nextScan = DateTimeOffset.UtcNow + PreparedFileRecheck;
                     }
@@ -65,6 +72,8 @@ public sealed class AttachmentDownloadBackgroundService(IDistributedStore store,
                     if (active.ContainsKey(file.Id) || (retryAfter.TryGetValue(file.Id, out var retry) && DateTimeOffset.UtcNow < retry)) continue;
                     active.Add(file.Id, PrepareAsync(file, stoppingToken));
                 }
+
+                // This loop only checks in-memory state between scheduled scans.
                 await Task.Delay(250, stoppingToken).ConfigureAwait(false);
             }
         }
@@ -76,7 +85,7 @@ public sealed class AttachmentDownloadBackgroundService(IDistributedStore store,
     {
         try
         {
-            // PrepareOpenAsync also downloads every folder entry and publishes the complete named copy atomically.
+            // PrepareOpenAsync cũng download mọi folder entry và công bố bản sao đặt tên đầy đủ nguyên tử.
             await files.PrepareOpenAsync(file, ct: ct).ConfigureAwait(false);
             return true;
         }

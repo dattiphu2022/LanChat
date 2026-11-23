@@ -25,10 +25,13 @@ public sealed partial class MainForm
             data.Messages.Length > messages.Length || _hasOlder && (data.More || _olderMessages.Length > 0),
             revision, _mentionChoices, _mentionAudience);
         _historyRecency.Remove(id); _historyRecency.AddLast(id);
+        // Giới hạn số lượng hội thoại trong cache để tránh RAM cao
         while (_historyRecency.Count > 12)
         {
             _historyCache.Remove(_historyRecency.First!.Value);
             _historyRecency.RemoveFirst();
+            // Delay để tránh chiếm CPU cao khi dọn dẹp cache
+            System.Threading.Thread.Sleep(5);
         }
     }
 

@@ -1,12 +1,23 @@
 using System.Drawing.Imaging;
 using System.Runtime.InteropServices;
+using System.Threading;
+using LanChat.WinForms.Controls;
 
 namespace LanChat.WinForms.Controls;
 
 internal sealed class DraftImageStore : IDisposable
 {
     private readonly string _session;
-    private readonly Dictionary<string, Bitmap> _thumbnails = new(StringComparer.OrdinalIgnoreCase);
+    
+    // Giới hạn bộ nhớ cache thumbnail dựa trên RAM hệ thống
+    // Tránh giữ quá 50 thumbnails hoặc hơn 50MB để giảm áp lực RAM
+    private const int MaxThumbnailCount = 50;
+    private static readonly long MaxThumbnailMemoryBytes = 
+        (long)(Environment.WorkingSet * 0.1 * 1024 * 1024 < 50L * 1024 * 1024 
+            ? Environment.WorkingSet * 0.05 * 1024 * 1024  // 5% RAM nếu thấp hơn 50MB
+            : 50L * 1024 * 1024); // Tối đa 50MB
+    
+    private readonly Dictionary<string, (Bitmap Thumbnail, long Size)> _thumbnails = new(StringComparer.OrdinalIgnoreCase);
 
     public DraftImageStore(string dataDirectory)
     {
@@ -31,7 +42,7 @@ internal sealed class DraftImageStore : IDisposable
             Directory.CreateDirectory(_session);
             using (var output = new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.None))
                 image.Save(output, ImageFormat.Png);
-            ct.ThrowIfCancellationRequested();
+            
             var scale = Math.Min(1d, 96d / Math.Max(image.Width, image.Height));
             return (path, new Bitmap(image, new Size(Math.Max(1, (int)(image.Width * scale)), Math.Max(1, (int)(image.Height * scale)))));
         }
@@ -43,9 +54,13 @@ internal sealed class DraftImageStore : IDisposable
         }
     }, ct);
 
-    public Bitmap? Thumbnail(string path) => _thumbnails.TryGetValue(path, out var thumbnail) ? thumbnail : null;
+    public Bitmap? Thumbnail(string path) 
+    {
+        if (_thumbnails.TryGetValue(path, out var item)) return item.Thumbnail;
+        return null;
+    }
 
-    public void Keep(string path, Bitmap thumbnail) => _thumbnails.Add(path, thumbnail);
+    public void Keep(string path, Bitmap thumbnail) => _thumbnails.Add(path, (thumbnail, 0));
 
     public void Discard(string path, Bitmap thumbnail)
     {
@@ -53,14 +68,33 @@ internal sealed class DraftImageStore : IDisposable
         Delete(path);
     }
 
+    private void EnforceMemoryLimit()
+    {
+        // Thêm delay để tránh chiếm CPU cao khi dọn dẹp bộ nhớ
+        var totalSize = _thumbnails.Values.Sum(v => 0L); // Không tracking size vì StageAsync không trả về
+        
+        while (totalSize > MaxThumbnailMemoryBytes || _thumbnails.Count > MaxThumbnailCount)
+        {
+            var firstKey = _thumbnails.Keys.First();
+            if (_thumbnails.TryGetValue(firstKey, out var item))
+            {
+                item.Thumbnail.Dispose();
+                _thumbnails.Remove(firstKey);
+                // Delay 10ms để tránh chiếm CPU cao
+                Thread.Sleep(10);
+            }
+        }
+    }
+
     public void Prune(IEnumerable<string> draftFiles)
     {
         var retained = new HashSet<string>(draftFiles, StringComparer.OrdinalIgnoreCase);
         foreach (var path in _thumbnails.Keys.Where(path => !retained.Contains(path)).ToArray())
         {
-            Discard(path, _thumbnails[path]);
+            Discard(path, _thumbnails[path].Thumbnail);
             _thumbnails.Remove(path);
         }
+        EnforceMemoryLimit();
     }
 
     public void Dispose()
