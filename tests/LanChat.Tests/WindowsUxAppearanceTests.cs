@@ -14,7 +14,7 @@ public sealed partial class WindowsUiTests
     public async Task DisplayPreferencesRoundTripInIsolatedLocalConfiguration()
     {
         var directory=Temp(); var catalog=new NetworkCatalog(new NodeOptions {DataDirectory=directory});
-        var preferences=new UiPreferences(14,UiDensity.Comfortable,true,true,UiTheme.Dark);
+        var preferences=new UiPreferences(14,UiDensity.Comfortable,true,true,UiTheme.Dark, false, 12);
         await catalog.SaveUiPreferencesAsync(preferences);
         var reloaded=new NetworkCatalog(new NodeOptions {DataDirectory=directory}); await reloaded.LoadAsync();
         Assert.Equal(preferences,reloaded.UiPreferences);
@@ -29,6 +29,22 @@ public sealed partial class WindowsUiTests
         Assert.Equal(UiTheme.Light, preferences.Validated().Theme);
         Assert.Equal(12, preferences.MessageFontSize);
         Assert.True(preferences.HideNotificationContent);
+        Assert.True(preferences.RemindUnreadMessages);
+        Assert.Equal(5, preferences.UnreadReminderMinutes);
+        Assert.Equal(5, (preferences with { UnreadReminderMinutes = 0 }).Validated().UnreadReminderMinutes);
+    }
+
+    [Theory]
+    [InlineData(false, 4, 1, 4)]
+    [InlineData(true, 4, 0, 0)]
+    [InlineData(true, 4, 1, 1)]
+    [InlineData(true, 0, 1, 0)]
+    public void UnreadReminderRespectsMuteAndKeepsUnreadMentions(bool muted, int unread, int mentions, int expected)
+    {
+        var summary = new LanChat.Application.ConversationSummary(Guid.NewGuid(), Guid.NewGuid(),
+            "Hội thoại", "", 0, unread, false, muted, LanChat.Domain.PresenceStatus.Unknown)
+        { UnreadMentionCount = mentions };
+        Assert.Equal(expected, MainForm.ReminderCount(summary));
     }
 
     [Theory]
@@ -118,7 +134,16 @@ public sealed partial class WindowsUiTests
         Children(settings).OfType<CheckBox>().Single(c=>c.AccessibleName=="Ẩn nội dung thông báo").Checked=true;
         await Task.Delay(30); var output=Environment.GetEnvironmentVariable("LANCHAT_UI_CAPTURE_DIR");
         if(!string.IsNullOrEmpty(output)) { Directory.CreateDirectory(output); using var bitmap=new Bitmap(settings.Width,settings.Height); settings.DrawToBitmap(bitmap,new Rectangle(Point.Empty,settings.Size)); bitmap.Save(Path.Combine(output,$"preferences-{dpi}.png")); }
+        var reminder = Children(settings).OfType<CheckBox>().Single(c => c.Text == "Nhắc lại khi còn tin chưa đọc");
+        var minutes = Children(settings).OfType<NumericUpDown>().Single();
+        Assert.True(reminder.Checked);
+        Assert.Equal(5, minutes.Value);
+        minutes.Value = 12;
+        reminder.Checked = false;
+        Assert.False(minutes.Enabled);
         Button(settings,"Lưu").PerformClick(); await Until(()=>saved is not null); Assert.Equal(14,saved!.MessageFontSize); Assert.True(saved.HideNotificationContent);
+        Assert.False(saved.RemindUnreadMessages);
+        Assert.Equal(12, saved.UnreadReminderMinutes);
         using var guide=new GettingStartedForm(()=>"Người thử nghiệm",()=>false,()=>Task.CompletedTask,()=>Task.CompletedTask,()=>Task.CompletedTask);
         guide.Show(host); using var guideFonts=SimulateDpi(guide,dpi); await Task.Delay(30);
         Assert.False(Button(guide,"3. Kiểm tra kết nối").Enabled); Assert.True(Button(guide,"Để sau").CanSelect);

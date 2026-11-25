@@ -14,7 +14,7 @@ public sealed class SettingsForm : DpiForm
         Icon = AppIcon.Value;
         Text = "Cài đặt LanChat";
         StartPosition = FormStartPosition.CenterParent;
-        ClientSize = preferences is null ? new Size(400, 270) : new Size(480, 520);
+        ClientSize = preferences is null ? new Size(400, 270) : new Size(480, 580);
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MinimizeBox = MaximizeBox = false;
         ShowInTaskbar = false;
@@ -50,13 +50,23 @@ public sealed class SettingsForm : DpiForm
         var theme = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Dock = DockStyle.Top, AccessibleName = "Giao diện" };
         theme.Items.AddRange(new object[] { "Sáng", "Tối", "Theo Windows" });
         theme.SelectedIndex = (int)initialPreferences.Theme;
+        var reminder = new CheckBox { Text = "Nhắc lại khi còn tin chưa đọc", AutoSize = true, Dock = DockStyle.Top,
+            Checked = initialPreferences.RemindUnreadMessages };
+        var minutes = new NumericUpDown { Minimum = 1, Maximum = UiPreferences.MaxReminderMinutes,
+            Value = initialPreferences.UnreadReminderMinutes, Enabled = reminder.Checked, AccessibleName = "Khoảng nhắc (phút)" };
+        reminder.CheckedChanged += (_, _) => minutes.Enabled = reminder.Checked;
+        var reminderInterval = Theme.Toolbar();
+        reminderInterval.Controls.Add(Theme.Label("Khoảng nhắc (phút)"));
+        reminderInterval.Controls.Add(minutes);
         UiPreferences Appearance() => initialPreferences with { MessageFontSize = sizes[Math.Max(0,fontSize.SelectedIndex)],
-            Density = (UiDensity)Math.Max(0,density.SelectedIndex), HideNotificationContent = privacy.Checked, Theme = (UiTheme)theme.SelectedIndex };
-        var appearance = Theme.Stack(7); appearance.Dock = DockStyle.Top; appearance.AutoSize = true; appearance.AutoSizeMode = AutoSizeMode.GrowAndShrink;
-        for(var i=0;i<7;i++) appearance.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            Density = (UiDensity)Math.Max(0,density.SelectedIndex), HideNotificationContent = privacy.Checked, Theme = (UiTheme)theme.SelectedIndex,
+            RemindUnreadMessages = reminder.Checked, UnreadReminderMinutes = (int)minutes.Value };
+        var appearance = Theme.Stack(9); appearance.Dock = DockStyle.Top; appearance.AutoSize = true; appearance.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+        for(var i=0;i<9;i++) appearance.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         appearance.Controls.Add(Theme.Label("Cỡ chữ tin nhắn"),0,0); appearance.Controls.Add(fontSize,0,1);
         appearance.Controls.Add(Theme.Label("Mật độ hiển thị"),0,2); appearance.Controls.Add(density,0,3); appearance.Controls.Add(privacy,0,4);
         appearance.Controls.Add(Theme.Label("Giao diện"),0,5); appearance.Controls.Add(theme,0,6);
+        appearance.Controls.Add(reminder,0,7); appearance.Controls.Add(reminderInterval,0,8);
         layout.Controls.Add(appearance,0,5); appearance.Visible = preferences is not null;
         var feedback = Theme.Label("");
         feedback.ForeColor = Color.Firebrick; UiInteraction.Wrap(feedback, layout);

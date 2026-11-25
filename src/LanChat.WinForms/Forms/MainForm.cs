@@ -517,12 +517,35 @@ public sealed partial class MainForm : DpiForm
         _chat.SetHistoryAvailable(_hasOlder && (previous.Length > 0 || data.More), anchor.HasValue || _jumpedInLatest);
     }
 
+    internal int ReminderUnreadCount { get; private set; }
+
+    internal static int ReminderCount(ConversationSummary summary) => summary.IsMuted
+        ? Math.Min(summary.UnreadCount, summary.UnreadMentionCount)
+        : summary.UnreadCount;
+
+    internal (Guid ConversationId, int Count)? GetUnreadReminder()
+    {
+        var reading = IsReadingActiveConversation ? _activeConversation : null;
+        var count = 0;
+        Guid? target = null;
+        foreach (var summary in _summaries)
+        {
+            var unread = ReminderCount(summary);
+            if (unread <= 0 || summary.Id == reading) continue;
+            target ??= summary.Id;
+            count += unread;
+        }
+        return target is Guid id ? (id, count) : null;
+    }
+
     private void UpdateUnreadCount()
     {
         var total = _summaries.Sum(x => x.UnreadCount);
-        if (UnreadCount == total) return;
+        var reminderTotal = _summaries.Sum(ReminderCount);
+        if (UnreadCount == total && ReminderUnreadCount == reminderTotal) return;
         var hadUnread = UnreadCount > 0;
         UnreadCount = total;
+        ReminderUnreadCount = reminderTotal;
         _messageNav.SetUnreadCount(total);
         if (_showNotification is null && hadUnread != (total > 0)) _notification.Icon = AppIcon.ForUnread(total > 0);
         UnreadCountChanged?.Invoke();

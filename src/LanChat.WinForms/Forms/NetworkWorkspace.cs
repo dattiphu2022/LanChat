@@ -17,6 +17,7 @@ internal sealed partial class NetworkWorkspace : DpiForm
     private readonly System.Collections.Concurrent.ConcurrentDictionary<Guid, IServiceProvider> _updateNetworks = new();
     private readonly IconButton _scanButton = Theme.Secondary("Quét tất cả", UiIcon.Scan);
     private IconButton? _moreButton;
+    private readonly System.Windows.Forms.Timer _unreadReminder = new();
     private readonly System.Windows.Forms.Timer _updateTimer = new() { Interval = 60 * 1000 };
     private readonly Button _restoreDefaultButton;
     private readonly Button _manageNetworksButton;
@@ -26,8 +27,8 @@ internal sealed partial class NetworkWorkspace : DpiForm
     private readonly List<Button> _networkActions = [];
     private bool _busy, _exiting, _closed, _exitRequested;
     private FormWindowState _restoreState;
-    private (Guid NetworkId, Guid ConversationId, Guid MessageId)? _notificationTarget;
-    private (Guid NetworkId, Guid ConversationId, Guid MessageId)? _pendingNotification;
+    private (Guid NetworkId, Guid ConversationId, Guid? MessageId)? _notificationTarget;
+    private (Guid NetworkId, Guid ConversationId, Guid? MessageId)? _pendingNotification;
 
     public NetworkWorkspace(NetworkCatalog catalog, WindowsStartup startup, UpdateService updates)
     {
@@ -110,6 +111,7 @@ internal sealed partial class NetworkWorkspace : DpiForm
             if (WindowState == FormWindowState.Minimized) Hide();
             else _restoreState = WindowState;
         };
+        _unreadReminder.Tick += (_, _) => ShowUnreadReminder();
         _updateTimer.Tick += async (_, _) => { if (!_exiting && !_installing) await _updates.CheckAsync(manual: false); };
         FormClosed += (_, _) => { _updateTimer.Stop(); _updateTimer.Dispose(); trayMenu.Dispose(); _updates.Changed -= RefreshWindowTitle; _updates.Dispose(); };
         FormClosing += ClosingAsync;
@@ -228,13 +230,48 @@ internal sealed partial class NetworkWorkspace : DpiForm
         }
         var icon = AppIcon.ForUnread(hasUnread);
         if (!ReferenceEquals(_tray.Icon, icon)) _tray.Icon = icon;
+        UpdateReminderTimer();
     }
 
-    private void ShowNotification(Guid networkId, Guid conversationId, Guid messageId, string title, string body)
+    private void ShowNotification(Guid networkId, Guid conversationId, Guid? messageId, string title, string body)
     {
         if (_exiting) return;
         _notificationTarget = (networkId, conversationId, messageId);
         _tray.ShowBalloonTip(3000, title, body, ToolTipIcon.Info);
+    }
+
+    private void UpdateReminderTimer(bool restart = false)
+    {
+        var preferences = _catalog.UiPreferences;
+        if (_exiting || !preferences.RemindUnreadMessages || !_running.Values.Any(item => item.View.ReminderUnreadCount > 0))
+        {
+            _unreadReminder.Stop();
+            return;
+        }
+
+        var interval = preferences.UnreadReminderMinutes * 60_000;
+        if (restart || _unreadReminder.Interval != interval)
+        {
+            _unreadReminder.Stop();
+            _unreadReminder.Interval = interval;
+        }
+        _unreadReminder.Start();
+    }
+
+    private void ShowUnreadReminder()
+    {
+        if (_exiting || !_catalog.UiPreferences.RemindUnreadMessages) return;
+        var count = 0;
+        (Guid Network, Guid Conversation)? target = null;
+        foreach (var entry in _running)
+        {
+            if (entry.Value.View.GetUnreadReminder() is not { } reminder) continue;
+            target ??= (entry.Key, reminder.ConversationId);
+            count += reminder.Count;
+        }
+
+        if (target is { } unread)
+            ShowNotification(unread.Network, unread.Conversation, null, "LanChat · Nhắc tin chưa đọc", $"Bạn còn {count} tin nhắn chưa đọc.");
     }
 
     private Task MarkSelectedReadAsync() => _tabs.SelectedTab?.Tag is Guid id && _running.TryGetValue(id, out var item)
@@ -317,6 +354,7 @@ internal sealed partial class NetworkWorkspace : DpiForm
         }, ShowUpdateSettings, _catalog.UiPreferences, async preferences =>
         {
             await _catalog.SaveUiPreferencesAsync(preferences);
+            UpdateReminderTimer(restart: true);
             await ApplyConfiguredThemeAsync();
             foreach (var network in _running.Values) network.View.ApplyPreferences(preferences);
         });
@@ -334,6 +372,7 @@ internal sealed partial class NetworkWorkspace : DpiForm
     private void ReleaseAppearance(object? sender, EventArgs e)
     {
         Disposed -= ReleaseAppearance;
+        _unreadReminder.Dispose();
         Microsoft.Win32.SystemEvents.UserPreferenceChanged -= WindowsAppearanceChanged;
         _appearanceLifetime.Cancel();
         _appearanceLifetime.Dispose();
@@ -446,6 +485,7 @@ internal sealed partial class NetworkWorkspace : DpiForm
             !UiInteraction.Discard(this, "Bạn còn bản nháp chưa gửi hoặc thay đổi thành viên chưa lưu. Bỏ các bản nháp và thoát LanChat?"))
         { _exitRequested = false; return; }
         _exiting = true;
+        _unreadReminder.Stop();
         _updateNetworks.Clear();
         UpdateActionState();
         _scan?.Cancel();

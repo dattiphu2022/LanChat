@@ -37,6 +37,38 @@ public sealed class GroupHistoryTests
     }
 
     [Fact]
+    public async Task GroupReactionCanReplicateBeforeQueuedDeliveryReceipts()
+    {
+        var cluster = Guid.NewGuid(); var secret = FrameworkIO.RandomBytes(32);
+        await using var sender = new TestNode(cluster, secret, "Sender");
+        await using var member = new TestNode(cluster, secret, "Member");
+        await sender.InitializeAsync(); await member.InitializeAsync();
+        await sender.Store.RememberPeerAsync(await member.Store.GetNodeInfoAsync(), "127.0.0.1");
+        await member.Store.RememberPeerAsync(await sender.Store.GetNodeInfoAsync(), "127.0.0.1");
+        var owner = await sender.Store.GetIdentityAsync();
+        var recipient = await member.Store.GetIdentityAsync();
+        var group = Guid.NewGuid();
+        var nodes = new[] { sender, member };
+        await Apply(sender, nodes, 1, new(Guid.NewGuid(), ControlCommandType.FinalMembership, Guid.Empty, Guid.Empty, NewVoters: [owner.NodeId]));
+        await Apply(sender, nodes, 2, new(Guid.NewGuid(), ControlCommandType.GroupCreated, owner.UserId, group, "Nhóm thử",
+            Members: [owner.UserId, recipient.UserId]));
+
+        var first = await Distributed(sender).SendToConversationAsync(group, "Tin đầu tiên");
+        for (var i = 0; i < 20; i++)
+            await Distributed(sender).SendToConversationAsync(group, "Tin lịch sử " + i);
+        await Distributed(member).ImportEventsAsync(new(await Events(sender, owner.NodeId)));
+        var queued = await Events(member, recipient.NodeId);
+        Assert.Equal(21, queued.Count(e => e.Type == ReplicationEventType.ReceiptUpdated));
+
+        await Distributed(member).ReactAsync(first.Id, "👍", true);
+        var batch = await Distributed(member).GetOutboxAsync();
+        Assert.Contains(first.Id, batch.Where(e => e.Type == ReplicationEventType.ReactionChanged).Select(e => e.EntityId));
+        Assert.Contains(ReplicationEventType.ReceiptUpdated, batch.Select(e => e.Type));
+        await Distributed(sender).ImportEventsAsync(new(batch));
+        Assert.Contains("👍", (await Distributed(sender).GetMessageDetailsAsync(first.Id)).Reactions);
+    }
+
+    [Fact]
     public async Task OneRemainingHolderAutomaticallySharesAllPagesWithCurrentGroupMembers()
     {
         var cluster = Guid.NewGuid(); var secret = FrameworkIO.RandomBytes(32); var bootstrap = Guid.NewGuid();

@@ -158,7 +158,15 @@ public sealed partial class ChatStore
     public async Task<EventDto[]> GetOutboxAsync(CancellationToken ct = default)
     {
         using var db = database.Open(ct); var now = DateTime.UtcNow.Ticks;
-        var events = db.Rows<ReplicationEvent>("Id IN (SELECT ReplicationEventId FROM OutboxItems WHERE Status=$0 AND NextRetryTicks<=$1 ORDER BY NextRetryTicks LIMIT 20) ORDER BY OriginSequence", OutboxStatus.Pending, now);
+        // Importing history can enqueue a receipt for every message at once.
+        // Keep those receipts from occupying the whole batch ahead of user activity.
+        var events = db.Rows<ReplicationEvent>(
+            "Id IN (SELECT pending.ReplicationEventId FROM OutboxItems pending " +
+            "JOIN ReplicationEvents queued ON queued.Id=pending.ReplicationEventId " +
+            "WHERE pending.Status=$0 AND pending.NextRetryTicks<=$1 " +
+            "ORDER BY CASE WHEN queued.Type=$2 THEN 1 ELSE 0 END, pending.NextRetryTicks, queued.OriginSequence LIMIT 20) " +
+            "ORDER BY CASE WHEN Type=$2 THEN 1 ELSE 0 END, OriginSequence",
+            OutboxStatus.Pending, now, ReplicationEventType.ReceiptUpdated);
         var result = new List<EventDto>(); var bytes = 0;
         foreach (var row in events)
         {
@@ -166,7 +174,7 @@ public sealed partial class ChatStore
             if (result.Count > 0 && bytes + length > 500_000) break;
             result.Add(item); bytes += length;
         }
-        return result.ToArray();
+        return result.OrderBy(item => item.OriginSequence).ToArray();
     }
     public async Task RecordOutboxResultAsync(Guid[] eventIds, bool success, CancellationToken ct = default)
     {

@@ -1,4 +1,6 @@
-# LanChat v1.2.10 — Chat nội bộ cho Windows
+# LanChat v1.2.11 — Chat nội bộ cho Windows
+
+v1.2.11 bổ sung giao diện Sáng/Tối/Theo Windows, gửi tin và chuẩn bị tệp ở nền, nhắc tin chưa đọc theo chu kỳ, và giảm độ trễ đồng bộ biểu cảm sau khi tải lịch sử nhóm.
 
 v1.2.10 nâng cấp bố cục cửa sổ rộng/trung bình/hẹp, thêm bộ lọc hội thoại, khung soạn gọn với nút **+**, trung tâm tệp, tìm kiếm rõ phạm vi và tùy chỉnh cỡ chữ/mật độ. **Thêm** chứa Giới thiệu, cập nhật và hướng dẫn; badge phiên bản mới cũng nằm trên nút này. Ứng dụng tiếp tục tải cập nhật nền và chỉ cài khi bạn chọn **Cài đặt ngay**.
 
