@@ -69,7 +69,17 @@ internal static class UiIcons
     private static readonly FontFamily QuoteFamily = FontFamily.GenericSansSerif;
     private static readonly Dictionary<(UiIcon Icon, int Size, Color Color), Bitmap> Images = [];
 
-    public static Bitmap ForMenu(UiIcon icon) => Get(icon, 32, SystemColors.MenuText);
+    private static readonly Dictionary<Image, UiIcon> MenuIcons = [];
+
+    public static Bitmap ForMenu(UiIcon icon)
+    {
+        var image = Get(icon, 32, SystemColors.MenuText);
+        MenuIcons[image] = icon;
+        return image;
+    }
+
+    internal static Image MenuImage(Image image) => MenuIcons.TryGetValue(image, out var icon)
+        ? Get(icon, 32, Theme.Ink) : image;
 
     public static Bitmap Get(UiIcon icon, int size, Color color)
     {
@@ -146,12 +156,38 @@ internal sealed class IconButton : Button
 
     protected override void OnPaint(PaintEventArgs e)
     {
-        base.OnPaint(e);
+        if (!Enabled && Theme.IsDark && FlatStyle == FlatStyle.Flat) PaintDisabled(e.Graphics);
+        else base.OnPaint(e);
         if (_showBadge)
         {
             var size = this.ScalePixels(7);
             UnreadBadge.PaintDot(e.Graphics, new Rectangle(Width - size - this.ScalePixels(4), this.ScalePixels(3), size, size), true);
         }
+    }
+
+    private void PaintDisabled(Graphics graphics)
+    {
+        using var fill = new SolidBrush(BackColor);
+        graphics.FillRectangle(fill, ClientRectangle);
+        if (FlatAppearance.BorderSize > 0)
+        {
+            using var border = new Pen(Theme.Border);
+            graphics.DrawRectangle(border, 0, 0, Width - 1, Height - 1);
+        }
+
+        const TextFormatFlags flags = TextFormatFlags.NoPadding | TextFormatFlags.SingleLine | TextFormatFlags.VerticalCenter;
+        var icon = _iconSize == 0 || _icon == 0 ? null : UiIcons.Get(_icon, this.ScalePixels(_iconSize), Theme.Disabled);
+        var gap = icon is not null && Text.Length > 0 ? this.ScalePixels(4) : 0;
+        var textWidth = TextRenderer.MeasureText(graphics, Text, Font, Size.Empty, flags).Width;
+        var left = Math.Max(Padding.Left, (Width - textWidth - (icon?.Width ?? 0) - gap) / 2);
+        if (icon is not null)
+        {
+            graphics.DrawImageUnscaled(icon, left, (Height - icon.Height) / 2);
+            left += icon.Width + gap;
+        }
+        if (Text.Length > 0)
+            TextRenderer.DrawText(graphics, Text, Font, Rectangle.FromLTRB(left, 0, Math.Max(left, Width - Padding.Right), Height),
+                Theme.Disabled, flags | TextFormatFlags.EndEllipsis);
     }
 
     private readonly int _iconSize;
@@ -224,6 +260,30 @@ internal sealed class IconTabControl : TabControl
     {
         base.ScaleControl(factor, specified);
         UpdateImages();
+    }
+
+    internal void ApplyTheme()
+    {
+        DrawMode = Theme.IsDark ? TabDrawMode.OwnerDrawFixed : TabDrawMode.Normal;
+        Invalidate();
+    }
+
+    protected override void OnDrawItem(DrawItemEventArgs e)
+    {
+        if (!Theme.IsDark || e.Index < 0 || e.Index >= TabPages.Count) { base.OnDrawItem(e); return; }
+        var page = TabPages[e.Index];
+        var bounds = e.Bounds;
+        using var fill = new SolidBrush(e.Index == SelectedIndex ? Theme.Selection : Theme.Surface);
+        e.Graphics.FillRectangle(fill, bounds);
+        var color = Enabled ? Theme.Ink : Theme.Disabled;
+        if (page.ImageIndex >= 0 && page.ImageIndex < _icons.Length)
+        {
+            var icon = UiIcons.Get(_icons[page.ImageIndex], this.ScalePixels(16), color);
+            e.Graphics.DrawImageUnscaled(icon, bounds.Left + 4, bounds.Top + (bounds.Height - icon.Height) / 2);
+            bounds.X += icon.Width + 8; bounds.Width -= icon.Width + 8;
+        }
+        TextRenderer.DrawText(e.Graphics, page.Text, Font, bounds, color, TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
+        if ((e.State & DrawItemState.Focus) != 0) e.DrawFocusRectangle();
     }
 
     private void UpdateImages()

@@ -17,7 +17,7 @@ internal sealed class TransferCenterForm : DpiForm
     private readonly DataGridView _grid = new() { Dock = DockStyle.Fill, ReadOnly = true, AllowUserToAddRows = false,
         AllowUserToDeleteRows = false, RowHeadersVisible = false, MultiSelect = false, SelectionMode = DataGridViewSelectionMode.FullRowSelect,
         ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize,
-        AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill, BackgroundColor = Color.White, BorderStyle = BorderStyle.None,
+        AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill, BackgroundColor = Theme.Surface, BorderStyle = BorderStyle.None,
         AccessibleName = "Tệp và tiến độ truyền trong mạng hiện tại" };
     private readonly PromptTextBox _search = new() { Dock = DockStyle.Fill, PlaceholderText = "Tìm tên tệp hoặc hội thoại…", AccessibleName = "Tìm tệp truyền" };
     private readonly Label _status = Theme.Label("Đang tải danh sách…", 9);
@@ -28,7 +28,14 @@ internal sealed class TransferCenterForm : DpiForm
     private readonly Dictionary<Guid, long> _requests = [];
     private readonly HashSet<Guid> _watched = [];
     private readonly HashSet<Guid> _pending = [];
-    private void PollPending() { foreach (var id in _pending.Intersect(_watched).ToArray()) Changed(id); }
+    private void PollPending()
+    {
+        if (_stopped) return;
+        foreach (var id in _pending.Intersect(_watched).ToArray()) Changed(id);
+        foreach (var id in _watched.ToArray())
+            if (_rows.TryGetValue(id, out var row)) _ = UpdateFolderSizeAsync(row);
+    }
+    private bool _readingFolder;
     private bool _loading, _stopped;
     private TransferEntry? Selected => _grid.CurrentRow?.Tag as TransferEntry;
 
@@ -93,8 +100,13 @@ internal sealed class TransferCenterForm : DpiForm
             {
                 if(!_rows.TryGetValue(entry.File.Id,out var row))
                 {
-                    row=_grid.Rows[_grid.Rows.Add(entry.File.FileName,entry.Conversation,"Đang kiểm tra…",entry.File.MimeType == FolderAttachment.MimeType ? "—" : $"{entry.File.FileSize/1024d:N1} KB")];
+                    row=_grid.Rows[_grid.Rows.Add(entry.File.FileName,entry.Conversation,"Đang kiểm tra…",InitialSize(entry.File))];
                     _rows.Add(entry.File.Id,row);
+                }
+                if (row.Tag is TransferEntry previous && previous.File != entry.File)
+                {
+                    Set(row,3,InitialSize(entry.File));
+                    row.Cells[3].Tag = null;
                 }
                 row.Tag=entry; Set(row,0,entry.File.FileName); Set(row,1,entry.Conversation);
             }
@@ -103,7 +115,7 @@ internal sealed class TransferCenterForm : DpiForm
                 $"{entries.Length} tệp / thư mục · Đóng cửa sổ vẫn tiếp tục tải nền.";
         }
         catch(OperationCanceledException) { }
-        catch(Exception ex) { if(!_stopped) _status.Text="Chưa tải được danh sách: "+UiText.HideIpAddresses(ex.Message); }
+        catch(Exception) { if(!_stopped) _status.Text="Chưa tải được danh sách."; }
         finally { _loading=false; }
     }
     private void Filter()
@@ -127,6 +139,7 @@ internal sealed class TransferCenterForm : DpiForm
     private async void Changed(Guid id)
     {
         if(_stopped || !_rows.TryGetValue(id,out var row) || !_watched.Contains(id)) return;
+        _ = UpdateFolderSizeAsync(row);
         _requests.TryGetValue(id,out var request); _requests[id]=++request;
         var file=((TransferEntry)row.Tag).File; var progress=_actions.Progress(id);
         if(_actions.IsBusy(id) || progress is not null) Set(row,2,_actions.IsBusy(id)?_actions.State(id):AttachmentProgressText.Describe(progress!));
@@ -137,13 +150,36 @@ internal sealed class TransferCenterForm : DpiForm
                 var local=await _actions.LocationAsync(file,_viewLifetime.Token);
                 if(_stopped || !_requests.TryGetValue(id,out var current) || current!=request || !_rows.TryGetValue(id,out var currentRow) || !ReferenceEquals(row,currentRow)) return;
                 if (local.Exists) _pending.Remove(id); else _pending.Add(id);
-                Set(row,2,local.Exists?"Hoàn thành · sẵn sàng mở":local.UserSelected?"Không tìm thấy bản đã lưu":_actions.Failure(id) is { } error ? "Thất bại · "+error : "Chờ nguồn / chờ tải nền");
+                Set(row,2,local.Exists?"Hoàn thành · sẵn sàng mở":local.UserSelected?"Không tìm thấy bản đã lưu":_actions.Failure(id) is { } error ? error : "Chờ chuẩn bị");
             }
             catch(OperationCanceledException) { }
-            catch(Exception ex) { if(!_stopped && _rows.ContainsKey(id)) Set(row,2,"Chưa kiểm tra được · "+UiText.HideIpAddresses(ex.Message)); }
+            catch(Exception) { if(!_stopped && _requests.TryGetValue(id,out var current) && current==request && _watched.Contains(id)) Set(row,2,"Chưa kiểm tra được"); }
         }
         if(!_stopped) UpdateActions();
     }
+    private static string InitialSize(AttachmentDto file) =>
+        file.MimeType == FolderAttachment.MimeType ? "—" : $"{file.FileSize / 1024d:N1} KB";
+
+    private async Task UpdateFolderSizeAsync(DataGridViewRow row)
+    {
+        if (_stopped || _readingFolder || !Equals(row.Cells[3].Value, "—") ||
+            row.Tag is not TransferEntry { File.MimeType: FolderAttachment.MimeType } entry) return;
+        var now = DateTime.UtcNow;
+        if (row.Cells[3].Tag is DateTime retryAt && now < retryAt) return;
+        row.Cells[3].Tag = now.AddSeconds(30);
+        _readingFolder = true;
+        try
+        {
+            var summary = await _actions.FolderSummaryAsync(entry.File, _viewLifetime.Token);
+            if (_stopped || row.DataGridView != _grid || !Equals(row.Tag, entry)) return;
+            if (summary is { } value)
+                Set(row, 3, $"{value.TotalBytes / 1024d:N1} KB · {value.FileCount:N0} tệp");
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or InvalidDataException or System.Text.Json.JsonException) { }
+        finally { _readingFolder = false; }
+    }
+
     private void UpdateActions()
     {
         var selected=Selected; _open.Enabled=_save.Enabled=_retry.Enabled=selected is not null && !_actions.IsBusy(selected.File.Id);

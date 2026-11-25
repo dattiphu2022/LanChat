@@ -4,6 +4,8 @@ using LanChat.Application;
 namespace LanChat.WinForms.Controls;
 
 // Images are loaded on demand by visible controls, with bounded decode/download concurrency.
+internal enum ImageLoadPhase { Downloading, Decoding }
+
 public sealed class ChatImageService(IFileTransferService files)
 {
     public const long InlineLimit = 20L * 1024 * 1024;
@@ -11,13 +13,19 @@ public sealed class ChatImageService(IFileTransferService files)
     public static bool IsImage(AttachmentDto file) => file.MimeType.ToLowerInvariant() is "image/jpeg" or "image/png" or "image/gif" or "image/bmp" or "image/tiff";
 
     public async Task<Bitmap> LoadAsync(AttachmentDto file, bool thumbnail, CancellationToken ct, IProgress<FileProgress>? progress = null)
+        => await LoadAsync(file, thumbnail, ct, progress, null).ConfigureAwait(false);
+
+    internal async Task<Bitmap> LoadAsync(AttachmentDto file, bool thumbnail, CancellationToken ct,
+        IProgress<FileProgress>? progress, IProgress<ImageLoadPhase>? phase)
     {
         if (!IsImage(file)) throw new InvalidDataException("Định dạng ảnh này chưa hỗ trợ xem trực tiếp.");
         if (file.FileSize > 100L * 1024 * 1024) throw new InvalidDataException("Ảnh vượt quá 100 MB. Hãy mở bằng ứng dụng ngoài từ nút bên dưới.");
         await _slots.WaitAsync(ct);
         try
         {
+            phase?.Report(ImageLoadPhase.Downloading);
             var path = await files.DownloadAsync(file, progress, ct).ConfigureAwait(false);
+            phase?.Report(ImageLoadPhase.Decoding);
             return await Task.Run(() =>
             {
                 ct.ThrowIfCancellationRequested();

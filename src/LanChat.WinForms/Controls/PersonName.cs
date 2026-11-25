@@ -44,7 +44,7 @@ internal sealed class PersonNameLabel : Label
         }
 
         var area = new Rectangle(Padding.Left, Padding.Top, ClientSize.Width - Padding.Horizontal, ClientSize.Height - Padding.Vertical);
-        PersonNameDrawing.Draw(e.Graphics, area, _name, Font, Enabled ? ForeColor : SystemColors.GrayText, TextAlign);
+        PersonNameDrawing.Draw(e.Graphics, area, _name, Font, Enabled ? ForeColor : Theme.Disabled, TextAlign);
     }
 }
 

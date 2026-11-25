@@ -36,6 +36,18 @@ public sealed partial class WindowsUiTests
         }
     }
 
+    [Theory]
+    [InlineData(96, 1)] [InlineData(120, 7)] [InlineData(144, 30)] [InlineData(192, 30)]
+    public void MentionPopupFitsSmallWorkingArea(int dpi, int count)
+    {
+        var area = new Rectangle(-400, 30, 220, 240);
+        var editor = new Rectangle(-380, 110, 190, 80);
+        var popup = ChatInputControl.FitPopup(editor, area, 20 * dpi / 96, count, 8, 24, dpi);
+        Assert.True(area.Contains(popup));
+        Assert.True(popup.Bottom <= editor.Top || popup.Top >= editor.Bottom);
+        Assert.InRange(popup.Height, 1, Math.Min(80, Math.Min(7, count) * (20 * dpi / 96) + 24));
+    }
+
     [Fact]
     public Task MentionSuggestionsConsumeEnterEscapeAndKeepMetadataInDraftAndEdit() => OnUi(async host =>
     {
@@ -56,6 +68,25 @@ public sealed partial class WindowsUiTests
         composer.SendRequested += _ => throw new IOException("Lỗi gửi thử nghiệm");
         Button(composer, "Gửi").PerformClick(); await Task.Delay(30);
         Assert.Equal(draft.Text, composer.Draft().Text); Assert.Single(composer.Draft().Mentions);
+    });
+
+    [Fact]
+    public Task MentionPopupHandlesNoMatchesAndSelectsLastOfThirtyByKeyboard() => OnUi(async host =>
+    {
+        using var composer = new ChatInputControl(); host.Controls.Add(composer);
+        var candidates = Enumerable.Range(1, 30).Select(i => new MentionCandidate(Guid.NewGuid(), "Đặng " + i, "Đơn vị", "PC-" + i)).ToArray();
+        composer.ConfigureMentions(candidates, candidates.Select(c => c.UserId).ToArray());
+        var editor = Children(composer).OfType<PromptTextBox>().Single();
+        editor.Focus();
+        editor.SelectedText = "@khongco";
+        Assert.False(editor.InterceptKey!(Keys.Tab));
+        composer.RestoreDraft(null);
+        editor.Focus(); editor.SelectedText = "@dang";
+        await Task.Delay(20);
+        for (var i = 1; i < 30; i++) Assert.True(editor.InterceptKey!(Keys.Down));
+        Assert.True(editor.InterceptKey!(Keys.Tab));
+        Assert.True(editor.Focused);
+        Assert.Equal(candidates[29].UserId, Assert.Single(Assert.Single(composer.Draft().Mentions).UserIds));
     });
 
     [Fact]

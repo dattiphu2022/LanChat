@@ -34,7 +34,7 @@ internal sealed class UserGuideForm : DpiForm
 
         var document = new RichTextBox
         {
-            Dock = DockStyle.Fill, ReadOnly = true, DetectUrls = false, BackColor = Color.White,
+            Dock = DockStyle.Fill, ReadOnly = true, DetectUrls = false, BackColor = Theme.Surface,
             ForeColor = Theme.Ink, ScrollBars = RichTextBoxScrollBars.Vertical, AccessibleName = "Nội dung hướng dẫn", Margin = Padding.Empty
         };
         topics.SelectedIndexChanged += (_, _) =>

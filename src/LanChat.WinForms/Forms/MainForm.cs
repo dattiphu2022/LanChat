@@ -23,7 +23,7 @@ public sealed partial class MainForm : DpiForm
     private readonly ConversationListControl _conversations = new();
     private readonly ChatViewControl _chat = new();
     private readonly ConversationPanel _info = new();
-    private readonly Panel _people = new() { Dock = DockStyle.Fill, Visible = false, BackColor = Color.White };
+    private readonly Panel _people = new() { Dock = DockStyle.Fill, Visible = false, BackColor = Theme.Surface };
     private readonly PromptTextBox _userSearch = new() { Dock = DockStyle.Fill, PlaceholderText = "Tìm người dùng…" };
     private readonly Label _peopleEmpty = Theme.Label("Chưa tìm thấy người dùng trong mạng này.");
     private readonly Panel _userRows = new BufferedPanel { Dock = DockStyle.Fill, AutoScroll = true };
@@ -334,6 +334,7 @@ public sealed partial class MainForm : DpiForm
             if (_activeConversation is Guid old && _chat.Draft() is { HasContent: true } previousDraft) _drafts[old] = previousDraft;
             _drafts.TryGetValue(id, out var draft);
             _drafts.Remove(id);
+            _chat.SetComposerConversation(id);
             _chat.RestoreDraft(draft);
             _chat.ConfigureMentions([], []);
             _boundConversation = null;
@@ -364,6 +365,7 @@ public sealed partial class MainForm : DpiForm
         _hasOlder = true;
         ResetConversationPanel(isGroup: false);
         _showCompactChat = false;
+        _chat.SetComposerConversation(null);
         _chat.ClearConversation();
         LayoutWorkspace();
         SetPanel(false);
@@ -372,7 +374,7 @@ public sealed partial class MainForm : DpiForm
     private void CleanupDraftImages()
     {
         if (!_chat.ComposerWorking && !IsDisposed)
-            _draftImages.Prune(_drafts.Values.SelectMany(draft => draft.AllFiles).Concat(_chat.Draft().AllFiles));
+            _draftImages.Prune(_drafts.Values.SelectMany(draft => draft.AllFiles).Concat(_chat.Draft().AllFiles).Concat(_chat.FailedDraftFiles));
     }
 
     private async Task RunUiAsync(Func<Task> action, bool userOperation = false)

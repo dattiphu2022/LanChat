@@ -36,13 +36,13 @@ public sealed partial class WindowsUiTests
     public Task QrPreviewCopiesExactUtf8TextAndKeepsButtonsAccessible(int dpi) => OnUi(async host =>
     {
         var original="Nguyên văn tiếng Việt\n\nDòng tiếp theo 👋";
-        using var form=new QrShareForm(QrText.From([new LanChat.Domain.Message { Id=Guid.NewGuid(),Text=original,CreatedAtTicks=DateTime.UtcNow.Ticks }]));
+        var copied = new List<string>();
+        using var form = new QrShareForm(QrText.From([new LanChat.Domain.Message { Id=Guid.NewGuid(),Text=original,CreatedAtTicks=DateTime.UtcNow.Ticks }]),
+            (_, text) => { copied.Add(text); return true; });
         form.Show(host); using var fonts=SimulateDpi(form,dpi); form.ClientSize=new Size(540*dpi/96,480*dpi/96); await Task.Delay(30);
-        var attempts=0;
-        do { Button(form,"Sao chép văn bản").PerformClick(); attempts++; await Task.Delay(20); }
-        while (Clipboard.GetText()!=original && attempts<3);
+        Button(form,"Sao chép văn bản").PerformClick();
         Assert.Contains(Children(form).OfType<Label>(),label=>label.Text.Contains("Đã sao chép nguyên văn"));
-        Assert.True(Clipboard.GetText()==original,"Bảng nhớ tạm không giữ nguyên văn bản thử nghiệm.");
+        Assert.Equal(original, Assert.Single(copied));
         foreach(var button in Children(form).OfType<Button>().Where(b=>b.Visible))
         {
             var bounds=button.RectangleToScreen(button.ClientRectangle); var visible=bounds;

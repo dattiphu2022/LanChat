@@ -30,7 +30,7 @@ internal sealed class AttachmentOpenProgressForm : DpiForm
     public void Report(FileProgress progress)
     {
         if (IsDisposed) return;
-        if (progress.Phase != AttachmentPhase.Downloading)
+        if (progress.Phase != AttachmentPhase.Downloading || progress.Total <= 0)
         {
             _progress.Style = ProgressBarStyle.Marquee;
             _state.Text = AttachmentProgressText.Describe(progress);
@@ -41,8 +41,8 @@ internal sealed class AttachmentOpenProgressForm : DpiForm
         else
         {
             _progress.Style = ProgressBarStyle.Continuous;
-            _progress.Value = progress.Total == 0 ? 0 : (int)Math.Max(0, Math.Min(1000, progress.Completed * 1000 / progress.Total));
-            _state.Text = $"Đang tải: {progress.Completed / 1024d:N0} / {progress.Total / 1024d:N0} KB";
+            _progress.Value = (int)Math.Max(0, Math.Min(1000, progress.Completed * 1000 / progress.Total));
+            _state.Text = AttachmentProgressText.Describe(progress);
         }
     }
 }

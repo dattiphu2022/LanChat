@@ -60,6 +60,8 @@ Nhấp phải hội thoại để ghim, tắt thông báo hoặc **Xóa hội th
 - Khi Mở/Lưu mất thời gian, hộp tiến độ phân biệt chờ tác vụ, chờ máy nguồn, tải, kiểm tra và chuẩn bị. Có thể Hủy; nếu còn người khác chờ, lượt chuẩn bị chung vẫn tiếp tục. Nguồn không trả lời sẽ hết hạn để thử nguồn khác; không thay đổi phần mềm bảo vệ Windows.
 - Bấm ảnh trong tin nhắn để xem lớn. Dùng phím mũi tên để chuyển ảnh, cuộn chuột để phóng to và nhấn **Esc** để đóng.
 
+Khi danh sách nội dung thư mục đã có trên máy và được xác minh, trung tâm truyền hiển thị tổng dung lượng và số tệp. Dấu **—** nghĩa là chưa xác định. Đóng trung tâm truyền vẫn cho phép tải nền tiếp tục.
+
 ![Trung tâm truyền tệp](verification/uiux/after/transfer-center.png)
 
 ## Lưu đính kèm và mở lại bản đã sửa
@@ -120,6 +122,6 @@ Các mục Giới thiệu, cập nhật và hướng dẫn bắt đầu nằm tr
 - **Tệp** mở trung tâm theo dõi của mạng hiện tại: hội thoại, kích thước, trạng thái và tiến độ có dữ liệu. Chọn tệp rồi **Mở**, **Lưu về máy** hoặc **Chuẩn bị / Thử lại**. Đóng cửa sổ này vẫn tiếp tục tải nền; không có nút hủy truyền.
 - **Ctrl+K** tìm nhanh tên/hội thoại; **Ctrl+F** tìm trong hội thoại đang mở; **Ctrl+Shift+F** tìm trong toàn bộ lịch sử được phép truy cập. Chọn kết quả để đến đúng tin. Nút **Dừng** chỉ dừng tìm kiếm.
 - Menu **Kết nối** ở cuối cửa sổ cho phép quét **mạng hiện tại**, kiểm tra mạng và xem chẩn đoán. **Quét tất cả** trên thanh công cụ áp dụng cho mọi mạng đang mở. Thiếu máy điều phối không đồng nghĩa mất khả năng nhắn tin.
-- **Cài đặt** cho đổi cỡ chữ tin nhắn (10/11/12/14 pt), mật độ (Gọn/Tiêu chuẩn/Thoải mái) và ẩn nội dung trên thông báo. Các thay đổi áp dụng ngay và chỉ lưu trên máy này.
+- **Cài đặt** cho đổi cỡ chữ tin nhắn (10/11/12/14 pt), mật độ (Gọn/Tiêu chuẩn/Thoải mái), giao diện (Sáng/Tối/Theo Windows) và ẩn nội dung trên thông báo. Các thay đổi áp dụng khi lưu và chỉ lưu trên máy này. Một số thành phần do Windows vẽ, như thanh tiêu đề, thanh cuộn và hộp thoại hệ thống, có thể giữ màu hệ thống.
 - Cửa sổ QR có **Sao chép văn bản**, giữ nguyên cả xuống dòng và Unicode; **Xuất PNG** vẫn tuân thủ giới hạn 500 byte UTF-8.
 - Hướng dẫn bắt đầu dùng lại các màn hình hồ sơ và mạng hiện có. Có thể chọn **Để sau** và mở lại từ menu khay hệ thống.

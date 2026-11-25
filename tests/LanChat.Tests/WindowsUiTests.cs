@@ -253,7 +253,8 @@ public sealed partial class WindowsUiTests
         search.Text = "cũ"; Button(form, "Tìm kiếm").PerformClick(); await started.Task;
         search.Text = "mới"; Button(form, "Tìm kiếm").PerformClick();
         await Until(() => Volatile.Read(ref count) == 2);
-        second.SetResult([new(Guid.NewGuid(), Guid.NewGuid(), "kết quả mới", DateTime.UtcNow.Ticks)]);
+        var message = Guid.NewGuid(); var conversation = Guid.NewGuid();
+        second.SetResult([new(message, conversation, "kết quả mới", DateTime.UtcNow.Ticks)]);
         await Until(() => results.Items.Count == 1);
         first.SetResult([new(Guid.NewGuid(), Guid.NewGuid(), "kết quả cũ", DateTime.UtcNow.Ticks)]);
         await Task.Delay(50);
@@ -262,7 +263,8 @@ public sealed partial class WindowsUiTests
         var key = System.Windows.Forms.Message.Create(form.Handle, 0x100, new IntPtr((int)Keys.Enter), IntPtr.Zero);
         form.PreProcessMessage(ref key);
         Assert.Equal(DialogResult.OK, form.DialogResult);
-        Assert.NotNull(form.SelectedMessage);
+        Assert.Equal(message, form.SelectedMessage);
+        Assert.Equal(conversation, form.SelectedConversation);
         form.Close();
     });
 
@@ -322,6 +324,46 @@ public sealed partial class WindowsUiTests
         composer.RestoreDraft(new("Hội thoại B", [], null, null, ""));
         finish.SetResult(true); await Until(() => !composer.IsWorking);
         Assert.Equal("Hội thoại B", composer.Draft().Text);
+    });
+
+    [Fact]
+    public Task PendingAttachmentSendLeavesComposerAvailableAndFailureKeepsBothDrafts() => OnUi(async host =>
+    {
+        using var composer = new ChatInputControl();
+        host.Controls.Add(composer);
+        var editor = Children(composer).OfType<PromptTextBox>().Single();
+        var attachment = Path.Combine(Temp(), "large-file.bin");
+        var first = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var submitted = new List<ComposerSubmission>();
+        composer.SendRequested += submission =>
+        {
+            submitted.Add(submission);
+            return submitted.Count == 1 ? first.Task : Task.CompletedTask;
+        };
+
+        composer.RestoreDraft(new("Đính kèm", [attachment], null, null, ""));
+        Button(composer, "Gửi").PerformClick();
+        Assert.True(composer.IsWorking);
+        Assert.False(editor.ReadOnly);
+        Assert.Empty(composer.Draft().Files);
+        editor.Text = "Tin tiếp theo";
+        Assert.True(Button(composer, "Gửi").Enabled);
+        Button(composer, "Gửi").PerformClick();
+        Assert.Equal(new[] { "Đính kèm", "Tin tiếp theo" }, submitted.Select(item => item.Text));
+
+        editor.Text = "Đang soạn tin thứ ba";
+        first.SetException(new IOException("Không đọc được tệp"));
+        await Until(() => !composer.IsWorking);
+        Assert.Equal("Đang soạn tin thứ ba", composer.Draft().Text);
+        Assert.Equal(attachment, Assert.Single(composer.FailedDraftFiles));
+        var recovery = Children(composer).OfType<LinkLabel>().Single(label => label.Text.Contains("Khôi phục tin chưa gửi"));
+        Assert.True(recovery.CanSelect);
+        editor.Clear();
+        typeof(LinkLabel).GetMethod("OnLinkClicked", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
+            .Invoke(recovery, [new LinkLabelLinkClickedEventArgs(recovery.Links[0])]);
+        Assert.Equal("Đính kèm", composer.Draft().Text);
+        Assert.Equal(attachment, Assert.Single(composer.Draft().Files));
+        Assert.Empty(composer.FailedDraftFiles);
     });
 
     [Fact]

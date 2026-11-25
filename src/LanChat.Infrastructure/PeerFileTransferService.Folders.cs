@@ -143,6 +143,26 @@ public sealed partial class PeerFileTransferService
         finally { if (Directory.Exists(temporary)) Directory.Delete(temporary, true); }
     }
 
+    // Read only the local immutable manifest, through the same handle used to verify its hash.
+    public async Task<(long TotalBytes, int FileCount)?> ReadLocalFolderSummaryAsync(AttachmentDto attachment, CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        if (attachment.MimeType != FolderAttachment.MimeType || attachment.FileSize is < 1 or > MaxManifestBytes)
+            return null;
+
+        var path = BlobPath(attachment.Sha256);
+        var info = new FileInfo(path);
+        if (!info.Exists || info.Length != attachment.FileSize) return null;
+        using var stream = await OpenMatchingAsync(path, attachment.Sha256, ct).ConfigureAwait(false);
+        if (stream is null || stream.Length != attachment.FileSize) return null;
+
+        var manifest = await JsonSerializer.DeserializeAsync<FolderManifest>(stream, cancellationToken: ct).ConfigureAwait(false);
+        if (manifest is null) return null;
+        ct.ThrowIfCancellationRequested();
+        ValidateManifest(manifest, attachment.FileName);
+        return (manifest.Files.Sum(file => file.FileSize), manifest.Files.Length);
+    }
+
     private async Task<FolderManifest> ReadFolderManifestAsync(AttachmentDto attachment, CancellationToken ct)
     {
         ValidateFolderSegment(attachment.FileName);

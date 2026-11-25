@@ -74,7 +74,7 @@ public sealed partial class ChatInputControl
     }
     private void UpdateMentionSuggestions()
     {
-        if (_restoringMentions || _text.IsComposing || !_text.Focused || _mentionCandidates.Length == 0 || _sending || _text.SelectionLength != 0)
+        if (_restoringMentions || _text.IsComposing || !_text.Focused || _mentionCandidates.Length == 0 || _processingImage || _text.SelectionLength != 0)
         { _mentionPopup.Hide(); return; }
         var text = _text.Text;
         var end = _text.SelectionStart;
@@ -126,6 +126,21 @@ public sealed partial class ChatInputControl
         try { _text.Text = text; _mentions.Reset(text, values); _mentionPopup.Hide(); }
         finally { _restoringMentions = false; }
     }
+    internal static Rectangle FitPopup(Rectangle editor, Rectangle area, int itemHeight,
+        int count, int frameWidth, int frameHeight, int dpi)
+    {
+        var preferred = Math.Min(7, count) * itemHeight + frameHeight;
+        var above = Math.Max(0, editor.Top - area.Top);
+        var below = Math.Max(0, area.Bottom - editor.Bottom);
+        var placeAbove = above >= preferred || above >= below;
+        var available = placeAbove ? above : below;
+        var height = Math.Min(area.Height, Math.Min(preferred, Math.Max(itemHeight + frameHeight, available)));
+        var width = Math.Min(area.Width, Math.Min(560 * dpi / 96, Math.Max(editor.Width, 280 * dpi / 96)) + frameWidth);
+        var top = placeAbove ? editor.Top - height : editor.Bottom;
+        return new Rectangle(Math.Max(area.Left, Math.Min(editor.Left, area.Right - width)),
+            Math.Max(area.Top, Math.Min(top, area.Bottom - height)), width, height);
+    }
+
     private sealed class MentionPopup : Form
     {
         private readonly ListBox _list = new() { Dock = DockStyle.Fill, IntegralHeight = false, BorderStyle = BorderStyle.None, TabStop = false };
@@ -138,7 +153,12 @@ public sealed partial class ChatInputControl
             Text = "Nhắc thành viên";
             FormBorderStyle = FormBorderStyle.FixedSingle; ShowInTaskbar = false; StartPosition = FormStartPosition.Manual;
             Controls.Add(_list);
-            _list.MouseClick += (_, _) => { if (Selected is { } choice) Chosen?.Invoke(choice); };
+            _list.MouseClick += (_, e) =>
+            {
+                var index = _list.IndexFromPoint(e.Location);
+                if (e.Button == MouseButtons.Left && index >= 0 && _list.Items[index] is MentionCandidate choice)
+                    Chosen?.Invoke(choice);
+            };
         }
         internal void MoveSelection(int delta) { if (_list.Items.Count > 0) _list.SelectedIndex = Math.Max(0, Math.Min(_list.Items.Count - 1, _list.SelectedIndex + delta)); }
         internal void Bind(MentionCandidate[] values, Control editor)
@@ -147,10 +167,10 @@ public sealed partial class ChatInputControl
             _list.BeginUpdate(); _list.Items.Clear(); _list.Items.AddRange(values);
             _list.Font = editor.Font;
             _list.SelectedIndex = Math.Max(0, Array.FindIndex(values, item => item == old)); _list.EndUpdate();
-            var dpi = editor.DeviceDpi / 96d;
-            Size = new Size(Math.Min(Math.Max(editor.Width, (int)(280 * dpi)), (int)(560 * dpi)), (int)(Math.Min(7, values.Length) * (editor.Font.Height + 5) + 8));
-            var point = editor.PointToScreen(Point.Empty); var area = Screen.FromControl(editor).WorkingArea;
-            Location = new Point(Math.Max(area.Left, Math.Min(point.X, area.Right - Width)), Math.Max(area.Top, point.Y - Height));
+            var editorBounds = editor.RectangleToScreen(editor.ClientRectangle);
+            Bounds = FitPopup(editorBounds, Screen.FromRectangle(editorBounds).WorkingArea,
+                _list.ItemHeight, values.Length, Width - ClientSize.Width, Height - ClientSize.Height, editor.LayoutDpi());
+            Theme.ApplyTree(this);
             if (!Visible && editor.FindForm() is { } owner) Show(owner);
         }
     }

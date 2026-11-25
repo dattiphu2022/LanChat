@@ -40,7 +40,7 @@ internal sealed class ConversationPanel : UserControl
     {
         _searchTab = _tabs.CreatePage("Tìm tin", UiIcon.Search);
         _membersTab = _tabs.CreatePage("Thành viên", UiIcon.People);
-        Dock = DockStyle.Fill; Visible = false; BackColor = Color.White; Padding = new Padding(6, 0, 0, 0);
+        Dock = DockStyle.Fill; Visible = false; BackColor = Theme.Surface; Padding = new Padding(6, 0, 0, 0);
         var root = Theme.Stack(2);
         root.RowStyles.Add(new RowStyle(SizeType.Absolute, 49)); root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         var header = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1 };
@@ -90,7 +90,7 @@ internal sealed class ConversationPanel : UserControl
         var location = Theme.Label("", 8); location.AutoSize = false; location.AutoEllipsis = true; location.Height = 24; location.ForeColor = Theme.Muted;
         var buttons = Theme.Toolbar(); var open = Theme.Secondary("Mở", UiIcon.Open); var save = Theme.Secondary("Lưu về máy", UiIcon.Save);
         var more = Theme.Icon(UiIcon.More, "Lưu các đính kèm của tin nhắn");
-        var menu = new ContextMenuStrip();
+        var menu = new ThemeMenuStrip();
         var all = menu.Items.Add("Lưu tất cả đính kèm của tin…", UiIcons.ForMenu(UiIcon.Save));
         void Command(AttachmentCommand command) { if (list.SelectedItem is FileRow row) AttachmentCommandRequested?.Invoke(row.Item, command); }
         open.Click += (_, _) => Command(AttachmentCommand.Open); save.Click += (_, _) => Command(AttachmentCommand.Save);

@@ -32,8 +32,8 @@ public sealed class MessageBubbleControl : UserControl
     private bool _updatingHeight;
     private (int Width, int Dpi) _layoutSize;
     private (int Maximum, int Gutter, int AvatarSpace) _layoutConstraints;
-    private readonly ContextMenuStrip _menu = new();
-    private readonly ContextMenuStrip _reactionMenu = new();
+    private readonly ContextMenuStrip _menu = new ThemeMenuStrip();
+    private readonly ContextMenuStrip _reactionMenu = new ThemeMenuStrip();
     private readonly CheckBox _select = new() { Visible = false, AutoSize = false, AccessibleName = "Chọn tin nhắn", Margin = Padding.Empty };
     private bool _selectionMode, _selected, _settingSelection;
     internal event Action<Guid, bool>? SelectionChanged;
@@ -319,7 +319,7 @@ public sealed class MessageBubbleControl : UserControl
             var diameter = Math.Min(this.ScalePixels(12), Math.Min(bounds.Width, bounds.Height));
             var shape = _drawing.RoundedOutline(bounds, diameter);
             using var fill = new SolidBrush(_card.BackColor);
-            using var edge = new Pen(_highlighted || _selected ? Theme.Blue : _unread ? Color.FromArgb(151, 183, 231) : _border, _highlighted || _selected ? 2 : 1);
+            using var edge = new Pen(_highlighted || _selected ? Theme.Blue : _unread ? Color.FromArgb(151, 183, 231) : Theme.Adapt(_border), _highlighted || _selected ? 2 : 1);
             e.Graphics.FillPath(fill, shape);
             e.Graphics.DrawPath(edge, shape);
         }
@@ -357,7 +357,7 @@ public sealed class MessageBubbleControl : UserControl
             _avatarColor = own ? SenderColors[0] : SenderColors[(int)((uint)m.SenderUserId.GetHashCode() % SenderColors.Length)];
             var sender = new PersonName(name!, details?.SenderDepartment);
             _sender.SetName(sender);
-            _sender.ForeColor = _avatarColor.Ink;
+            _sender.ForeColor = Theme.Adapt(_avatarColor.Ink);
             _initials = Initials(name!);
             AccessibleName = system ? "Thông báo nhóm" : sender.ToString() + (unread ? " · Chưa đọc" : "");
             _sender.Visible = !system && startsGroup;
@@ -372,7 +372,7 @@ public sealed class MessageBubbleControl : UserControl
                 (details is null ? "" : "  " + string.Join("  ", details.Reactions));
             _toolTips?.SetToolTip(_state, sentAt.ToString("dd/MM/yyyy HH:mm") + (own && !system ? "\n" + delivery.Detail : ""));
             _state.ForeColor = own && !system ? delivery.Color : Theme.Muted;
-            _card.BackColor = system ? SystemBackground : own ? SentBackground : Color.White;
+            _card.BackColor = system ? Theme.Adapt(SystemBackground) : own ? Theme.Adapt(SentBackground) : Theme.Surface;
             _border = own && !system ? SentBorder : Theme.Border;
             foreach (Button button in _actions.Controls) { button.BackColor = _card.BackColor; button.ForeColor = Theme.Muted; }
             _body.BindText(m.Text, details?.Mentions ?? [], localUser, m.ForwardedFromMessageId.HasValue ? "↗ Đã chuyển tiếp\n" : "",
@@ -774,12 +774,14 @@ public sealed partial class ChatInputControl : UserControl
     private const int EditorHeight = 60;
     private const int PreviewHeight = 84;
     private const int MaxFiles = 20;
+    private const int MaxPendingSends = 8;
     private readonly PromptTextBox _text = new() { Multiline = true, Dock = DockStyle.Fill, MaxLength = 16000, ScrollBars = ScrollBars.Vertical,
         PlaceholderText = "Nhập tin nhắn…  Enter để gửi · Shift+Enter để xuống dòng" };
     private readonly Button _send = Theme.Button("Gửi", UiIcon.Send);
     private readonly TableLayoutPanel _root = Theme.Stack(4);
-    private readonly Label _feedback = Theme.Label("", 9);
+    private readonly LinkLabel _feedback = new() { Dock = DockStyle.Fill, Font = Theme.GetFont(9, false), Margin = new Padding(5, 1, 5, 1) };
     private readonly ToolTip _feedbackTip = new();
+    private string _feedbackMessage = "";
     private readonly FlowLayoutPanel _previews = new BufferedFlowLayoutPanel { Dock = DockStyle.Fill, AutoScroll = true, WrapContents = false };
     private readonly LinkLabel _context = new IconLinkLabel(UiIcon.Close) { Dock = DockStyle.Fill, AutoEllipsis = true, AutoSize = false };
     private readonly List<string> _paths = [];
@@ -789,7 +791,13 @@ public sealed partial class ChatInputControl : UserControl
     private Guid? _replyTo, _editId;
     private ComposerDraft? _beforeEdit;
     private int _draftGeneration;
-    private bool _sending, _processingImage, _heightQueued;
+    private int _pendingSends;
+    private Guid _composerConversation;
+    private readonly List<(Guid Conversation, ComposerDraft Draft)> _failedSends = [];
+    private bool _processingImage, _heightQueued;
+    internal IEnumerable<string> FailedDraftFiles => _failedSends.SelectMany(item => item.Draft.AllFiles);
+
+    internal void SetComposerConversation(Guid? conversation) => _composerConversation = conversation ?? Guid.Empty;
     private int _requestedHeight, _editorHeight = EditorHeight;
     public event Func<ComposerSubmission, Task>? SendRequested;
     public event Action<int>? HeightRequested;
@@ -799,10 +807,10 @@ public sealed partial class ChatInputControl : UserControl
         _text.Font = Theme.GetFont(preferences.MessageFontSize, false);
         QueueHeight();
     }
-    internal bool IsWorking => _sending || _processingImage;
+    internal bool IsWorking => _pendingSends > 0 || _processingImage;
     internal bool IsImeComposing => _text.IsComposing;
-    internal void FocusEditor() { if (_text.CanFocus && !IsWorking) _text.Focus(); }
-    private bool CanAttach => Enabled && !IsWorking && !_editId.HasValue;
+    internal void FocusEditor() { if (_text.CanFocus && !_processingImage) _text.Focus(); }
+    private bool CanAttach => Enabled && !_processingImage && !_editId.HasValue;
     private int CompactEditorPixels => Math.Max(_attach.GetPreferredSize(Size.Empty).Height + _attach.Margin.Vertical,
         Math.Max(_send.GetPreferredSize(Size.Empty).Height + _send.Margin.Vertical, _text.Font.Height * 2 + _text.Margin.Vertical + SystemInformation.BorderSize.Height * 2));
     private int CompactEditorHeight => Math.Max(EditorHeight, (int)Math.Ceiling(CompactEditorPixels * 96d / this.LayoutDpi()));
@@ -810,7 +818,7 @@ public sealed partial class ChatInputControl : UserControl
         (_context.Text.Length > 0 ? ContextHeight : 0) + (_feedback.Text.Length > 0 ? ContextHeight : 0);
     public ChatInputControl()
     {
-        Dock = DockStyle.Fill; Padding = new Padding(10, 6, 10, 6); BackColor = Color.White;
+        Dock = DockStyle.Fill; Padding = new Padding(10, 6, 10, 6); BackColor = Theme.Surface;
         _root.RowStyles.Add(new RowStyle(SizeType.Absolute, 0));
         _root.RowStyles.Add(new RowStyle(SizeType.Absolute, 0));
         _root.RowStyles.Add(new RowStyle(SizeType.Absolute, 0));
@@ -829,7 +837,7 @@ public sealed partial class ChatInputControl : UserControl
         _send.AccessibleName = "Gửi tin nhắn";
         layout.Controls.Add(_text, 1, 0); layout.Controls.Add(_send, 2, 0);
         _feedback.AutoSize = false; _feedback.AutoEllipsis = true; _feedback.UseMnemonic = false;
-        _feedback.ForeColor = Color.Firebrick; _feedback.AccessibleRole = AccessibleRole.StatusBar;
+        _feedback.ForeColor = Theme.Error; _feedback.AccessibleRole = AccessibleRole.StatusBar;
         _root.Controls.Add(_context, 0, 0); _root.Controls.Add(_previews, 0, 1); _root.Controls.Add(_feedback, 0, 2); _root.Controls.Add(layout, 0, 3); Controls.Add(_root);
         void FitButtons()
         {
@@ -847,7 +855,7 @@ public sealed partial class ChatInputControl : UserControl
         }
         _root.SizeChanged += (_, _) => { FitButtons(); FitPreviews(); QueueHeight(); };
         DpiChangedAfterParent += (_, _) => { FitButtons(); UpdateLayoutHeight(); };
-        var attachments = new ContextMenuStrip();
+        var attachments = new ThemeMenuStrip();
         attachments.Items.Add("Thêm tệp…", UiIcons.ForMenu(UiIcon.File), (_, _) =>
         {
             using var dialog = new OpenFileDialog { Multiselect = true, Title = "Chọn tệp đính kèm", Filter = "Tất cả tệp|*.*" };
@@ -865,7 +873,8 @@ public sealed partial class ChatInputControl : UserControl
         Task CaptureImageAsync() => PrepareImageAsync(() =>
             (TopLevelControl as Form ?? FindForm()) is { } owner ? RegionCaptureForm.CaptureRegion(owner) : null, "Anh-chup");
         Disposed += (_, _) => { attachments.Dispose(); toolTips.Dispose(); _feedbackTip.Dispose(); };
-        _context.LinkClicked += (_, _) => { if (!_sending) ResetContext(); };
+        _context.LinkClicked += (_, _) => ResetContext();
+        _feedback.LinkClicked += (_, _) => RestoreFailedSend();
         InstallDrop(this); InstallDrop(_text); InstallDrop(_previews);
         _send.Click += async (_, _) => await SendAsync();
         _text.Margin = new Padding(3, 4, 3, 5);
@@ -948,22 +957,41 @@ public sealed partial class ChatInputControl : UserControl
 
     protected override bool ProcessCmdKey(ref System.Windows.Forms.Message msg, Keys keyData)
     {
-        if (keyData == Keys.Escape && !IsWorking && (_editId.HasValue || _replyTo.HasValue))
+        if (keyData == Keys.Escape && !_processingImage && (_editId.HasValue || _replyTo.HasValue))
         { ResetContext(); FocusEditor(); return true; }
         return base.ProcessCmdKey(ref msg, keyData);
     }
 
     private void SetFeedback(string message)
     {
-        _feedback.Text = message; _feedbackTip.SetToolTip(_feedback, message); UpdateLayoutHeight();
+        _feedbackMessage = message;
+        RefreshFeedback();
+    }
+
+    private void RefreshFeedback()
+    {
+        var message = _feedbackMessage;
+        _feedback.ForeColor = message.Length == 0 ? Theme.Muted : Theme.Error;
+        if (message.Length == 0 && _pendingSends > 0)
+            message = _pendingSends == MaxPendingSends ? "Hàng chờ gửi đang đầy." : $"Đang xử lý {_pendingSends} lượt gửi…";
+        var hasFailedSend = _failedSends.Any(item => item.Conversation == _composerConversation);
+        if (hasFailedSend) message = message.Length == 0 ? "Khôi phục tin chưa gửi" : message + " · Khôi phục tin chưa gửi";
+        _feedback.Text = message;
+        _feedback.Links.Clear();
+        if (hasFailedSend)
+        {
+            _feedback.LinkColor = Theme.Error;
+            _feedback.Links.Add(message.Length - "Khôi phục tin chưa gửi".Length, "Khôi phục tin chưa gửi".Length);
+        }
+        _feedbackTip.SetToolTip(_feedback, message); UpdateLayoutHeight();
     }
 
     private void UpdateButtons()
     {
-        var canAttach = !IsWorking && !_editId.HasValue;
+        var canAttach = !_processingImage && !_editId.HasValue;
         _attach.Enabled = canAttach;
-        _send.Enabled = !IsWorking && (!string.IsNullOrWhiteSpace(_text.Text) || (!_editId.HasValue && _paths.Count > 0));
-        _send.Text = _sending ? "Đang gửi…" : _editId.HasValue ? "Lưu sửa" : "Gửi";
+        _send.Enabled = !_processingImage && _pendingSends < MaxPendingSends && (!string.IsNullOrWhiteSpace(_text.Text) || (!_editId.HasValue && _paths.Count > 0));
+        _send.Text = _editId.HasValue ? "Lưu sửa" : "Gửi";
     }
 
     private void SelectFolder()
@@ -982,32 +1010,55 @@ public sealed partial class ChatInputControl : UserControl
 
     private async Task SendAsync()
     {
-        if (IsWorking || !_send.Enabled || (string.IsNullOrWhiteSpace(_text.Text) && _paths.Count == 0) || SendRequested is null) return;
+        if (_processingImage || !_send.Enabled || SendRequested is not { } send) return;
+        var draft = Draft();
+        var conversation = _composerConversation;
+        var submission = new ComposerSubmission(draft.Text, draft.Files, draft.Reply, draft.Edit) { Mentions = draft.Mentions };
+        _pendingSends++;
+        if (draft.Edit.HasValue) RestoreDraft(draft.BeforeEdit);
+        else ResetDraft();
         var generation = _draftGeneration;
-        SetFeedback("");
-        _sending = true; UpdateButtons(); _text.ReadOnly = true;
-        try
-        {
-            var submission = new ComposerSubmission(_text.Text, _paths.ToArray(), _replyTo, _editId) { Mentions = _mentions.Values };
-            await SendRequested(submission);
-            if (!IsDisposed && generation == _draftGeneration) CompleteSubmission(submission);
-        }
+        FocusEditor();
+        try { await send(submission); }
         catch (OperationCanceledException) when (_draftLifetime.IsCancellationRequested) { }
         catch (Exception ex)
         {
-            if (!IsDisposed) SetFeedback((generation == _draftGeneration ? "Chưa gửi được: " :
-                "Tin ở hội thoại trước chưa gửi được; bản nháp vẫn được giữ: ") + UiText.HideIpAddresses(ex.Message));
+            if (!IsDisposed)
+            {
+                if (_composerConversation == conversation && generation == _draftGeneration && !Draft().HasContent)
+                    RestoreDraft(draft);
+                else
+                    _failedSends.Add((conversation, draft));
+                SetFeedback(_composerConversation == conversation
+                    ? "Chưa gửi được: " + UiText.HideIpAddresses(ex.Message)
+                    : "Có tin chưa gửi ở hội thoại trước.");
+            }
         }
         finally
         {
-            _sending = false;
+            _pendingSends--;
             if (!IsDisposed)
             {
+                RefreshFeedback();
                 UpdateButtons();
-                _text.ReadOnly = false;
                 DraftFilesChanged?.Invoke();
             }
         }
+    }
+
+    private void RestoreFailedSend()
+    {
+        var index = _failedSends.FindIndex(item => item.Conversation == _composerConversation);
+        if (index < 0 || _processingImage) return;
+        if (Draft().HasContent)
+        {
+            SetFeedback("Hãy gửi hoặc xóa nội dung đang soạn trước khi khôi phục.");
+            return;
+        }
+        var draft = _failedSends[index].Draft;
+        _failedSends.RemoveAt(index);
+        RestoreDraft(draft);
+        FocusEditor();
     }
     public void InstallDrop(Control control)
     {
@@ -1044,7 +1095,6 @@ public sealed partial class ChatInputControl : UserControl
                 var preview = new AttachmentPreviewControl(path, _draftImages?.Thumbnail(path));
                 preview.RemoveRequested += () =>
                 {
-                    if (_sending) return;
                     _paths.Remove(path);
                     RefreshPreviews();
                 };
@@ -1087,7 +1137,7 @@ public sealed partial class ChatInputControl : UserControl
     }
     public void SetContext(ChatMessage message, bool edit, MessageMention[]? mentions = null)
     {
-        if (IsWorking) return;
+        if (_processingImage) return;
         if (edit && !_editId.HasValue) _beforeEdit = Draft();
         if (!edit && _editId.HasValue) ResetContext();
         _replyTo = edit ? null : message.Id; _editId = edit ? message.Id : null;
@@ -1100,11 +1150,6 @@ public sealed partial class ChatInputControl : UserControl
     {
         if (_editId.HasValue) { var draft = _beforeEdit; RestoreDraft(draft); return; }
         _replyTo = null; _context.Text = ""; UpdateButtons(); UpdateLayoutHeight();
-    }
-    internal void CompleteSubmission(ComposerSubmission submission)
-    {
-        if (submission.EditId.HasValue) ResetContext();
-        else ResetDraft();
     }
     public void ResetDraft() => RestoreDraft(null);
     internal ComposerDraft Draft() => new(_text.Text, _paths.ToArray(), _replyTo, _editId, _context.Text, _beforeEdit) { Mentions = _mentions.Values };
@@ -1148,7 +1193,7 @@ public sealed class ChatViewControl : UserControl
     private readonly Button _info = Theme.Secondary("Thông tin", UiIcon.Info);
     private readonly Button _selectMessages = Theme.Secondary("Chọn nhiều", UiIcon.Check);
     private readonly TableLayoutPanel _selectionBar = new() { Dock = DockStyle.Top, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink,
-        ColumnCount = 1, RowCount = 2, Visible = false, Margin = Padding.Empty, Padding = new Padding(8, 2, 8, 2), BackColor = Color.White };
+        ColumnCount = 1, RowCount = 2, Visible = false, Margin = Padding.Empty, Padding = new Padding(8, 2, 8, 2), BackColor = Theme.Surface };
     private readonly TableLayoutPanel _selectionActions = new() { Dock = DockStyle.Top, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink,
         RowCount = 2, Margin = Padding.Empty };
     private readonly Label _selectionStatus = Theme.Label("", 9);
@@ -1159,7 +1204,7 @@ public sealed class ChatViewControl : UserControl
     private readonly Button _shareQr = Theme.Button("Xuất QR", UiIcon.QrCode);
     private readonly Button _cancelSelection = Theme.Secondary("Hủy chọn", UiIcon.Close);
     private readonly LinkLabel _new = new IconLinkLabel(UiIcon.Down)
-        { Text = "Tin mới", Visible = false, Anchor = AnchorStyles.Right | AnchorStyles.Bottom, BackColor = Color.White };
+        { Text = "Tin mới", Visible = false, Anchor = AnchorStyles.Right | AnchorStyles.Bottom, BackColor = Theme.Surface };
     public event Action<bool>? PanelRequested;
     public event Action? ReadRequested;
     private readonly IconLinkLabel _older = new(UiIcon.Up)
@@ -1243,7 +1288,7 @@ public sealed class ChatViewControl : UserControl
             _clearMessages.Enabled = text.Count > 0;
             _selectionStatus.Text = $"Đã chọn {text.Count} tin · {Math.Max(0, text.Bytes)}/{QrText.MaximumBytes} byte UTF-8" +
                 (text.Error is null ? " · Chọn trong lịch sử đang hiển thị." : " · " + text.Error);
-            _selectionStatus.ForeColor = text.Error is null ? Theme.Muted : Color.Firebrick;
+            _selectionStatus.ForeColor = text.Error is null ? Theme.Muted : Theme.Error;
         }
         _messages.SelectionChanged += RefreshSelectionBar;
         _selectMessages.Click += (_, _) => { if (_messages.Selecting) _messages.EndSelection(); else _messages.BeginSelection(); };
@@ -1323,7 +1368,8 @@ public sealed class ChatViewControl : UserControl
     internal bool ComposerWorking => _input.IsWorking;
     internal void ConfigureDraftImages(DraftImageStore store, CancellationToken lifetime) => _input.ConfigureDraftImages(store, lifetime);
     internal void RestoreDraft(ComposerDraft? draft) => _input.RestoreDraft(draft);
-    internal void CompleteSubmission(ComposerSubmission submission) => _input.CompleteSubmission(submission);
+    internal void SetComposerConversation(Guid? conversation) => _input.SetComposerConversation(conversation);
+    internal IEnumerable<string> FailedDraftFiles => _input.FailedDraftFiles;
     internal void FocusComposer() => _input.FocusEditor();
     internal void ScrollToEnd() => _messages.ScrollToEnd();
     internal bool AtBottom => _messages.AtBottom;

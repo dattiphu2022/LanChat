@@ -14,12 +14,79 @@ public sealed partial class WindowsUiTests
     public async Task DisplayPreferencesRoundTripInIsolatedLocalConfiguration()
     {
         var directory=Temp(); var catalog=new NetworkCatalog(new NodeOptions {DataDirectory=directory});
-        var preferences=new UiPreferences(14,UiDensity.Comfortable,true,true);
+        var preferences=new UiPreferences(14,UiDensity.Comfortable,true,true,UiTheme.Dark);
         await catalog.SaveUiPreferencesAsync(preferences);
         var reloaded=new NetworkCatalog(new NodeOptions {DataDirectory=directory}); await reloaded.LoadAsync();
         Assert.Equal(preferences,reloaded.UiPreferences);
         Assert.True(File.Exists(Path.Combine(directory,"ui-preferences.json")));
     }
+
+    [Fact]
+    public void ExistingPreferencesDefaultToLight()
+    {
+        var preferences = System.Text.Json.JsonSerializer.Deserialize<UiPreferences>(
+            "{\"MessageFontSize\":12,\"HideNotificationContent\":true}")!;
+        Assert.Equal(UiTheme.Light, preferences.Validated().Theme);
+        Assert.Equal(12, preferences.MessageFontSize);
+        Assert.True(preferences.HideNotificationContent);
+    }
+
+    [Theory]
+    [InlineData(660, 96)] [InlineData(800, 120)] [InlineData(1280, 144)] [InlineData(1280, 192)]
+    public Task OpenChatChangesThemeAndKeepsSelection(int width, int dpi) => OnUi(async host =>
+    {
+        using var form = new DpiForm { ClientSize = new Size(width, 520), Text = "LanChat · Kiểm tra giao diện" };
+        using var chat = new ChatViewControl();
+        form.Controls.Add(chat);
+        form.Show(host);
+        using var fonts = SimulateDpi(form, dpi);
+        var local = Guid.NewGuid();
+        chat.SelectConversation("Đồng nghiệp", true);
+        var conversation = Guid.NewGuid();
+        var peer = Guid.NewGuid();
+        var messages = new[]
+        {
+            new LanChat.Domain.Message { Id = Guid.NewGuid(), ConversationId = conversation, SenderUserId = peer,
+                CreatedAtTicks = DateTime.UtcNow.AddMinutes(-2).Ticks, Text = "Bạn đã xem bản tổng hợp chưa?", IsRead = true },
+            new LanChat.Domain.Message { Id = Guid.NewGuid(), ConversationId = conversation, SenderUserId = local,
+                CreatedAtTicks = DateTime.UtcNow.AddMinutes(-1).Ticks, Text = "Mình đang xem. Chiều nay mình gửi phản hồi.", IsRead = true }
+        };
+        chat.Bind(conversation, messages, local, [], false);
+        chat.RestoreDraft(new("Bản nháp giữ lại", [], null, null, ""));
+        using var mention = new MentionTextControl { Dock = DockStyle.Bottom, Height = 28 };
+        form.Controls.Add(mention);
+        mention.BringToFront();
+        mention.BindText("Chào @Hà", [new(5, 3, false, [local])], local, "", Theme.Surface, Theme.Ink, false);
+        mention.Select(5, 3);
+        var output = Environment.GetEnvironmentVariable("LANCHAT_UI_CAPTURE_DIR");
+        void Capture(string mode)
+        {
+            if (string.IsNullOrEmpty(output)) return;
+            Directory.CreateDirectory(output);
+            using var bitmap = new Bitmap(form.Width, form.Height);
+            form.DrawToBitmap(bitmap, new Rectangle(Point.Empty, form.Size));
+            bitmap.Save(Path.Combine(output, $"chat-{mode}-{width}-{dpi}.png"));
+        }
+
+        try
+        {
+            await Task.Delay(20);
+            Capture("light");
+            Theme.SetMode(UiTheme.Dark);
+            if (SystemInformation.HighContrast) return;
+            Assert.True(Theme.IsDark);
+            Assert.Equal(Theme.Surface, mention.BackColor);
+            Assert.Equal(Theme.Blue.ToArgb(), mention.SelectionColor.ToArgb());
+            Assert.Equal(5, mention.SelectionStart);
+            Assert.Equal(3, mention.SelectionLength);
+            Assert.Equal("Bản nháp giữ lại", chat.Draft().Text);
+            await Task.Delay(20);
+            Capture("dark");
+        }
+        finally { Theme.SetMode(UiTheme.Light); }
+        Assert.Equal(Color.White, mention.BackColor);
+        Assert.Equal(Theme.Blue.ToArgb(), mention.SelectionColor.ToArgb());
+    });
 
     [Fact]
     public Task ChangingAppearanceKeepsDraftRowsAndReadingAnchor() => OnUi(async host =>

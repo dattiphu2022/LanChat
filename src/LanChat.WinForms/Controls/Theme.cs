@@ -1,26 +1,26 @@
 namespace LanChat.WinForms.Controls;
 
-internal static class Theme
+internal static partial class Theme
 {
     private static readonly Dictionary<(float Size, bool Bold), Font> Fonts = [];
-    public static readonly Color Warning = Color.FromArgb(142, 83, 0);
-    public static readonly Color Success = Color.FromArgb(28, 110, 65);
-    public static readonly Color Error = Color.FromArgb(174, 43, 43);
-    public static readonly Color Blue = Color.FromArgb(35, 100, 220);
-    public static readonly Color Ink = Color.FromArgb(30, 42, 61);
-    public static readonly Color Muted = Color.FromArgb(89, 105, 126);
+    public static Color Warning => Adapt(Color.FromArgb(142, 83, 0));
+    public static Color Success => Adapt(Color.FromArgb(28, 110, 65));
+    public static Color Error => Adapt(Color.FromArgb(174, 43, 43));
+    public static Color Blue => Adapt(Color.FromArgb(35, 100, 220));
+    public static Color Ink => Adapt(Color.FromArgb(30, 42, 61));
+    public static Color Muted => Adapt(Color.FromArgb(89, 105, 126));
     public static readonly Font DefaultFont = GetFont(10, false);
-    public static readonly Color Rail = Color.FromArgb(21, 73, 159);
-    public static readonly Color Border = Color.FromArgb(221, 229, 239);
-    public static readonly Color Selection = Color.FromArgb(231, 241, 255);
-    public static readonly Color Canvas = Color.FromArgb(245, 247, 251);
+    public static Color Rail => Adapt(Color.FromArgb(21, 73, 159));
+    public static Color Border => Adapt(Color.FromArgb(221, 229, 239));
+    public static Color Selection => Adapt(Color.FromArgb(231, 241, 255));
+    public static Color Canvas => Adapt(Color.FromArgb(245, 247, 251));
     public static IconButton Button(string text, UiIcon icon) => new(icon) { Text = text, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink,
         MinimumSize = new Size(90, 36),
-        FlatStyle = FlatStyle.Flat, BackColor = Blue, ForeColor = Color.White, Cursor = Cursors.Hand, Padding = new Padding(8, 3, 8, 3), Margin = new Padding(5) };
+        FlatStyle = FlatStyle.Flat, BackColor = Primary, ForeColor = Color.White, Cursor = Cursors.Hand, Padding = new Padding(8, 3, 8, 3), Margin = new Padding(5) };
     public static IconButton Secondary(string text, UiIcon icon)
     {
         var button = Button(text, icon);
-        button.BackColor = Color.White;
+        button.BackColor = Surface;
         button.ForeColor = Ink;
         button.FlatAppearance.BorderColor = Border;
         button.FlatAppearance.MouseOverBackColor = Selection;
@@ -58,7 +58,7 @@ internal static class Theme
 
     public static TableLayoutPanel Stack(int rows)
     {
-        var layout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = rows, BackColor = Color.White };
+        var layout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = rows, BackColor = Surface };
         layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         return layout;
     }

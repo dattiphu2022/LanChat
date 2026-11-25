@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Diagnostics;
 using LanChat.Application;
+using LanChat.Infrastructure;
 using LanChat.WinForms.Forms;
 
 namespace LanChat.WinForms.Controls;
@@ -64,7 +65,7 @@ internal sealed class AttachmentActions : IDisposable
             await Task.Run(() => files.PrepareOpenAsync(file, progress, networkLifetime), networkLifetime);
         }
         catch (OperationCanceledException) when (networkLifetime.IsCancellationRequested) { }
-        catch (Exception ex) { if (!_disposed) _errors[file.Id] = UiText.HideIpAddresses(ex.Message); }
+        catch (Exception) { if (!_disposed) _errors[file.Id] = "Chuẩn bị thất bại · Có thể thử lại"; }
         finally { _busy.Remove(file.Id); _states.Remove(file.Id); if (!_disposed) Notify(file.Id); }
     }
     public bool IsBusy(Guid id) => _busy.Contains(id);
@@ -81,6 +82,11 @@ internal sealed class AttachmentActions : IDisposable
         if (_states.TryGetValue(id, out var old) && old == state) return;
         _states[id] = state; Notify(id);
     }
+    internal Task<(long TotalBytes, int FileCount)?> FolderSummaryAsync(AttachmentDto file, CancellationToken ct) =>
+        files is PeerFileTransferService peerFiles
+            ? Task.Run(() => peerFiles.ReadLocalFolderSummaryAsync(file, ct), ct)
+            : Task.FromResult<(long, int)?>(null);
+
     public Task<LocalAttachmentLocation> LocationAsync(AttachmentDto file, CancellationToken ct) =>
         Task.Run(() => files.GetLocalLocationAsync(file, ct), ct);
 

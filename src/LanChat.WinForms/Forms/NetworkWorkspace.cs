@@ -8,6 +8,8 @@ namespace LanChat.WinForms.Forms;
 internal sealed partial class NetworkWorkspace : DpiForm
 {
     private readonly NetworkCatalog _catalog;
+    private readonly CancellationTokenSource _appearanceLifetime = new();
+    private int _appearanceRequest;
     private readonly WindowsStartup _startup;
     private readonly IconTabControl _tabs = new(UiIcon.Network, UiIcon.NetworkUnread)
         { Dock = DockStyle.Fill, ShowToolTips = true };
@@ -30,6 +32,8 @@ internal sealed partial class NetworkWorkspace : DpiForm
     public NetworkWorkspace(NetworkCatalog catalog, WindowsStartup startup, UpdateService updates)
     {
         _catalog = catalog; _startup = startup;
+        Microsoft.Win32.SystemEvents.UserPreferenceChanged += WindowsAppearanceChanged;
+        Disposed += ReleaseAppearance;
         _updates = new UpdateCoordinator(updates);
         updates.ResolveNetwork = id => _updateNetworks.TryGetValue(id, out var services) ? services : null;
         Icon = AppIcon.Value;
@@ -70,7 +74,7 @@ internal sealed partial class NetworkWorkspace : DpiForm
         _restoreDefaultButton = AddAction("Khôi phục mạng mặc định", UiIcon.Restore, RestoreDefaultNetworkAsync, changesNetworks: true);
         _restoreDefaultButton.Visible = _catalog.CanRestoreDefaultNetwork && !_catalog.Entries.Any(_catalog.IsDefault);
         AddAction("Cài đặt", UiIcon.Settings, SettingsAsync);
-        var moreMenu = new ContextMenuStrip();
+        var moreMenu = new ThemeMenuStrip();
         moreMenu.Items.Add("Giới thiệu và cập nhật…", UiIcons.ForMenu(UiIcon.Info), async (_, _) => await RunAsync(ShowAboutAsync));
         moreMenu.Items.Add("Cài đặt cập nhật…", UiIcons.ForMenu(UiIcon.Settings), async (_, _) => await RunAsync(() => { ShowUpdateSettings(); return Task.CompletedTask; }));
         moreMenu.Items.Add("Hướng dẫn bắt đầu…", UiIcons.ForMenu(UiIcon.Book), async (_, _) => await RunAsync(ShowGettingStartedAsync));
@@ -83,7 +87,7 @@ internal sealed partial class NetworkWorkspace : DpiForm
         root.Controls.Add(actions, 0, 0); root.Controls.Add(_feedback, 0, 1);
         root.Controls.Add(CreateUpdateBar(), 0, 2); root.Controls.Add(_tabs, 0, 3);
         Controls.Add(root);
-        var trayMenu = new ContextMenuStrip();
+        var trayMenu = new ThemeMenuStrip();
         trayMenu.Items.Add("Mở LanChat", UiIcons.ForMenu(UiIcon.Open), (_, _) => RestoreWindow());
         trayMenu.Items.Add("Thoát LanChat", UiIcons.ForMenu(UiIcon.Exit), (_, _) => { _exitRequested = true; Close(); });
         trayMenu.Items.Insert(1, new ToolStripMenuItem("Hướng dẫn bắt đầu…", UiIcons.ForMenu(UiIcon.Book), async (_, _) => await RunAsync(ShowGettingStartedAsync)));
@@ -153,6 +157,7 @@ internal sealed partial class NetworkWorkspace : DpiForm
     private async Task LoadNetworksAsync()
     {
         await _catalog.LoadAsync();
+        await ApplyConfiguredThemeAsync();
         _restoreDefaultButton.Visible = _catalog.CanRestoreDefaultNetwork;
         var failures = new List<string>();
         if (_catalog.DefaultNetworkError is string defaultError) failures.Add(defaultError);
@@ -312,10 +317,39 @@ internal sealed partial class NetworkWorkspace : DpiForm
         }, ShowUpdateSettings, _catalog.UiPreferences, async preferences =>
         {
             await _catalog.SaveUiPreferencesAsync(preferences);
+            await ApplyConfiguredThemeAsync();
             foreach (var network in _running.Values) network.View.ApplyPreferences(preferences);
         });
         UiInteraction.ShowDialog(dialog, this);
         return Task.CompletedTask;
+    }
+
+    private void WindowsAppearanceChanged(object sender, Microsoft.Win32.UserPreferenceChangedEventArgs e)
+    {
+        if (IsDisposed || !IsHandleCreated) return;
+        try { BeginInvoke((Action)(async () => await ApplyConfiguredThemeAsync())); }
+        catch (InvalidOperationException) { }
+    }
+
+    private void ReleaseAppearance(object? sender, EventArgs e)
+    {
+        Disposed -= ReleaseAppearance;
+        Microsoft.Win32.SystemEvents.UserPreferenceChanged -= WindowsAppearanceChanged;
+        _appearanceLifetime.Cancel();
+        _appearanceLifetime.Dispose();
+    }
+
+    private async Task ApplyConfiguredThemeAsync()
+    {
+        if (IsDisposed || Disposing) return;
+        var request = ++_appearanceRequest;
+        var ct = _appearanceLifetime.Token;
+        try
+        {
+            var mode = await Theme.ResolveModeAsync(_catalog.UiPreferences.Theme, ct);
+            if (!IsDisposed && !ct.IsCancellationRequested && request == _appearanceRequest) Theme.SetMode(mode);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
     }
 
     private void ShowUpdateSettings()

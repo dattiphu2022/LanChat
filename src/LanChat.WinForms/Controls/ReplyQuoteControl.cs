@@ -60,7 +60,7 @@ internal sealed class ReplyQuoteControl : Button
     {
         if (_quote is not { } quote) return;
         var color = SystemInformation.HighContrast ? SystemColors.Control : _own
-            ? Color.FromArgb(208, 226, 249) : Color.FromArgb(232, 237, 245);
+            ? Theme.Adapt(Color.FromArgb(208, 226, 249)) : Theme.Adapt(Color.FromArgb(232, 237, 245));
         if (_hover && Enabled && !SystemInformation.HighContrast) color = ControlPaint.Dark(color, .08f);
         var accent = SystemInformation.HighContrast ? SystemColors.Highlight : quote.CanNavigate ? Theme.Blue : Theme.Border;
         using var background = new SolidBrush(color);
@@ -91,7 +91,7 @@ internal sealed class ReplyQuoteControl : Button
         var preview = new Rectangle(left, top + authorHeight, width, Math.Max(0, Height - 2 * top - authorHeight));
         if (preview.Height > 0)
             TextRenderer.DrawText(e.Graphics, quote.Preview, Font, preview,
-                SystemInformation.HighContrast ? SystemColors.ControlText : PreviewInk, PreviewFlags);
+                SystemInformation.HighContrast ? SystemColors.ControlText : Theme.Adapt(PreviewInk), PreviewFlags);
         if (Focused && ShowFocusCues && Width > 6 && Height > 6)
             ControlPaint.DrawFocusRectangle(e.Graphics, Rectangle.Inflate(ClientRectangle, -3, -3));
     }

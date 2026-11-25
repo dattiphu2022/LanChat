@@ -42,7 +42,7 @@ internal sealed class AttachmentItemControl : UserControl
             _name = new IconLinkLabel(folder ? UiIcon.Folder : UiIcon.File)
             {
                 Text = file.FileName, AutoSize = false, AutoEllipsis = true, Margin = Padding.Empty,
-                Font = Theme.GetFont(9, true), BackColor = Color.White, LinkColor = Theme.Ink,
+                Font = Theme.GetFont(9, true), BackColor = Theme.Surface, LinkColor = Theme.Ink,
                 ActiveLinkColor = Theme.Blue, LinkBehavior = LinkBehavior.HoverUnderline
             };
             _name.LinkClicked += (_, _) => Selected?.Invoke(file); Controls.Add(_name);
@@ -50,7 +50,7 @@ internal sealed class AttachmentItemControl : UserControl
         }
         _location.Text = _metadata; _location.AutoSize = false; _location.AutoEllipsis = true;
         _location.UseMnemonic = false; _location.Dock = DockStyle.None; _location.Margin = Padding.Empty; _location.ForeColor = Theme.Muted;
-        _location.BackColor = Color.White; _location.Visible = _image is null;
+        _location.BackColor = Theme.Surface; _location.Visible = _image is null;
         Controls.AddRange([_location, _open, _save]);
         _open.Click += (_, _) => CommandRequested?.Invoke(file, AttachmentCommand.Open);
         _save.Click += (_, _) => CommandRequested?.Invoke(file, AttachmentCommand.Save);
@@ -71,7 +71,7 @@ internal sealed class AttachmentItemControl : UserControl
         var button = new IconButton(icon, 12)
         {
             Text = text, Font = Theme.GetFont(8.5f, false), FlatStyle = FlatStyle.Flat,
-            BackColor = Color.White, ForeColor = Theme.Blue, Cursor = Cursors.Hand,
+            BackColor = Theme.Surface, ForeColor = Theme.Blue, Cursor = Cursors.Hand,
             Padding = new Padding(3, 0, 3, 0), Margin = Padding.Empty, UseMnemonic = false
         };
         button.FlatAppearance.BorderSize = 0;
@@ -152,7 +152,7 @@ internal sealed class AttachmentItemControl : UserControl
         shape.AddArc(bounds.Right - diameter, bounds.Bottom - diameter, diameter, diameter, 0, 90);
         shape.AddArc(bounds.Left, bounds.Bottom - diameter, diameter, diameter, 90, 90); shape.CloseFigure();
         e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-        using var fill = new SolidBrush(Color.White); using var edge = new Pen(Theme.Border);
+        using var fill = new SolidBrush(Theme.Surface); using var edge = new Pen(Theme.Border);
         e.Graphics.FillPath(fill, shape); e.Graphics.DrawPath(edge, shape);
     }
     public void EnsureImageLoaded() => _image?.EnsureLoaded();

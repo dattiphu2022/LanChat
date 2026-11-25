@@ -26,6 +26,7 @@ public class DpiForm : Form
         ResumeLayout(true);
 
         if (TopLevel) FitToWorkingArea(Screen.FromControl(this).WorkingArea);
+        Theme.ApplyTree(this);
         base.OnLoad(e);
     }
 

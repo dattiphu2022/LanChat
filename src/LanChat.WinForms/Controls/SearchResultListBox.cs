@@ -9,7 +9,7 @@ internal sealed class SearchResultListBox : ListBox
     internal SearchResultListBox()
     {
         DrawMode=DrawMode.OwnerDrawFixed; IntegralHeight=false; HorizontalScrollbar=false;
-        BorderStyle=BorderStyle.None; BackColor=Color.White; ForeColor=Theme.Ink;
+        BorderStyle=BorderStyle.None; BackColor=Theme.Surface; ForeColor=Theme.Ink;
         UpdateHeight();
     }
     private void UpdateHeight() => ItemHeight=Math.Max(this.ScalePixels(48),Font.Height*2+this.ScalePixels(10));
@@ -21,7 +21,7 @@ internal sealed class SearchResultListBox : ListBox
     {
         if(e.Index<0 || e.Index>=Items.Count) return;
         var selected=(e.State&DrawItemState.Selected)!=0;
-        using(var background=new SolidBrush(selected?Theme.Selection:Color.White)) e.Graphics.FillRectangle(background,e.Bounds);
+        using(var background=new SolidBrush(selected?Theme.Selection:Theme.Surface)) e.Graphics.FillRectangle(background,e.Bounds);
         var (heading,text)=Describe(Items[e.Index]); text=text.Replace('\r',' ').Replace('\n',' ');
         var tokens=Query.Split(new[]{' ','"'},StringSplitOptions.RemoveEmptyEntries);
         var first=tokens.Select(t=>KeywordIndex(text,t)).Where(i=>i>=0).DefaultIfEmpty(-1).Min();
@@ -39,7 +39,7 @@ internal sealed class SearchResultListBox : ListBox
             var width=TextRenderer.MeasureText(e.Graphics,match,Font,Size.Empty,TextFormatFlags.NoPadding|TextFormatFlags.SingleLine).Width;
             var area=new Rectangle(bodyBox.X+prefix,bodyBox.Y,width,bodyBox.Height);
             if(area.Right>bodyBox.Right-this.ScalePixels(16)) continue;
-            using var marker=new SolidBrush(Color.FromArgb(255,235,160)); e.Graphics.FillRectangle(marker,area);
+            using var marker=new SolidBrush(Theme.Adapt(Color.FromArgb(255,235,160))); e.Graphics.FillRectangle(marker,area);
             TextRenderer.DrawText(e.Graphics,match,Font,area,Theme.Ink,TextFormatFlags.NoPadding|TextFormatFlags.SingleLine|TextFormatFlags.NoPrefix);
         }
         e.DrawFocusRectangle();

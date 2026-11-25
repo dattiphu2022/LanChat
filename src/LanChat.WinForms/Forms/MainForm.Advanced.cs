@@ -20,55 +20,69 @@ public sealed partial class MainForm
     private IDistributedStore Distributed => _services.GetRequiredService<IDistributedStore>();
     private IConsensusService Consensus => _services.GetRequiredService<IConsensusService>();
     private IFileTransferService Files => _services.GetRequiredService<IFileTransferService>();
+    private readonly SemaphoreSlim _attachmentImports = new(1);
+    private readonly SemaphoreSlim _messageWrites = new(1);
+
     private async Task SendSubmissionAsync(ComposerSubmission submission)
     {
         if (_activeConversation is not { } conversation) throw new InvalidOperationException("Hãy chọn cuộc trò chuyện.");
-        if (submission.EditId is { } edit) await Distributed.EditMessageAsync(edit, submission.Text, _lifetime.Token, submission.Mentions);
-        else
+        var ct = _lifetime.Token;
+        AttachmentDto[] attachments = [];
+        if (submission.Files.Length > 0)
         {
-            var attachments = new List<AttachmentDto>();
-            var preparingFolder = false;
+            await _attachmentImports.WaitAsync(ct);
+            var importing = true;
+            string? shownProgress = null;
+            var progress = new Progress<string>(text =>
+            {
+                if (!importing || IsDisposed || ct.IsCancellationRequested || _activeConversation != conversation) return;
+                _scanState.Text = shownProgress = text;
+            });
             try
             {
-                foreach (var path in submission.Files)
+                attachments = await Task.Run(async () =>
                 {
-                    if (Directory.Exists(path))
+                    var files = new List<AttachmentDto>(submission.Files.Length);
+                    foreach (var path in submission.Files)
                     {
-                        preparingFolder = true;
-                        var progress = new Progress<string>(text => { if (preparingFolder && !IsDisposed) _scanState.Text = text; });
-                        attachments.Add(await Files.ImportFolderAsync(path, progress, _lifetime.Token));
+                        ct.ThrowIfCancellationRequested();
+                        files.Add(Directory.Exists(path)
+                            ? await Files.ImportFolderAsync(path, progress, ct).ConfigureAwait(false)
+                            : await Files.ImportLocalAsync(path, ct).ConfigureAwait(false));
                     }
-                    else attachments.Add(await Files.ImportLocalAsync(path, _lifetime.Token));
-                }
+                    return files.ToArray();
+                }, ct);
             }
             finally
             {
-                if (preparingFolder && !IsDisposed) _scanState.Text = "";
-                preparingFolder = false;
+                importing = false;
+                if (!IsDisposed && shownProgress is not null && _scanState.Text == shownProgress) _scanState.Text = "";
+                _attachmentImports.Release();
             }
-            await Distributed.SendToConversationAsync(conversation, submission.Text, submission.ReplyTo, attachments: attachments.ToArray(), ct: _lifetime.Token, mentions: submission.Mentions);
         }
-        if (_activeConversation != conversation)
+
+        await _messageWrites.WaitAsync(ct);
+        try
         {
-            if (_drafts.TryGetValue(conversation, out var draft) && MatchesSubmission(draft, submission))
+            await Task.Run(async () =>
             {
-                if (submission.EditId.HasValue && draft.BeforeEdit is { HasContent: true } original) _drafts[conversation] = original;
-                else _drafts.Remove(conversation);
-            }
-            return;
+                if (submission.EditId is { } edit)
+                    await Distributed.EditMessageAsync(edit, submission.Text, ct, submission.Mentions).ConfigureAwait(false);
+                else
+                    await Distributed.SendToConversationAsync(conversation, submission.Text, submission.ReplyTo,
+                        attachments: attachments, ct: ct, mentions: submission.Mentions).ConfigureAwait(false);
+            }, ct);
         }
-        if (MatchesSubmission(_chat.Draft(), submission)) _chat.CompleteSubmission(submission);
+        finally { _messageWrites.Release(); }
+
+        if (IsDisposed || ct.IsCancellationRequested || _activeConversation != conversation) return;
         try
         {
             await RefreshAsync();
-            if (_activeConversation == conversation && !_searchAnchor.HasValue && !_jumpedInLatest) _chat.ScrollToEnd();
+            if (!IsDisposed && _activeConversation == conversation && !_searchAnchor.HasValue && !_jumpedInLatest) _chat.ScrollToEnd();
         }
-        catch (Exception ex) { if (!IsDisposed && !_lifetime.IsCancellationRequested) { _scanState.Text = UiText.HideIpAddresses(ex.Message); _scanState.ToolTipText = _scanState.Text; } }
+        catch (Exception ex) { if (!IsDisposed && !ct.IsCancellationRequested) { _scanState.Text = UiText.HideIpAddresses(ex.Message); _scanState.ToolTipText = _scanState.Text; } }
     }
-    private static bool MatchesSubmission(ComposerDraft draft, ComposerSubmission submission) =>
-        draft.Text == submission.Text && draft.Reply == submission.ReplyTo && draft.Edit == submission.EditId && draft.Files.SequenceEqual(submission.Files) &&
-        draft.Mentions.Length == submission.Mentions.Length && draft.Mentions.Zip(submission.Mentions, (a, b) =>
-            a.Start == b.Start && a.Length == b.Length && a.All == b.All && a.ResolveAtSend == b.ResolveAtSend && a.UserIds.SequenceEqual(b.UserIds)).All(equal => equal);
     private async Task MessageActionAsync(LanChat.Domain.Message message, string action)
     {
         switch (action)

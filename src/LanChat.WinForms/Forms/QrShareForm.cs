@@ -13,7 +13,9 @@ internal sealed class QrShareForm : DpiForm
     private readonly Bitmap? _image;
     internal bool CanExport => _image is not null;
     internal int Version { get; }
-    public QrShareForm(QrText text)
+    public QrShareForm(QrText text) : this(text, UiInteraction.Copy) { }
+
+    internal QrShareForm(QrText text, Func<Control, string, bool> copyText)
     {
         _text = text;
         Text = "Chia sẻ tin nhắn bằng QR"; Icon = AppIcon.Value; ClientSize = new Size(760, 530);
@@ -40,7 +42,7 @@ internal sealed class QrShareForm : DpiForm
         var preview = new QrPreview(_image, Version == 0 ? 0 : 17 + 4 * Version + 8) { Dock = DockStyle.Fill, AccessibleName = "Bản xem trước QR" };
         var content = new TextBox { Dock = DockStyle.Fill, Multiline = true, ReadOnly = true, WordWrap = true, ScrollBars = ScrollBars.Vertical,
             // Native multiline TextBox needs CRLF to display the LF separators used by QR.
-            Text = text.Text.NormalizeLines(Environment.NewLine), BackColor = Color.White, ForeColor = Theme.Ink, Font = Theme.DefaultFont,
+            Text = text.Text.NormalizeLines(Environment.NewLine), BackColor = Theme.Surface, ForeColor = Theme.Ink, Font = Theme.DefaultFont,
             Margin = new Padding(8, 4, 4, 4), MaxLength = int.MaxValue, AccessibleName = "Văn bản nguyên gốc trong QR" };
         body.Controls.Add(preview, 0, 0); body.Controls.Add(content, 1, 0);
         var footer = Theme.Toolbar(); var save = Theme.Button("Xuất PNG…", UiIcon.Save); save.Enabled = CanExport;
@@ -56,7 +58,7 @@ internal sealed class QrShareForm : DpiForm
         };
         var copy = Theme.Secondary("Sao chép văn bản", UiIcon.Copy);
         copy.Enabled = text.Text.Length > 0;
-        copy.Click += (_, _) => { if (UiInteraction.Copy(this, text.Text)) status.Text = summary + "\nĐã sao chép nguyên văn."; };
+        copy.Click += (_, _) => { if (copyText(this, text.Text)) status.Text = summary + "\nĐã sao chép nguyên văn."; };
         footer.Controls.Add(copy); footer.Controls.Add(save); footer.Controls.Add(UiInteraction.CloseButton(this));
         root.Controls.Add(status, 0, 0); root.Controls.Add(body, 0, 1); root.Controls.Add(footer, 0, 2); Controls.Add(root);
         void FitBody()

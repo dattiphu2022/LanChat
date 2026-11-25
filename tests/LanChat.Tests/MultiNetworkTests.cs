@@ -77,7 +77,8 @@ public sealed class MultiNetworkTests
             await TestNode.WaitUntilAsync(async () => faults.LastSync > initialSync && await a.Store.GetPendingCountAsync() == 0);
             var lastSeen = Assert.Single(await a.Store.GetUsersAsync()).LastSeenTicks;
             var reply = await b.Store.SaveOutgoingAsync(nodeA.User.Id, "Tin trả lời từ B");
-            await TestNode.WaitUntilAsync(async () => (await a.Store.GetMessagesAsync(sent.ConversationId)).Any(m => m.Id == reply.Id), seconds: 12);
+            // A quiet peer can wait 12 seconds between pulls, plus the wake-loop tick and TCP work.
+            await TestNode.WaitUntilAsync(async () => (await a.Store.GetMessagesAsync(sent.ConversationId)).Any(m => m.Id == reply.Id), seconds: 20);
             var peer = Assert.Single(await a.Store.GetUsersAsync());
             Assert.True(peer.LastSeenTicks > lastSeen);
             Assert.Equal(PresenceStatus.Online, peer.Presence);

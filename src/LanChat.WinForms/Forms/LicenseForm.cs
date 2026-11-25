@@ -18,7 +18,7 @@ internal sealed class LicenseForm : DpiForm
         using var reader = new StreamReader(stream);
         var document = new RichTextBox
         {
-            Text = reader.ReadToEnd(), Dock = DockStyle.Fill, ReadOnly = true, DetectUrls = false, BackColor = Color.White,
+            Text = reader.ReadToEnd(), Dock = DockStyle.Fill, ReadOnly = true, DetectUrls = false, BackColor = Theme.Surface,
             ForeColor = Theme.Ink, ScrollBars = RichTextBoxScrollBars.Vertical, AccessibleName = "Nội dung giấy phép MIT",
             Margin = Padding.Empty
         };

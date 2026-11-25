@@ -50,6 +50,37 @@ public sealed class FileTransferTests
     }
 
     [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(3)]
+    public async Task FolderSummaryOnlyReadsVerifiedLocalManifest(int count)
+    {
+        var cluster = Guid.NewGuid(); var secret = FrameworkIO.RandomBytes(32);
+        await using var sender = new TestNode(cluster, secret, "A");
+        await using var receiver = new TestNode(cluster, secret, "B");
+        await sender.InitializeAsync(); await receiver.InitializeAsync();
+        var children = Enumerable.Range(1, count).Select(i => new FolderFile(i + ".bin", i, new string('a', 64))).ToArray();
+        var manifest = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(new FolderManifest("Summary", [], children));
+        using var sha = SHA256.Create();
+        var hash = FrameworkIO.Hex(sha.ComputeHash(manifest)).ToLowerInvariant();
+        var path = Path.Combine(sender.Options.DataDirectory, "Attachments", hash.Substring(0, 2), hash + ".bin");
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        await FrameworkIO.WriteBytesAsync(path, manifest);
+        var file = new AttachmentDto(Guid.NewGuid(), Guid.NewGuid(), "Summary", FolderAttachment.MimeType, manifest.Length, hash);
+        var local = (PeerFileTransferService)Files(sender);
+        var remote = (PeerFileTransferService)Files(receiver);
+        var summary = await local.ReadLocalFolderSummaryAsync(file, CancellationToken.None);
+        Assert.Equal(((long)count * (count + 1) / 2, count), summary!.Value);
+        Assert.Null(await remote.ReadLocalFolderSummaryAsync(file, CancellationToken.None));
+
+        using var cancelled = new CancellationTokenSource();
+        cancelled.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => local.ReadLocalFolderSummaryAsync(file, cancelled.Token));
+        await FrameworkIO.WriteBytesAsync(path, new byte[manifest.Length]);
+        Assert.Null(await local.ReadLocalFolderSummaryAsync(file, CancellationToken.None));
+    }
+
+    [Theory]
     [InlineData("../escape.txt")]
     [InlineData("C:/escape.txt")]
     [InlineData("x:stream")]

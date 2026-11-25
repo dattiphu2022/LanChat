@@ -105,3 +105,75 @@ Chuyển hội thoại gần như tương đương (+0,33 ms); cold render tăng
 - Hai máy: pwsh -NoProfile -File scripts/Verify-TwoInstances.ps1 -WithLanUpdate -OutputDirectory <thư-mục-thử-mới>.
 - LANCHAT_UI_CAPTURE_DIR điều khiển nơi lưu ảnh. LANCHAT_UX_EVIDENCE bật fixture CaptureResponsiveWorkspaceAndMeasureConversationSwitches và lưu JSON/screenshot. Không dùng thư mục dữ liệu LanChat thật.
 - Tham chiếu thiết kế: [Microsoft responsive layout](https://learn.microsoft.com/en-us/windows/apps/design/layout/screen-sizes-and-breakpoints-for-responsive-design), [WCAG 2.2](https://www.w3.org/TR/WCAG22/), [xUnit VSTest configuration](https://xunit.net/docs/config-runsettings).
+
+## 8. Nâng cấp Trung tâm tệp, gợi ý @ và giao diện sáng/tối
+
+Baseline mã nguồn là `b646034a404ef62deb09cf2c6b9e4d7654aaab86`. Kết quả ở các mục trên thuộc các lượt kiểm chứng cũ. Lượt này dùng Windows x64 build 26300 và .NET Framework 4.8. Chưa tạo commit local.
+
+### Hành vi trước và sau
+
+| Khu vực | Trước | Sau |
+| --- | --- | --- |
+| Dung lượng thư mục | Hiện dấu — | Hiện tổng dung lượng và số tệp khi manifest cục bộ có SHA-256 đúng, đúng tên và cấu trúc. Hàng đang hiển thị được đọc lần lượt ở nền. Kết quả chỉ giữ ở ô của hàng và lượt đọc lại manifest chưa có được giãn cách. |
+| Tiến độ tệp | Có trạng thái chuẩn bị và số KB | Phân biệt tác vụ chờ, kết nối hoặc chờ nguồn, tải theo KB/MB, kiểm tra SHA-256, chuẩn bị, hoàn thành, thiếu bản lưu và lỗi chuẩn bị. Lỗi trong Trung tâm tệp dùng nhãn chung. |
+| Ảnh trong hội thoại | Hiện trạng thái tải chung | Thumbnail có nhãn chờ, tải, giải mã và thử lại. Thumbnail vẫn chỉ bắt đầu khi vào vùng nhìn thấy và dùng chung giới hạn hai tác vụ đồng thời. |
+| Gợi ý @ | Tối đa bảy hàng, đã có tìm không dấu, cuộn và điều hướng | Giữ hành vi hiện có, giới hạn kích thước theo vùng làm việc quanh trình soạn thảo và chọn đúng hàng được bấm. |
+| Giao diện | Palette sáng tĩnh | Sáng, Tối và Theo Windows trong Cài đặt. Lưu cục bộ, cập nhật cửa sổ đang mở, giữ bản nháp và vùng chọn. Cấu hình cũ mặc định Sáng và chế độ tương phản cao của Windows được ưu tiên. |
+
+Manifest summary đọc qua cùng handle vừa được kiểm tra SHA-256. Nó dùng blob cục bộ, có cancellation, chỉ trả số lượng và số byte. Giao diện giữ dấu — khi manifest thiếu hoặc không hợp lệ. Cơ chế chuẩn bị, phục hồi và mở tệp vẫn dùng luồng hiện có. Logic badge, tìm toàn lịch sử và định tuyến thông báo giữ nguyên.
+
+Palette bao gồm nền và văn bản, viền, màu hover/vùng chọn, trạng thái, highlight mention/tìm kiếm, các nút phẳng, tab mạng, menu, lưới và viewer. Thanh tiêu đề, thanh cuộn, phần native của một số control, tooltip và hộp thoại hệ thống có thể dùng màu Windows. Kiểm tra contrast có mẫu bong bóng, nút disabled và nội dung tô sáng. Cần kiểm tra thực tế các bề mặt native trên Windows 10 và 11.
+
+### Phác thảo giờ đã đọc
+
+UI giữ trạng thái đọc hiện tại. `MessageReceipt.ReceivedAtTicks` ghi thời điểm nhận. Timestamp đọc mới, nếu được duyệt, nên ghi lần đọc đầu tiên theo định danh tin và người đọc tại thời điểm thao tác đọc thực sự. Cần kiểm tra sai lệch đồng hồ thiết bị, hợp nhất nhiều thiết bị của một người theo quy tắc xác định và giữ quyền xem receipt hiện tại.
+
+Đề xuất mặc định cho dữ liệu cũ và peer chưa hỗ trợ là hiển thị dấu — cho thời điểm. Trước khi chọn cách truyền dữ liệu, cần kiểm tra khả năng peer v4 xử lý dữ liệu tùy chọn hoặc event lạ, phạm vi lưu trữ và cách rollback. Mọi thay đổi định dạng event, giao thức hoặc schema cần duyệt riêng trước khi triển khai.
+
+### Đo hiệu năng cục bộ
+
+Cùng một harness WinForms Release x64 và dữ liệu tổng hợp. Mỗi cấu hình chạy ba tiến trình mới theo thứ tự luân phiên. Đo sau khi cửa sổ hiện, sau một giây nhàn rỗi, sau khi render 80 tin và sau khi giải mã tám thumbnail từ file cục bộ. Mỗi tiến trình đổi qua lại hai hội thoại 10 lần bằng đường bind/layout của UI. RAM là trung vị private bytes / working set, đơn vị MiB. Thời gian là trung vị tính bằng ms.
+
+| Mốc đo | HEAD sáng | Bản sửa sáng | Bản sửa tối |
+| --- | ---: | ---: | ---: |
+| Cửa sổ vừa hiện | 24,66 / 40,08 | 24,73 / 40,53 | 24,74 / 40,70 |
+| Nhàn rỗi | 25,36 / 41,57 | 25,42 / 42,02 | 25,45 / 42,14 |
+| Đọc 80 tin | 39,76 / 60,22 | 39,83 / 60,58 | 40,24 / 61,04 |
+| Tám thumbnail đã giải mã | 41,93 / 63,83 | 41,95 / 64,10 | 41,89 / 64,16 |
+| Hiện cửa sổ từ lúc vào harness | 115,93 | 121,89 | 124,15 |
+| Đổi hội thoại | 11,30 | 11,49 | 12,20 |
+
+Phép đo cô lập UI và giải mã ảnh cục bộ. Khởi động mạng thực, truy vấn lịch sử qua cơ sở dữ liệu, tốc độ tải qua LAN và CPU dài hạn cần phép đo riêng. Dữ liệu thô ở `.codex-temp/ui-ux-1795570876812/performance-*.csv`.
+
+### Kết quả kiểm thử
+
+| Kiểm tra | Kết quả | Bằng chứng |
+| --- | --- | --- |
+| Build Debug và Release net48 | PASS | Cả hai 0 cảnh báo, 0 lỗi. Ký phát triển tắt cho lượt build. |
+| Hồi quy Release trên bản cuối | PASS | 17/17, gồm manifest 0/1/3 tệp, manifest thiếu hoặc sai hash, hủy, popup @ 0/30 và kích thước 1/7/30 ở các DPI mô phỏng, cấu hình cũ/mới, đổi theme giữ vùng chọn/bản nháp, chọn đúng MessageId và dừng tìm kiếm, đóng Trung tâm tệp khi đang tải nền. |
+| Suite Debug tuần tự có chụp ảnh | FAIL | 238/243 PASS. Một timeout TCP trong `AWorkingTcpDirectionCanCarryRepliesWithoutUdp` và bốn timeout UI QR/clipboard tại DPI mô phỏng 100/125/150/200%. Sau lượt này, kiểm tra tập trung chạy lại trên bản cuối. |
+| Đối chứng timeout TCP trên HEAD sạch | FAIL | Cùng ca và cùng điểm chờ tại `MultiNetworkTests.cs:80`. |
+| QR/clipboard chạy riêng | PASS | HEAD Debug 4/4 và bản sửa Release 4/4. Lỗi trong suite có chụp ảnh chưa tái hiện khi chạy riêng. |
+| `OneRemainingHolderAutomaticallySharesAllPagesWithCurrentGroupMembers` chạy riêng | PASS | 1/1 trong 47 giây. Tài liệu các lượt cũ ghi nhận timeout khi chờ 215 tin. |
+| `Verify-TwoInstances.ps1`, loopback, dữ liệu giả | PASS | A/B đều thành công. Mỗi máy xác nhận 6 tệp/ảnh, 3 yêu cầu mở, 4 gallery, 4 ảnh nội tuyến, sửa nguồn, mở lại bản lưu, trích dẫn, clipboard, thành viên, mention và chuyển tiếp. |
+| Kiểm tra whitespace | PASS | `git diff --check`. |
+| Click balloon/tray thật, IME trực tiếp, nhiều màn hình/DPI vật lý và Windows 10 | CHƯA CHẠY | Ảnh và test DPI được mô phỏng trên phiên Windows hiện tại. |
+| Cập nhật LAN và bộ cài | CHƯA CHẠY | Harness dùng dữ liệu giả và chạy với tùy chọn mặc định. |
+
+Log, TRX, kết quả A/B và số đo gốc nằm trong `.codex-temp/ui-ux-1795570876812`. Hai lượt chạy VSTest trong sandbox dừng ở kết nối testhost. Bảng trên dùng kết quả chạy ngoài sandbox.
+
+### Tệp thay đổi
+
+- Hạ tầng và Trung tâm tệp gồm `PeerFileTransferService.Folders.cs`, `TransferCenterForm.cs`, `AttachmentActions.cs`, `AttachmentProgressText.cs`, `AttachmentOpenProgressForm.cs`, `ChatImageService.cs`, `ImageThumbnailControl.cs`.
+- Gợi ý và hiển thị tin gồm `MentionEditor.cs`, `MentionTextControl.cs`, `ChatControls.cs`, `ReplyQuoteControl.cs`, `SearchResultListBox.cs`.
+- Giao diện và cửa sổ gồm `Theme.cs`, `Theme.Palette.cs`, `ThemeMenuStrip.cs`, `UiIcons.cs`, `UiPreferences.cs`, `DpiForm.cs`, `NetworkWorkspace.cs`, `MainForm.cs`, `SettingsForm.cs`, `AttachmentItemControl.cs`, `ContactControls.cs`, `ConversationPanel.cs`, `PersonName.cs`, `ImageGalleryForm.cs`, `LicenseForm.cs`, `QrShareForm.cs`, `UserGuideForm.cs`.
+- Hồi quy gồm `FileTransferTests.cs`, `WindowsMentionTests.cs`, `WindowsUiTests.cs`, `WindowsUxAppearanceTests.cs`.
+- Hướng dẫn và bàn giao gồm `HUONG_DAN_SU_DUNG.md`, tài liệu này và hai ảnh hội thoại trong `docs/verification/uiux-stage-1-4`.
+
+### Ảnh đối chiếu
+
+Ảnh chụp từ fixture WinForms dùng dữ liệu giả. Hộp thoại kiểm thử ở chiều rộng bố cục 800 px và mô phỏng DPI 125%. Bộ ảnh đầy đủ trong `.codex-temp/ui-ux-1795570876812/final-captures` có thêm các chiều rộng 660 và 1280 px, DPI 100%, 150% và 200%.
+
+![Hội thoại sáng, DPI mô phỏng 125%](verification/uiux-stage-1-4/chat-light-800-120.png)
+
+![Hội thoại tối, DPI mô phỏng 125%](verification/uiux-stage-1-4/chat-dark-800-120.png)

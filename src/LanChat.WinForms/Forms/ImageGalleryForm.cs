@@ -17,7 +17,7 @@ internal sealed class ImageGalleryForm : DpiForm
     private readonly PersonNameLabel _sender = Theme.NameLabel("");
     private readonly Label _status = Theme.Label("", 9);
     private readonly Label _zoom = Theme.Label("100%", 9);
-    private readonly PromptTextBox _caption = new() { Dock = DockStyle.Fill, Multiline = true, ReadOnly = true, ScrollBars = ScrollBars.Vertical, BackColor = Color.White, BorderStyle = BorderStyle.FixedSingle };
+    private readonly PromptTextBox _caption = new() { Dock = DockStyle.Fill, Multiline = true, ReadOnly = true, ScrollBars = ScrollBars.Vertical, BackColor = Theme.Surface, BorderStyle = BorderStyle.FixedSingle };
     private readonly FlowLayoutPanel _strip = new BufferedFlowLayoutPanel { Dock = DockStyle.Fill, AutoScroll = true, WrapContents = false };
     private readonly Button _previous = Theme.Button("Trước", UiIcon.Previous);
     private readonly Button _next = Theme.Button("Sau", UiIcon.Next);
@@ -73,7 +73,7 @@ internal sealed class ImageGalleryForm : DpiForm
         var fit = Theme.Button("Vừa khung", UiIcon.Fit); var actual = Theme.Button("100%", UiIcon.ActualSize); var external = Theme.Button("Mở", UiIcon.Open); var retry = Theme.Button("Tải lại", UiIcon.Refresh);
         var save = Theme.Button("Lưu về máy", UiIcon.Save);
         var more = Theme.Icon(UiIcon.More, "Lưu ảnh cùng tin nhắn");
-        var menu = new ContextMenuStrip();
+        var menu = new ThemeMenuStrip();
         var saveAll = menu.Items.Add("Lưu tất cả ảnh của tin…", UiIcons.ForMenu(UiIcon.Save));
         more.Click += (_, _) => menu.Show(more, new Point(0, more.Height));
         saveAll.Click += async (_, _) => await _actions.SaveBatchAsync(this, SelectedMessageImages, _lifetime.Token);

@@ -14,7 +14,7 @@ public sealed class SettingsForm : DpiForm
         Icon = AppIcon.Value;
         Text = "Cài đặt LanChat";
         StartPosition = FormStartPosition.CenterParent;
-        ClientSize = preferences is null ? new Size(400, 270) : new Size(480, 470);
+        ClientSize = preferences is null ? new Size(400, 270) : new Size(480, 520);
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MinimizeBox = MaximizeBox = false;
         ShowInTaskbar = false;
@@ -47,12 +47,16 @@ public sealed class SettingsForm : DpiForm
         density.Items.AddRange(new object[] { "Gọn", "Tiêu chuẩn", "Thoải mái" }); density.SelectedIndex = (int)initialPreferences.Density;
         var privacy = new CheckBox { Text = "Ẩn nội dung tin nhắn trên thông báo", AutoSize = true, Dock = DockStyle.Top,
             Checked = initialPreferences.HideNotificationContent, AccessibleName = "Ẩn nội dung thông báo" };
+        var theme = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Dock = DockStyle.Top, AccessibleName = "Giao diện" };
+        theme.Items.AddRange(new object[] { "Sáng", "Tối", "Theo Windows" });
+        theme.SelectedIndex = (int)initialPreferences.Theme;
         UiPreferences Appearance() => initialPreferences with { MessageFontSize = sizes[Math.Max(0,fontSize.SelectedIndex)],
-            Density = (UiDensity)Math.Max(0,density.SelectedIndex), HideNotificationContent = privacy.Checked };
-        var appearance = Theme.Stack(5); appearance.Dock = DockStyle.Top; appearance.AutoSize = true; appearance.AutoSizeMode = AutoSizeMode.GrowAndShrink;
-        for(var i=0;i<5;i++) appearance.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            Density = (UiDensity)Math.Max(0,density.SelectedIndex), HideNotificationContent = privacy.Checked, Theme = (UiTheme)theme.SelectedIndex };
+        var appearance = Theme.Stack(7); appearance.Dock = DockStyle.Top; appearance.AutoSize = true; appearance.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+        for(var i=0;i<7;i++) appearance.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         appearance.Controls.Add(Theme.Label("Cỡ chữ tin nhắn"),0,0); appearance.Controls.Add(fontSize,0,1);
         appearance.Controls.Add(Theme.Label("Mật độ hiển thị"),0,2); appearance.Controls.Add(density,0,3); appearance.Controls.Add(privacy,0,4);
+        appearance.Controls.Add(Theme.Label("Giao diện"),0,5); appearance.Controls.Add(theme,0,6);
         layout.Controls.Add(appearance,0,5); appearance.Visible = preferences is not null;
         var feedback = Theme.Label("");
         feedback.ForeColor = Color.Firebrick; UiInteraction.Wrap(feedback, layout);
