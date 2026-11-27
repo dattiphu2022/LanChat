@@ -11,7 +11,7 @@
       <Using Namespace="System.IO" />
       <Using Namespace="System.Reflection" />
       <Code Type="Fragment" Language="cs"><![CDATA[
-        foreach (var name in new[] { "LanChat.WinForms.exe", "LanChat.WinForms.exe.config", "Microsoft.Data.Sqlite.dll", "e_sqlite3.dll" })
+        foreach (var name in new[] { "LanChat.WinForms.exe", "LanChat.WinForms.exe.config", "Microsoft.Data.Sqlite.dll", "e_sqlite3.dll", "LICENSE.txt", "THIRD-PARTY-NOTICES.txt" })
         {
             if (!File.Exists(Path.Combine(PayloadDirectory, name)))
                 Log.LogError("Public payload is missing " + name + ".");

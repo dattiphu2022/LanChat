@@ -277,13 +277,16 @@ public sealed class ChatIntegrationTests
         Assert.Equal(20, sends.Select(x => x.OriginSequence).Distinct().Count()); Assert.Equal(20, await a.Store.GetPendingCountAsync());
     }
 
-    [Fact]
-    public async Task ScannerUsesTcpAndExcludesLocalAddressWithoutPing()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ScannerUsesTcpAndExcludesLocalAddressWithoutPing(bool saveResources)
     {
         var cluster = Guid.NewGuid(); var secret = FrameworkIO.RandomBytes(32);
         await using var a = new TestNode(cluster, secret, "A"); await using var b = new TestNode(cluster, secret, "B");
         await a.InitializeAsync(); await b.InitializeAsync(true);
         a.Options.ServicePort = b.Options.ServicePort;
+        a.Options.ResourceSaving.Enabled = saveResources;
         using var scanner = new LanScanner(new FixedNetworks(), a.Host.Services.GetRequiredService<IPeerTransport>(), a.Store,
             a.Host.Services.GetRequiredService<IDistributedStore>(), a.Options, a.Host.Services.GetRequiredService<PeerDiscoveryBackgroundService>());
         var peers = await scanner.ScanAsync(); Assert.Single(peers); Assert.Equal((await b.Store.GetIdentityAsync()).NodeId, peers[0].NodeId);

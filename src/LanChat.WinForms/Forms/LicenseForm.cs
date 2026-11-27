@@ -4,22 +4,20 @@ namespace LanChat.WinForms.Forms;
 
 internal sealed class LicenseForm : DpiForm
 {
-    public LicenseForm()
+    public LicenseForm(bool showThirdParty = false)
     {
-        Text = "Giấy phép MIT — LanChat";
+        Text = showThirdParty ? "Giấy phép thư viện — LanChat" : "Giấy phép MIT — LanChat";
         Icon = AppIcon.Value;
         StartPosition = FormStartPosition.CenterParent;
         MinimizeBox = ShowInTaskbar = false;
         ClientSize = new Size(640, 460);
         MinimumSize = new Size(380, 290);
 
-        using var stream = typeof(LicenseForm).Assembly.GetManifestResourceStream("LanChat.License")
-            ?? throw new InvalidOperationException("Thiếu nội dung giấy phép LanChat.");
-        using var reader = new StreamReader(stream);
         var document = new RichTextBox
         {
-            Text = reader.ReadToEnd(), Dock = DockStyle.Fill, ReadOnly = true, DetectUrls = false, BackColor = Theme.Surface,
-            ForeColor = Theme.Ink, ScrollBars = RichTextBoxScrollBars.Vertical, AccessibleName = "Nội dung giấy phép MIT",
+            Text = showThirdParty ? ReadThirdPartyNotices() : ReadProjectLicense(),
+            Dock = DockStyle.Fill, ReadOnly = true, DetectUrls = false, BackColor = Theme.Surface,
+            ForeColor = Theme.Ink, ScrollBars = RichTextBoxScrollBars.Vertical, AccessibleName = Text,
             Margin = Padding.Empty
         };
 
@@ -37,5 +35,25 @@ internal sealed class LicenseForm : DpiForm
         layout.Controls.Add(document, 0, 0);
         layout.Controls.Add(footer, 0, 1);
         Controls.Add(layout);
+    }
+
+    private static string ReadProjectLicense()
+    {
+        using var stream = typeof(LicenseForm).Assembly.GetManifestResourceStream("LanChat.License")
+            ?? throw new InvalidOperationException("Thiếu nội dung giấy phép LanChat.");
+        using var reader = new StreamReader(stream);
+        return reader.ReadToEnd();
+    }
+
+    private static string ReadThirdPartyNotices()
+    {
+        try
+        {
+            return File.ReadAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "THIRD-PARTY-NOTICES.txt"));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return "Không đọc được THIRD-PARTY-NOTICES.txt. Hãy kiểm tra thư mục cài đặt LanChat.";
+        }
     }
 }

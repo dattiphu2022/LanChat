@@ -20,7 +20,7 @@ if ($PublicRelease) {
 }
 & dotnet @publishArgs
 if ($LASTEXITCODE -ne 0) { throw "dotnet publish thất bại ($LASTEXITCODE)." }
-foreach ($name in @('LanChat.WinForms.exe', 'LanChat.WinForms.exe.config', 'Microsoft.Data.Sqlite.dll', 'e_sqlite3.dll')) {
+foreach ($name in @('LanChat.WinForms.exe', 'LanChat.WinForms.exe.config', 'Microsoft.Data.Sqlite.dll', 'e_sqlite3.dll', 'LICENSE.txt', 'THIRD-PARTY-NOTICES.txt')) {
     if (-not (Test-Path -LiteralPath (Join-Path $stage $name) -PathType Leaf)) { throw "Thiếu tệp $name." }
 }
 if ($PublicRelease) {

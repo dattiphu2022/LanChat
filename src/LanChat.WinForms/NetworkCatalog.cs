@@ -14,11 +14,12 @@ internal sealed record NetworkEntry(Guid Id, string Name, bool Primary = false);
 internal sealed record DefaultNetworkProvision(string Invitation, bool Creator = false, string? CreatorMachine = null);
 internal sealed record SavedNetworks(NetworkEntry[] Entries, NetworkEntry? DefaultNetwork, bool FirstPrivateCodeHandled);
 
-internal sealed class NetworkCatalog(NodeOptions primary, IUpdatePackageProvider? updatePackages = null)
+internal sealed class NetworkCatalog(NodeOptions primary, IUpdatePackageProvider? updatePackages = null, ProcessCpuLimit? cpuLimit = null)
 {
     private readonly DiscoverySockets _sockets = new();
     private readonly List<NetworkEntry> _entries = new();
     private readonly HashSet<int> _ports = new();
+    private readonly SemaphoreSlim _preferencesWrite = new(1, 1);
     private readonly string _directory = primary.DataDirectory;
     private readonly string _provisionedPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "default-network.json");
     private string SavedDefaultPath => Path.Combine(_directory, "default-network.json");
@@ -31,7 +32,19 @@ internal sealed class NetworkCatalog(NodeOptions primary, IUpdatePackageProvider
     public async Task SaveUiPreferencesAsync(UiPreferences preferences)
     {
         var valid = preferences.Validated();
-        await Task.Run(() => WriteAsync("ui-preferences.json", valid));
+        await _preferencesWrite.WaitAsync();
+        try
+        {
+            await Task.Run(() => WriteAsync("ui-preferences.json", valid));
+            SetUiPreferences(valid);
+        }
+        finally { _preferencesWrite.Release(); }
+    }
+
+    private void SetUiPreferences(UiPreferences valid)
+    {
+        cpuLimit?.Apply(valid.SaveSystemResources);
+        primary.ResourceSaving.Enabled = valid.SaveSystemResources;
         UiPreferences = valid;
     }
     public IReadOnlyList<NetworkEntry> Entries => _entries;
@@ -49,12 +62,14 @@ internal sealed class NetworkCatalog(NodeOptions primary, IUpdatePackageProvider
 
     public async Task LoadAsync()
     {
+        UiPreferences savedPreferences = new();
         var preferences = Path.Combine(_directory, "ui-preferences.json");
         if (File.Exists(preferences))
         {
-            try { UiPreferences = (System.Text.Json.JsonSerializer.Deserialize<UiPreferences>(await FrameworkIO.ReadTextAsync(preferences)) ?? new()).Validated(); }
-            catch (Exception ex) when (ex is IOException or System.Text.Json.JsonException or UnauthorizedAccessException) { UiPreferences = new(); }
+            try { savedPreferences = (JsonSerializer.Deserialize<UiPreferences>(await FrameworkIO.ReadTextAsync(preferences)) ?? new()).Validated(); }
+            catch (Exception ex) when (ex is IOException or JsonException or UnauthorizedAccessException) { }
         }
+        SetUiPreferences(savedPreferences);
         var list = Path.Combine(_directory, "networks.json");
         if (File.Exists(list))
         {
@@ -245,7 +260,8 @@ internal sealed class NetworkCatalog(NodeOptions primary, IUpdatePackageProvider
             DataDirectory = Path.Combine(_directory, "Networks", entry.Id.ToString("N")),
             ServicePort = ClusterPorts.Alternate(entry.Id),
             InitialDisplayName = profile.Name,
-            InitialDepartment = profile.Department
+            InitialDepartment = profile.Department,
+            ResourceSaving = primary.ResourceSaving
         };
     }
 

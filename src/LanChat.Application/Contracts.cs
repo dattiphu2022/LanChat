@@ -21,6 +21,14 @@ public sealed class NodeOptions
     public TimeSpan LeaderTimeout { get; set; } = TimeSpan.FromSeconds(5);
     public TimeSpan HeartbeatInterval { get; set; } = TimeSpan.FromSeconds(1);
     public TimeSpan ReconciliationInterval { get; set; } = TimeSpan.FromSeconds(25);
+    public ResourceSavingMode ResourceSaving { get; init; } = new();
+}
+
+public sealed class ResourceSavingMode
+{
+    private volatile bool _enabled;
+
+    public bool Enabled { get => _enabled; set => _enabled = value; }
 }
 
 public sealed record UserProfileDto(Guid Id, string DisplayName, string? FullName, string? Nickname,
@@ -38,7 +46,7 @@ public sealed record NodeInfoDto(Guid NodeId, string DeviceName, int ServicePort
     DevicePublicKeys? DeviceKeys = null, string? KeyProof = null)
 {
     public const int CurrentProtocol = 4;
-    public const string CurrentApplicationVersion = "1.2.12";
+    public const string CurrentApplicationVersion = "1.2.13";
 }
 public sealed record ChatMessageDto(Guid Id, Guid ClientMessageId, Guid ConversationId, Guid SenderUserId,
     Guid RecipientUserId, Guid OriginNodeId, long OriginSequence, MessageKind Kind, string Text,

@@ -6,7 +6,7 @@ using Microsoft.Extensions.Logging;
 namespace LanChat.Infrastructure;
 
 public sealed class AttachmentDownloadBackgroundService(IDistributedStore store, ChatStore chat,
-    PeerFileTransferService files, ILogger<AttachmentDownloadBackgroundService> logger) : BackgroundService
+    PeerFileTransferService files, NodeOptions options, ILogger<AttachmentDownloadBackgroundService> logger) : BackgroundService
 {
     private static readonly TimeSpan RetryDelay = TimeSpan.FromSeconds(10);
     private static readonly TimeSpan PreparedFileRecheck = TimeSpan.FromMinutes(1);
@@ -68,13 +68,13 @@ public sealed class AttachmentDownloadBackgroundService(IDistributedStore store,
 
                 foreach (var file in pending.Values)
                 {
-                    if (active.Count >= 2) break;
+                    if (active.Count >= (options.ResourceSaving.Enabled ? 1 : 2)) break;
                     if (active.ContainsKey(file.Id) || (retryAfter.TryGetValue(file.Id, out var retry) && DateTimeOffset.UtcNow < retry)) continue;
                     active.Add(file.Id, PrepareAsync(file, stoppingToken));
                 }
 
                 // This loop only checks in-memory state between scheduled scans.
-                await Task.Delay(250, stoppingToken).ConfigureAwait(false);
+                await Task.Delay(options.ResourceSaving.Enabled ? 1000 : 250, stoppingToken).ConfigureAwait(false);
             }
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { }

@@ -339,15 +339,24 @@ internal sealed partial class NetworkWorkspace : DpiForm
         UpdateActionState();
         try
         {
-            var tasks = _running.Values.Select(x => x.Network.Services.GetRequiredService<ILanScanner>().ScanAsync(scan.Token)).ToArray();
-            var found = await Task.WhenAll(tasks);
+            var scanners = _running.Values.Select(x => x.Network.Services.GetRequiredService<ILanScanner>()).ToArray();
+            int count;
+            if (_catalog.UiPreferences.SaveSystemResources)
+            {
+                count = 0;
+                foreach (var scanner in scanners) count += (await scanner.ScanAsync(scan.Token)).Count;
+            }
+            else
+            {
+                var found = await Task.WhenAll(scanners.Select(scanner => scanner.ScanAsync(scan.Token)));
+                count = found.Sum(x => x.Count);
+            }
             if (!IsDisposed)
             {
-                var count = found.Sum(x => x.Count);
                 var reason = _running.Values.Select(x => x.Network.Services.GetRequiredService<NetworkHealth>().DiscoveryIssue)
                     .FirstOrDefault(x => x is not null);
                 _feedback.Text = count == 0 ? reason ?? "Chưa tìm thấy máy. Kiểm tra ID mạng và tường lửa trên cả hai máy."
-                    : $"Tìm thấy {count} máy trên {tasks.Length} mạng.";
+                    : $"Tìm thấy {count} máy trên {scanners.Length} mạng.";
             }
         }
         catch (OperationCanceledException) { if (!IsDisposed) _feedback.Text = "Đã dừng quét."; }

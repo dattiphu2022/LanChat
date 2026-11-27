@@ -91,7 +91,13 @@ internal sealed class AboutForm : DpiForm
             using var dialog = new LicenseForm();
             UiInteraction.ShowDialog(dialog, this);
         };
-        resources.Controls.AddRange([guide, project, license]);
+        var thirdParty = ResourceLink("Giấy phép thư viện", UiIcon.File);
+        thirdParty.LinkClicked += (_, _) =>
+        {
+            using var dialog = new LicenseForm(showThirdParty: true);
+            UiInteraction.ShowDialog(dialog, this);
+        };
+        resources.Controls.AddRange([guide, project, license, thirdParty]);
         var links = new ToolTip();
         links.SetToolTip(project, ProjectUrl);
         Disposed += (_, _) => links.Dispose();

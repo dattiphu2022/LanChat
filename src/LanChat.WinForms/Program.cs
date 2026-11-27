@@ -138,15 +138,17 @@ internal static class Program
         }
         Directory.CreateDirectory(options.DataDirectory);
         using var dataLock = new FileStream(Path.Combine(options.DataDirectory, "instance.lock"), FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+        using var process = Process.GetCurrentProcess();
+        using var cpuLimit = new ProcessCpuLimit(process);
 #if DEBUG
         if (verification is not null)
         {
-            System.Windows.Forms.Application.Run(new VerificationStartup(options, verification, verificationUpdate, verificationLegacy, verificationLegacyMentions));
+            System.Windows.Forms.Application.Run(new VerificationStartup(options, cpuLimit, verification, verificationUpdate, verificationLegacy, verificationLegacyMentions));
             return null;
         }
 #endif
         using var updates = new UpdateService(options.DataDirectory);
-        using var window = new NetworkWorkspace(new NetworkCatalog(options, updates.Packages), windowsStartup, updates);
+        using var window = new NetworkWorkspace(new NetworkCatalog(options, updates.Packages, cpuLimit), windowsStartup, updates);
         window.Shown += async (_, _) =>
         {
             try { await window.StartAsync(); }
@@ -194,14 +196,14 @@ internal static class Program
 #if DEBUG
 internal sealed class VerificationStartup : Form
 {
-    public VerificationStartup(NodeOptions options, string report, string? updatePackage, bool legacyPeer, bool legacyMentions)
+    public VerificationStartup(NodeOptions options, ProcessCpuLimit cpuLimit, string report, string? updatePackage, bool legacyPeer, bool legacyMentions)
     {
         Shown += async (_, _) =>
         {
             try
             {
                 var updates = updatePackage is null ? null : new UpdateService(options.DataDirectory);
-                var catalog = new NetworkCatalog(options, updates?.Packages);
+                var catalog = new NetworkCatalog(options, updates?.Packages, cpuLimit);
                 await catalog.LoadAsync();
                 if (updates is not null)
                 {
@@ -211,6 +213,7 @@ internal sealed class VerificationStartup : Form
                 }
                 var network = await catalog.StartAsync(catalog.Entries.Single(e => e.Primary), false, this);
                 var main = ActivatorUtilities.CreateInstance<MainForm>(network.Services);
+                main.ApplyPreferences(catalog.UiPreferences);
                 main.Shown += async (_, _) => await main.VerifyUiAsync(report, updates, legacyPeer, legacyMentions);
                 main.FormClosed += async (_, _) => { try { await network.StopAsync(); } finally { updates?.Dispose(); Close(); } };
                 main.Show(); Hide();

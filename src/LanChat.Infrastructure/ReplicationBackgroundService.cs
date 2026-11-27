@@ -11,6 +11,7 @@ public sealed class ReplicationBackgroundService(IDistributedStore store, ChatSt
 {
     private static readonly TimeSpan ActiveReconciliationInterval = TimeSpan.FromSeconds(6);
     private static readonly TimeSpan QuietReconciliationInterval = TimeSpan.FromSeconds(12);
+    private const int HistoryReplayPageSize = 32;
     private readonly SemaphoreSlim _sync = new(1, 1);
     private readonly SemaphoreSlim _wake = new(0, 1);
     private readonly object _leaderGate = new();
@@ -81,7 +82,7 @@ public sealed class ReplicationBackgroundService(IDistributedStore store, ChatSt
             }
 
             await FrameworkIO.ForEachAsync(peers.Where(peer => peer.NodeId != first?.NodeId)
-                .OrderByDescending(peer => peer.NodeId == leader), 4, ct, SyncPeer);
+                .OrderByDescending(peer => peer.NodeId == leader), options.ResourceSaving.Enabled ? 1 : 4, ct, SyncPeer);
             if (acknowledged.Count > 0) await store.RecordOutboxResultAsync(acknowledged.ToArray(), true, ct);
             var failed = pendingIds.Except(acknowledged).ToArray();
             if (failed.Length > 0) await store.RecordOutboxResultAsync(failed, false, ct);
@@ -103,6 +104,8 @@ public sealed class ReplicationBackgroundService(IDistributedStore store, ChatSt
         var revision = (Local: localDigest.GroupHistoryRevision, Remote: remote.GroupHistoryRevision);
         var replayHistory = remote.SupportsGroupHistory &&
             (!_groupHistoryRevisions.TryGetValue(peer.NodeId, out var previous) || previous != revision);
+        // Replaying history can decrypt, rewrap and project each event within a single RPC deadline.
+        EventRangeRequest Page(Guid origin, long after) => new(origin, after, replayHistory ? HistoryReplayPageSize : 100);
         var local = localDigest.Cursors.ToDictionary(x => x.OriginNodeId, x => x.LastOriginSequence);
         foreach (var origin in remote.Cursors)
         {
@@ -111,7 +114,7 @@ public sealed class ReplicationBackgroundService(IDistributedStore store, ChatSt
             {
                 transferred = true;
                 var batch = await transport.CallAsync<EventBatch>(peer, "EventRange",
-                    new EventRangeRequest(origin.OriginNodeId, cursor) { IncludeGroupHistory = remote.SupportsGroupHistory }, ct);
+                    Page(origin.OriginNodeId, cursor) with { IncludeGroupHistory = remote.SupportsGroupHistory }, ct);
                 if (batch.Events.Length == 0) break;
                 if (batch.Events.Any(item => item.OriginNodeId != origin.OriginNodeId || item.OriginSequence <= cursor))
                     throw new InvalidDataException("Trang lịch sử không khớp vị trí đồng bộ.");
@@ -127,7 +130,7 @@ public sealed class ReplicationBackgroundService(IDistributedStore store, ChatSt
             while (after < origin.LastOriginSequence)
             {
                 transferred = true;
-                var batch = await store.GetEventRangeAsync(new(origin.OriginNodeId, after), ct);
+                var batch = await store.GetEventRangeAsync(Page(origin.OriginNodeId, after), ct);
                 if (batch.Events.Length == 0) break;
                 if (remote.SupportsGroupHistory) batch = await chat.AddGroupHistoryAsync(batch, peer.NodeId, ct);
                 var ack = await transport.CallAsync<EventAck>(peer, "EventPush", batch, ct);

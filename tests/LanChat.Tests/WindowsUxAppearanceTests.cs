@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Drawing;
 using System.Windows.Forms;
 using LanChat.Application;
@@ -13,12 +14,83 @@ public sealed partial class WindowsUiTests
     [Fact]
     public async Task DisplayPreferencesRoundTripInIsolatedLocalConfiguration()
     {
-        var directory=Temp(); var catalog=new NetworkCatalog(new NodeOptions {DataDirectory=directory});
+        var directory = Temp();
+        var options = new NodeOptions { DataDirectory = directory };
+        var catalog = new NetworkCatalog(options);
         var preferences=new UiPreferences(14,UiDensity.Comfortable,true,true,UiTheme.Dark, false, 12, SaveSystemResources: true);
         await catalog.SaveUiPreferencesAsync(preferences);
-        var reloaded=new NetworkCatalog(new NodeOptions {DataDirectory=directory}); await reloaded.LoadAsync();
+        Assert.True(options.ResourceSaving.Enabled);
+        var reloadedOptions = new NodeOptions { DataDirectory = directory };
+        var reloaded = new NetworkCatalog(reloadedOptions);
+        await reloaded.LoadAsync();
         Assert.Equal(preferences,reloaded.UiPreferences);
+        Assert.True(reloadedOptions.ResourceSaving.Enabled);
         Assert.True(File.Exists(Path.Combine(directory,"ui-preferences.json")));
+    }
+
+    [Fact]
+    public async Task ResourceSavingLimitsCpuOnLoadAndRestoresItOnSave()
+    {
+        var directory = Temp();
+        File.WriteAllText(Path.Combine(directory, "ui-preferences.json"), "{\"SaveSystemResources\":true}");
+        using var process = Process.Start(new ProcessStartInfo("cmd.exe", "/d /q")
+        {
+            UseShellExecute = false,
+            RedirectStandardInput = true,
+            RedirectStandardOutput = true,
+            CreateNoWindow = true
+        })!;
+        try
+        {
+            var original = process.ProcessorAffinity;
+            using var cpuLimit = new ProcessCpuLimit(process);
+            var catalog = new NetworkCatalog(new NodeOptions { DataDirectory = directory }, cpuLimit: cpuLimit);
+            await catalog.LoadAsync();
+            process.Refresh();
+            var limited = process.ProcessorAffinity.ToInt64();
+            Assert.NotEqual(0L, limited);
+            Assert.Equal(0L, limited & unchecked(limited - 1));
+            Assert.Equal(limited, limited & original.ToInt64());
+
+            await catalog.SaveUiPreferencesAsync(catalog.UiPreferences with { SaveSystemResources = false });
+            process.Refresh();
+            Assert.Equal(original, process.ProcessorAffinity);
+
+            await catalog.SaveUiPreferencesAsync(catalog.UiPreferences with { SaveSystemResources = true });
+            process.Refresh();
+            Assert.Equal(new IntPtr(limited), process.ProcessorAffinity);
+            cpuLimit.Dispose();
+            process.Refresh();
+            Assert.Equal(original, process.ProcessorAffinity);
+        }
+        finally
+        {
+            process.StandardInput.Close();
+            if (!process.WaitForExit(5000)) process.Kill();
+        }
+    }
+
+    [Fact]
+    public async Task ResourceSavingWorksWhenProcessorAffinityIsUnavailable()
+    {
+        var directory = Temp();
+        File.WriteAllText(Path.Combine(directory, "ui-preferences.json"), "{\"SaveSystemResources\":true}");
+        using var process = new Process();
+        using var cpuLimit = new ProcessCpuLimit(process);
+        var options = new NodeOptions { DataDirectory = directory };
+        var catalog = new NetworkCatalog(options, cpuLimit: cpuLimit);
+        await catalog.LoadAsync();
+        Assert.True(catalog.UiPreferences.SaveSystemResources);
+        Assert.True(options.ResourceSaving.Enabled);
+
+        await catalog.SaveUiPreferencesAsync(catalog.UiPreferences with { SaveSystemResources = false });
+        Assert.False(options.ResourceSaving.Enabled);
+        await catalog.SaveUiPreferencesAsync(catalog.UiPreferences with { SaveSystemResources = true });
+        Assert.True(options.ResourceSaving.Enabled);
+
+        var reloaded = new NetworkCatalog(new NodeOptions { DataDirectory = directory });
+        await reloaded.LoadAsync();
+        Assert.True(reloaded.UiPreferences.SaveSystemResources);
     }
 
     [Fact]

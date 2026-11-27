@@ -1,5 +1,5 @@
 #ifndef AppVersion
-  #define AppVersion "1.2.12"
+  #define AppVersion "1.2.13"
 #endif
 #ifndef PublishDir
   #if FileExists("PublishDir.local.iss")
@@ -7,6 +7,9 @@
   #else
     #error Publish LanChat.WinForms once to generate the installer input path.
   #endif
+#endif
+#if !FileExists(AddBackslash(PublishDir) + "LICENSE.txt") || !FileExists(AddBackslash(PublishDir) + "THIRD-PARTY-NOTICES.txt")
+  #error The publish directory must include LICENSE.txt and THIRD-PARTY-NOTICES.txt. Publish LanChat again before compiling.
 #endif
 #define AppExe "LanChat.WinForms.exe"
 #ifndef SetupOutputName

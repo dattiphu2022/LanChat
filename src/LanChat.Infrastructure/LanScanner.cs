@@ -27,6 +27,7 @@ public sealed class LanScanner(ILocalNetworkInfoProvider networks, IPeerTranspor
     }
 
     private const int AutomaticLimit = 4096;
+    private const int ResourceSavingProbeConcurrency = 8;
     private readonly object _gate = new();
     private ScanSession? _active;
 
@@ -131,7 +132,9 @@ public sealed class LanScanner(ILocalNetworkInfoProvider networks, IPeerTranspor
                         yield return (address, port);
             }
         }
-        await FrameworkIO.ForEachAsync(Candidates(), 64, ct, async (endpoint, token) =>
+        // Keep a few connections in flight so unreachable addresses do not time out one at a time.
+        var concurrency = options.ResourceSaving.Enabled ? ResourceSavingProbeConcurrency : 64;
+        await FrameworkIO.ForEachAsync(Candidates(), concurrency, ct, async (endpoint, token) =>
         {
             try
             {

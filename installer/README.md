@@ -22,6 +22,17 @@ Script publish sang thư mục mới, kiểm tra tệp cấp mã và tài nguyê
 
 Bộ cài dùng cùng AppId để nâng cấp tại chỗ. Kiểm tra hồ sơ, cấu hình mạng và lịch sử khi thử nâng cấp từ bản trước bằng cùng tài khoản Windows. Người dùng cài lần đầu chọn **Mạng chat → Thêm mã** hoặc **Tạo mạng**. [Hướng dẫn sử dụng](../docs/HUONG_DAN_SU_DUNG.md)
 
+Đầu ra publish, ZIP và bộ cài chứa `LICENSE.txt` và `THIRD-PARTY-NOTICES.txt`.
+Khi đổi phiên bản hoặc thêm gói NuGet, đối chiếu danh sách gói trực tiếp và bắc cầu
+với DLL trong đầu ra publish. Cập nhật [thông báo bên thứ ba](../docs/THIRD-PARTY-NOTICES.txt)
+từ giấy phép, thông báo bản quyền và tệp NOTICE đi kèm đúng phiên bản gói.
+Các mục thông báo .NET lấy từ gói System.Text.Json và System.Threading.Channels.
+Mục Inno Setup lấy từ tệp `license.txt` của công cụ dùng để tạo bộ cài.
+
+Icon và bốn GIF gợi ý được vẽ từ hình học trong [tập lệnh tạo tài sản](../scripts/Generate-Artwork.py).
+Chỉ cần Python với Pillow khi tạo lại ảnh. Các tệp đầu ra của tập lệnh đã có trong repo
+nên quá trình build và publish bình thường dùng trực tiếp chúng.
+
 ## Ký số phát triển trước khi phát hành
 
 Từ v1.2.7, build trên máy phát triển có thể tự ký EXE bằng SignTool khi cấu hình `CodeSigning.local.props` trỏ tới thumbprint của chứng thư LanChat đã sao lưu. Dùng `dotnet msbuild installer/BuildSignedInstaller.proj` sau khi publish payload công khai để ký/xác minh bộ cài Inno Setup và phần gỡ cài đặt. Không tải bộ cài chưa ký lên release. Đây là chứng thư tự ký dành cho phát triển; không phải chứng thư CA và không tự cài Trusted Root. Xem [hướng dẫn ký và khôi phục PFX](../docs/CODE_SIGNING.md).

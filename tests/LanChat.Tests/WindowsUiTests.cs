@@ -180,6 +180,7 @@ public sealed partial class WindowsUiTests
         Assert.Equal(check.PointToScreen(System.Drawing.Point.Empty).X, donation.PointToScreen(System.Drawing.Point.Empty).X);
         Assert.Equal(apply.PointToScreen(System.Drawing.Point.Empty).X, close.PointToScreen(System.Drawing.Point.Empty).X);
         Assert.All(new[] { apply, donation, close }, button => Assert.Equal(check.Size, button.Size));
+        Assert.Contains(Children(about).OfType<LinkLabel>(), link => link.Text == "Giấy phép thư viện");
         var captures = Environment.GetEnvironmentVariable("LANCHAT_UI_CAPTURE_DIR");
         if (!string.IsNullOrWhiteSpace(captures))
         {

@@ -63,7 +63,10 @@ public sealed class SettingsForm : DpiForm
             Checked = initialPreferences.RemindUnreadMessages };
         var saveResources = new CheckBox { Text = "Tiết kiệm tài nguyên hệ thống", AutoSize = true, Dock = DockStyle.Top,
             Checked = initialPreferences.SaveSystemResources,
-            AccessibleDescription = "Làm mới giao diện ít thường xuyên hơn, dùng ảnh tĩnh cho gợi ý GIF và mở ảnh trong lịch sử theo yêu cầu." };
+            AccessibleDescription = "Dùng một bộ xử lý logic khi Windows cho phép, giảm tần suất làm mới giao diện, dùng ảnh tĩnh cho gợi ý GIF và mở ảnh trong lịch sử theo yêu cầu." };
+        var resourcesHint = new ToolTip();
+        resourcesHint.SetToolTip(saveResources, "Dùng một bộ xử lý logic khi Windows cho phép. Quét mạng, đồng bộ và tải tệp nền có thể chậm hơn.");
+        Disposed += (_, _) => resourcesHint.Dispose();
         var minutes = new NumericUpDown { Minimum = 1, Maximum = UiPreferences.MaxReminderMinutes,
             Value = initialPreferences.UnreadReminderMinutes, Enabled = reminder.Checked, AccessibleName = "Khoảng nhắc (phút)" };
         reminder.CheckedChanged += (_, _) => minutes.Enabled = reminder.Checked;

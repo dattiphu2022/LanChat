@@ -1,4 +1,6 @@
-# LanChat v1.2.12 — Chat nội bộ cho Windows
+# LanChat v1.2.13 — Chat nội bộ cho Windows
+
+v1.2.13 giảm tải khi quét LAN, đồng bộ và tải tệp nền ở chế độ tiết kiệm tài nguyên, chia lịch sử nhóm thành các lô nhỏ hơn khi đồng bộ lại, cập nhật biểu tượng và GIF gợi ý, đồng thời bổ sung thông báo giấy phép thư viện trong mục **Giới thiệu**.
 
 v1.2.12 bổ sung emoji màu từ Windows, gợi ý emoji và GIF cho cụm từ tiếng Việt, chế độ tiết kiệm tài nguyên hệ thống và hướng dẫn ngay trong các ô nhập. Nút **Tải và Cài đặt** xuất hiện ở cuối thanh trên cùng khi có bản cập nhật.
 
@@ -156,6 +158,10 @@ Khi bật nhiều mạng, xem cổng TCP thực tế trong **Mạng chat → Chi
 Bản v1.2.7 có EXE ứng dụng và bộ cài Inno Setup ký Authenticode bằng chứng thư tự ký **CN=LanChat Development**. Đây là chữ ký phát triển, không phải chứng thư phát hành đã được CA xác thực; Windows/SmartScreen có thể vẫn cảnh báo. Không tự thêm chứng thư vào Trusted Root hoặc thay đổi Kaspersky/chính sách Windows. Xem [cấu hình, sao lưu và khôi phục chứng thư](docs/CODE_SIGNING.md).
 
 ## Tài liệu
+
+LanChat được phát hành theo [giấy phép MIT](LICENSE). Giấy phép và thông báo bản quyền
+của các thành phần đi kèm có trong [THIRD-PARTY-NOTICES.txt](docs/THIRD-PARTY-NOTICES.txt)
+và trong thư mục cài đặt. Có thể xem hai tài liệu trong **Giới thiệu**.
 
 - [Hướng dẫn sử dụng](docs/HUONG_DAN_SU_DUNG.md)
 - [Kiểm chứng v1.2.8: đính kèm, nhắc tên và chuyển tiếp](docs/VERIFICATION_MENTIONS_FORWARDING.md)
