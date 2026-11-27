@@ -12,6 +12,26 @@ namespace LanChat.Tests;
 public sealed partial class WindowsUiTests
 {
     [Fact]
+    public void WindowAndTrayIconsUseTheSameBlueBackgroundAsTheExecutable()
+    {
+        using var executableIcon = Icon.ExtractAssociatedIcon(typeof(AppIcon).Assembly.Location)!;
+        using var windowIcon = new Icon(AppIcon.Value, executableIcon.Size);
+        using var trayIcon = AppIcon.ForUnread(true).ToBitmap();
+        using var executable = executableIcon.ToBitmap();
+        using var window = windowIcon.ToBitmap();
+
+        static Color Background(Bitmap bitmap) => bitmap.GetPixel(bitmap.Width / 2, bitmap.Height / 8);
+
+        var blue = Background(window);
+        Assert.True(blue.B > blue.G && blue.G > blue.R);
+        Assert.Equal(255, blue.A);
+        Assert.Equal(blue, Background(executable));
+        using var trayBaseIcon = new Icon(AppIcon.Value, trayIcon.Size);
+        using var trayBase = trayBaseIcon.ToBitmap();
+        Assert.Equal(Background(trayBase), Background(trayIcon));
+    }
+
+    [Fact]
     public async Task DisplayPreferencesRoundTripInIsolatedLocalConfiguration()
     {
         var directory = Temp();

@@ -94,14 +94,29 @@ def save_gif(name, background, paint):
 
 
 def save_icon():
-    image = Image.new("RGBA", (SIZE * SCALE, SIZE * SCALE))
+    side = SIZE * SCALE
+    image = Image.new("RGBA", (side, side))
+    # Recreate the diagonal blue gradient from the reference icon.
+    start, end = (33, 123, 245), (17, 64, 183)
+    background = ImageDraw.Draw(image)
+    for diagonal in range(2 * side - 1):
+        low = max(0, diagonal - side + 1)
+        high = min(diagonal, side - 1)
+        fraction = diagonal / (2 * side - 2)
+        color = tuple(round(a + (b - a) * fraction) for a, b in zip(start, end))
+        background.line((low, diagonal - low, high, diagonal - high), fill=(*color, 255))
+    mask = Image.new("L", image.size)
+    rounded(ImageDraw.Draw(mask), (2, 2, 78, 78), 19, 255)
+    image.putalpha(mask)
+
     draw = ImageDraw.Draw(image)
-    rounded(draw, (2, 2, 78, 78), 19, "#153f41")
-    chat_bubble(draw, (32, 34, 68, 58), [(52, 55), (61, 66), (61, 55)], "#86d4bd")
-    chat_bubble(draw, (12, 18, 58, 46), [(20, 43), (19, 56), (32, 45)], "#fff3d5")
+    chat_bubble(draw, (32, 34, 68, 58), [(52, 55), (61, 66), (61, 55)], "#fdba3b")
+    chat_bubble(draw, (12, 18, 58, 46), [(20, 43), (19, 56), (32, 45)], "#fdfdfd")
     for x in (24, 35, 46):
-        dot(draw, x, 32, 2.6, "#153f41")
-    image.save(ASSETS / "LanChat.ico", sizes=[(n, n) for n in (16, 24, 32, 48, 64, 128, 256)])
+        dot(draw, x, 32, 2.6, "#0d3ebb")
+    # DIB frames keep alpha and colors consistent when .NET Framework loads the ICO directly.
+    sizes = [(n, n) for n in (16, 20, 24, 32, 40, 48, 64, 128, 256)]
+    image.save(ASSETS / "LanChat.ico", sizes=sizes, bitmap_format="bmp")
 
 
 if __name__ == "__main__":

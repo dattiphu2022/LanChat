@@ -5,7 +5,7 @@ namespace LanChat.WinForms;
 
 internal static class AppIcon
 {
-    public static Icon Value { get; } = Icon.ExtractAssociatedIcon(System.Windows.Forms.Application.ExecutablePath) ?? SystemIcons.Application;
+    public static Icon Value { get; } = new(typeof(AppIcon), "Assets.LanChat.ico");
     private static readonly Lazy<Icon> Badged = new(CreateBadgedIcon);
 
     internal static Icon ForUnread(bool hasUnread) => hasUnread ? Badged.Value : Value;
