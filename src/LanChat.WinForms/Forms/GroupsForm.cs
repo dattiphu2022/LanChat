@@ -14,7 +14,7 @@ public sealed class GroupsForm : DpiForm
     private readonly SemaphoreSlim _refreshGate = new(1);
     private readonly System.Windows.Forms.Timer _timer = new() { Interval = 2000 };
     private readonly ListBox _groups = new() { Dock = DockStyle.Fill, DisplayMember = nameof(GroupSummary.Name), AllowDrop = true, AccessibleName = "Nhóm chat" };
-    private readonly PromptTextBox _search = new() { Dock = DockStyle.Fill, PlaceholderText = "Tìm nhóm…" };
+    private readonly PromptTextBox _search = new() { Dock = DockStyle.Fill, PlaceholderText = "Nhập tên nhóm cần tìm…", AccessibleName = "Tìm nhóm" };
     private readonly GroupMembersControl _members = new(showAllContacts: true);
     private readonly Label _status = Theme.Label("");
     private readonly Label _membersTitle = Theme.Label("Thành viên nhóm", 11, true);
@@ -113,7 +113,7 @@ public sealed class GroupsForm : DpiForm
             if (CurrentGroup is not { } group) return;
             await RunAsync(() =>
             {
-                SelectionForm.Prompt(this, "Đổi tên nhóm", group.Name,
+                SelectionForm.Prompt(this, "Đổi tên nhóm", "Ví dụ: Nhóm hỗ trợ kỹ thuật", group.Name,
                     save: name => SubmitAsync(Command(ControlCommandType.GroupRenamed, group.Id, name: name)));
                 return Task.CompletedTask;
             });
@@ -269,7 +269,7 @@ public sealed class GroupsForm : DpiForm
     private Task CreateGroupAsync(Guid[] members) => RunAsync(() =>
     {
         var id = AppIdentity.NewId();
-        var name = SelectionForm.Prompt(this, "Tên nhóm mới", save: value => SubmitAsync(
+        var name = SelectionForm.Prompt(this, "Tên nhóm mới", "Ví dụ: Nhóm hỗ trợ kỹ thuật", save: value => SubmitAsync(
             new ControlCommand(AppIdentity.NewId(), ControlCommandType.GroupCreated, _profile!.Id, id, Name: value, Members: members)));
         if (name is null) return Task.CompletedTask;
         _createdGroup = id;

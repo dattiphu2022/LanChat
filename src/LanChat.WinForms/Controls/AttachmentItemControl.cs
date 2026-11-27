@@ -156,6 +156,7 @@ internal sealed class AttachmentItemControl : UserControl
         e.Graphics.FillPath(fill, shape); e.Graphics.DrawPath(edge, shape);
     }
     public void EnsureImageLoaded() => _image?.EnsureLoaded();
+    internal void SetResourceSaving(bool enabled) => _image?.SetResourceSaving(enabled);
     private async void OnChanged(Guid id) { if (id == _file.Id) await RefreshLocationAsync(); }
     private async Task RefreshLocationAsync()
     {

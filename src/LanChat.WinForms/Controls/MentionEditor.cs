@@ -37,12 +37,10 @@ internal sealed class MentionDraft
         _text = text;
     }
     internal void Add(MessageMention mention) => _values = _values.Append(mention).OrderBy(m => m.Start).ToArray();
-    internal static bool Matches(string name, string query)
-    {
-        static string Fold(string value) => new string(value.Normalize(System.Text.NormalizationForm.FormD)
+    internal static string Fold(string value) => new string(value.Normalize(System.Text.NormalizationForm.FormD)
             .Where(c => CharUnicodeInfo.GetUnicodeCategory(c) != UnicodeCategory.NonSpacingMark).ToArray()).Replace('đ', 'd').Replace('Đ', 'D');
-        return Fold(name).IndexOf(Fold(query), StringComparison.OrdinalIgnoreCase) >= 0;
-    }
+    internal static bool Matches(string name, string query) =>
+        Fold(name).IndexOf(Fold(query), StringComparison.OrdinalIgnoreCase) >= 0;
 }
 
 public sealed partial class ChatInputControl

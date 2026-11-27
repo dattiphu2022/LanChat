@@ -1,4 +1,5 @@
 using System.Drawing.Drawing2D;
+using System.Drawing.Imaging;
 using LanChat.Application;
 
 namespace LanChat.WinForms.Controls;
@@ -17,6 +18,13 @@ public sealed class ChatImageService(IFileTransferService files)
 
     internal async Task<Bitmap> LoadAsync(AttachmentDto file, bool thumbnail, CancellationToken ct,
         IProgress<FileProgress>? progress, IProgress<ImageLoadPhase>? phase)
+        => (await LoadCoreAsync(file, thumbnail, false, ct, progress, phase).ConfigureAwait(false)).Bitmap;
+
+    internal Task<(Bitmap Bitmap, Stream? Source)> LoadGalleryAsync(AttachmentDto file, CancellationToken ct, IProgress<FileProgress>? progress)
+        => LoadCoreAsync(file, false, true, ct, progress, null);
+
+    private async Task<(Bitmap Bitmap, Stream? Source)> LoadCoreAsync(AttachmentDto file, bool thumbnail, bool playGif,
+        CancellationToken ct, IProgress<FileProgress>? progress, IProgress<ImageLoadPhase>? phase)
     {
         if (!IsImage(file)) throw new InvalidDataException("Định dạng ảnh này chưa hỗ trợ xem trực tiếp.");
         if (file.FileSize > 100L * 1024 * 1024) throw new InvalidDataException("Ảnh vượt quá 100 MB. Hãy mở bằng ứng dụng ngoài từ nút bên dưới.");
@@ -31,18 +39,39 @@ public sealed class ChatImageService(IFileTransferService files)
                 ct.ThrowIfCancellationRequested();
                 using var source = Image.FromFile(path);
                 if ((long)source.Width * source.Height > 40_000_000) throw new InvalidDataException("Ảnh vượt quá 40 megapixel. Hãy mở bằng ứng dụng ngoài.");
+                if (playGif && source.RawFormat.Equals(ImageFormat.Gif) && ImageAnimator.CanAnimate(source))
+                    return OpenAnimatedGif(path, ct);
                 ApplyOrientation(source);
                 var scale = thumbnail ? Math.Min(1d, Math.Min(320d / source.Width, 220d / source.Height)) : 1d;
                 var bitmap = new Bitmap(Math.Max(1, (int)(source.Width * scale)), Math.Max(1, (int)(source.Height * scale)));
                 try
                 {
                     using var graphics = Graphics.FromImage(bitmap); graphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
-                    graphics.DrawImage(source, new Rectangle(Point.Empty, bitmap.Size)); ct.ThrowIfCancellationRequested(); return bitmap;
+                    graphics.DrawImage(source, new Rectangle(Point.Empty, bitmap.Size)); ct.ThrowIfCancellationRequested();
+                    return (bitmap, (Stream?)null);
                 }
                 catch { bitmap.Dispose(); throw; }
             }, ct).ConfigureAwait(false);
         }
         finally { _slots.Release(); }
+    }
+
+    private static (Bitmap, Stream?) OpenAnimatedGif(string path, CancellationToken ct)
+    {
+        var stream = new MemoryStream(File.ReadAllBytes(path), writable: false);
+        Bitmap? bitmap = null;
+        try
+        {
+            bitmap = new Bitmap(stream);
+            ct.ThrowIfCancellationRequested();
+            return (bitmap, stream);
+        }
+        catch
+        {
+            bitmap?.Dispose();
+            stream.Dispose();
+            throw;
+        }
     }
     private static void ApplyOrientation(Image image)
     {

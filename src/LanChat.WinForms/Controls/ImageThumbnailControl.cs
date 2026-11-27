@@ -11,6 +11,7 @@ public sealed class ImageThumbnailControl : UserControl
     private readonly Label _label = new() { Dock = DockStyle.Bottom, Height = 30, TextAlign = ContentAlignment.MiddleCenter, AutoEllipsis = true, Cursor = Cursors.Hand };
     private bool _loading;
     private bool _disposed;
+    private bool _resourceSaving;
     private DateTime _retryAfter;
     public bool HasImage => _picture.Image is not null;
     public event Action<AttachmentDto>? Selected;
@@ -28,14 +29,26 @@ public sealed class ImageThumbnailControl : UserControl
         Controls.Add(_picture); Controls.Add(_label);
         _picture.Click += (_, _) => Selected?.Invoke(_file); _label.Click += (_, _) =>
         {
-            if (_retryAfter == default) Selected?.Invoke(_file);
+            if (_resourceSaving || _retryAfter == default) Selected?.Invoke(_file);
             else { _retryAfter = default; EnsureLoaded(); }
         };
         _picture.Paint += (_, _) => EnsureLoaded(); VisibleChanged += (_, _) => EnsureLoaded();
     }
+    internal void SetResourceSaving(bool enabled)
+    {
+        if (_resourceSaving == enabled) return;
+        _resourceSaving = enabled;
+        if (!_loading && !HasImage)
+        {
+            _retryAfter = default;
+            _label.Text = enabled || _file.FileSize > ChatImageService.InlineLimit ? "Bấm để xem ảnh" : _file.FileName;
+        }
+        if (!enabled) EnsureLoaded();
+    }
+
     public void EnsureLoaded()
     {
-        if (HasImage || _loading || IsDisposed || !IsHandleCreated || !Visible || DateTime.UtcNow < _retryAfter || _file.FileSize > ChatImageService.InlineLimit) return;
+        if (_resourceSaving || HasImage || _loading || IsDisposed || !IsHandleCreated || !Visible || DateTime.UtcNow < _retryAfter || _file.FileSize > ChatImageService.InlineLimit) return;
         var visible = RectangleToScreen(ClientRectangle);
         for (var parent = Parent; parent is not null; parent = parent.Parent) visible = Rectangle.Intersect(visible, parent.RectangleToScreen(parent.ClientRectangle));
         if (visible.Width < 1 || visible.Height < 1) return;
@@ -57,7 +70,14 @@ public sealed class ImageThumbnailControl : UserControl
             _retryAfter = default; _picture.Image = bitmap; _label.Text = _file.FileName;
         }
         catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { }
-        catch (Exception) { if (!IsDisposed) { _label.Text = "Chưa tải được · Bấm để thử"; _retryAfter = DateTime.UtcNow.AddSeconds(30); } }
+        catch (Exception)
+        {
+            if (!IsDisposed)
+            {
+                _label.Text = _resourceSaving ? "Bấm để xem ảnh" : "Chưa tải được · Bấm để thử";
+                _retryAfter = DateTime.UtcNow.AddSeconds(30);
+            }
+        }
         finally { _loading = false; }
     }
     protected override void Dispose(bool disposing)

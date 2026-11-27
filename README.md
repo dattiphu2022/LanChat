@@ -1,6 +1,6 @@
-# LanChat v1.2.11 — Chat nội bộ cho Windows
+# LanChat v1.2.12 — Chat nội bộ cho Windows
 
-v1.2.11 bổ sung giao diện Sáng/Tối/Theo Windows, gửi tin và chuẩn bị tệp ở nền, nhắc tin chưa đọc theo chu kỳ, và giảm độ trễ đồng bộ biểu cảm sau khi tải lịch sử nhóm.
+v1.2.12 bổ sung emoji màu từ Windows, gợi ý emoji và GIF cho cụm từ tiếng Việt, chế độ tiết kiệm tài nguyên hệ thống và hướng dẫn ngay trong các ô nhập. Nút **Tải và Cài đặt** xuất hiện ở cuối thanh trên cùng khi có bản cập nhật.
 
 v1.2.10 nâng cấp bố cục cửa sổ rộng/trung bình/hẹp, thêm bộ lọc hội thoại, khung soạn gọn với nút **+**, trung tâm tệp, tìm kiếm rõ phạm vi và tùy chỉnh cỡ chữ/mật độ. **Thêm** chứa Giới thiệu, cập nhật và hướng dẫn; badge phiên bản mới cũng nằm trên nút này. Ứng dụng tiếp tục tải cập nhật nền và chỉ cài khi bạn chọn **Cài đặt ngay**.
 
@@ -74,7 +74,7 @@ Mở **Cài đặt → Cài đặt cập nhật** hoặc **Giới thiệu → C�
 
 Máy nhận và máy nguồn phải cùng mạng chat và đều hỗ trợ cập nhật LAN. Với máy v1.2.6 trở về trước, cài phiên bản hỗ trợ tính năng này bằng EXE hoặc GitHub trước. Manifest LAN được ký bằng khóa thiết bị đã ghim, xác nhận đúng máy bạn chọn; SHA-256 kiểm tra tính nguyên vẹn, không chứng nhận gói đến từ GitHub. Bộ cài đã tải và xác minh vẫn cài được khi nguồn ngoại tuyến.
 
-Với bản đã có trình cập nhật, mở **Giới thiệu → Kiểm tra cập nhật**. Khi có bản mới hơn, chọn **Tải bản cập nhật** ngay trong Giới thiệu. Đóng Giới thiệu vẫn tiếp tục tải nền; cửa sổ chính hiển thị cùng tiến độ và nút **Hủy tải**. Tải xong, chọn **Cài đặt ngay** khi đã hoàn tất công việc. LanChat xác minh lại bộ cài và nhắc xử lý bản nháp trước khi thoát để cài. Có thể cài thủ công EXE từ GitHub Releases bằng cùng tài khoản Windows. Để thoát trước khi cài thủ công, dùng **Thoát LanChat** ở khay hệ thống.
+Khi có phiên bản mới, dùng nút **Tải và Cài đặt** ở cuối thanh trên cùng. Trong lúc tải, tiêu đề cửa sổ hiển thị tiến độ và thanh trên cùng có nút **Hủy tải**. Bạn cũng có thể mở **Thêm → Giới thiệu và cập nhật…** để kiểm tra thủ công. LanChat xác minh lại bộ cài và nhắc xử lý bản nháp trước khi thoát để cài. Có thể cài thủ công EXE từ GitHub Releases bằng cùng tài khoản Windows sau khi dùng **Thoát LanChat** ở khay hệ thống.
 
 Khi nâng từ giao thức cũ lên **giao thức v4** lần đầu, migration xóa lịch sử tin nhắn cũ, chỉ mục tìm kiếm và các tin đang chờ gửi. Sao lưu khi LanChat đã thoát nếu cần lưu dữ liệu cũ để tra cứu. Bảo vệ bản sao vì có thể chứa dữ liệu dạng rõ.
 

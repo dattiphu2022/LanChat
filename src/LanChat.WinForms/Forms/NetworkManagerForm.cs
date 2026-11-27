@@ -6,7 +6,8 @@ namespace LanChat.WinForms.Forms;
 internal sealed class NetworkManagerForm : DpiForm
 {
     private readonly ListBox _list = new() { Dock = DockStyle.Fill, DisplayMember = nameof(NetworkEntry.Name), AccessibleName = "Mạng đã lưu" };
-    private readonly TextBox _codes = new() { Dock = DockStyle.Fill, Multiline = true, ScrollBars = ScrollBars.Vertical, AccessibleName = "Mã tham gia, mỗi mã một dòng" };
+    private readonly PromptTextBox _codes = new() { Dock = DockStyle.Fill, Multiline = true, ScrollBars = ScrollBars.Vertical,
+        AccessibleName = "Mã tham gia, mỗi mã một dòng", PlaceholderText = "Dán mã mời nhận từ máy khác, mỗi mã một dòng." };
     private readonly Label _status = Theme.Label("");
     private bool _busy;
 
@@ -115,7 +116,8 @@ internal sealed class NetworkManagerForm : DpiForm
         rename.Click += async (_, _) => await RunAsync(() =>
         {
             if (_list.SelectedItem is not NetworkEntry item) return Task.CompletedTask;
-            var name = SelectionForm.Prompt(this, "Tên mạng chat", item.Name, maxLength: 60, save: value => catalog.RenameAsync(item, value));
+            var name = SelectionForm.Prompt(this, "Tên mạng chat", "Ví dụ: Văn phòng chính", item.Name, maxLength: 60,
+                save: value => catalog.RenameAsync(item, value));
             if (name is null) { _status.Text = "Đã hủy đổi tên."; return Task.CompletedTask; }
             RefreshList(item.Id); _status.Text = "Đã đổi tên.";
             return Task.CompletedTask;

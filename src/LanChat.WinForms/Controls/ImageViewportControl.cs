@@ -6,6 +6,8 @@ namespace LanChat.WinForms.Controls;
 public sealed class ImageViewportControl : Control
 {
     private Bitmap? _image;
+    private Stream? _imageSource;
+    private readonly GifPlayback _playback;
     private float _scale = 1;
     private PointF _pan;
     private Point? _drag;
@@ -17,11 +19,24 @@ public sealed class ImageViewportControl : Control
     public Bitmap? Image
     {
         get => _image;
-        set { if (ReferenceEquals(_image, value)) return; _image?.Dispose(); _image = value; Fit(); }
+        set => SetImage(value, null);
+    }
+    internal void SetImage(Bitmap? image, Stream? source)
+    {
+        if (ReferenceEquals(_image, image)) return;
+        _playback.Stop();
+        _image?.Dispose();
+        _imageSource?.Dispose();
+        _image = image;
+        _imageSource = source;
+        _playback.Start(Visible ? image : null);
+        Fit();
     }
     public ImageViewportControl()
     {
+        _playback = new(this);
         Dock = DockStyle.Fill; BackColor = Color.FromArgb(27, 31, 38); DoubleBuffered = true; TabStop = true;
+        VisibleChanged += (_, _) => _playback.Start(Visible ? _image : null);
         SetStyle(ControlStyles.ResizeRedraw | ControlStyles.Selectable, true);
         MouseWheel += (_, e) => Zoom(e.Delta > 0 ? 1.2f : 1 / 1.2f, e.Location);
         MouseDown += (_, e) => { if (e.Button == MouseButtons.Left) { Focus(); _drag = e.Location; Capture = true; Cursor = Cursors.SizeAll; } };
@@ -57,9 +72,19 @@ public sealed class ImageViewportControl : Control
     {
         base.OnPaint(e);
         if (_image is null) return;
+        _playback.UpdateFrame();
         var size = new SizeF(_image.Width * _scale, _image.Height * _scale);
         e.Graphics.InterpolationMode = _scale > 2 ? InterpolationMode.NearestNeighbor : InterpolationMode.HighQualityBicubic;
         e.Graphics.DrawImage(_image, new RectangleF((ClientSize.Width - size.Width) / 2 + _pan.X, (ClientSize.Height - size.Height) / 2 + _pan.Y, size.Width, size.Height));
     }
-    protected override void Dispose(bool disposing) { if (disposing) { _image?.Dispose(); _image = null; } base.Dispose(disposing); }
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            _playback.Stop();
+            _image?.Dispose(); _image = null;
+            _imageSource?.Dispose(); _imageSource = null;
+        }
+        base.Dispose(disposing);
+    }
 }

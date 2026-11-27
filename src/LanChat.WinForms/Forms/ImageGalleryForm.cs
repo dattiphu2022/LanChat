@@ -99,6 +99,7 @@ internal sealed class ImageGalleryForm : DpiForm
         {
             if (_closed) return;
             _closed = true; _lifetime.Cancel(); _selection?.Cancel();
+            if (!_viewport.IsDisposed) _viewport.Image = null;
         }
         FormClosed += (_, _) => Stop();
         Disposed += (_, _) => { Stop(); _lifetime.Dispose(); };
@@ -144,9 +145,12 @@ internal sealed class ImageGalleryForm : DpiForm
         try
         {
             var progress = new Progress<FileProgress>(p => { if (!IsDisposed && generation == _generation) _status.Text = p.Completed >= p.Total ? "Đang đọc ảnh…" : $"Đang tải {p.Completed / 1024d:N0} / {p.Total / 1024d:N0} KB"; });
-            var bitmap = await _images.LoadAsync(item.File, false, selection.Token, progress);
-            if (IsDisposed || generation != _generation || selection.IsCancellationRequested) { bitmap.Dispose(); return; }
-            _viewport.Image = bitmap; _status.Text = $"{bitmap.Width} × {bitmap.Height}  ·  Cuộn chuột để zoom · Kéo để di chuyển · ← → chuyển ảnh · Esc đóng";
+            var (bitmap, source) = await _images.LoadGalleryAsync(item.File, selection.Token, progress);
+            if (IsDisposed || generation != _generation || selection.IsCancellationRequested)
+            {
+                bitmap.Dispose(); source?.Dispose(); return;
+            }
+            _viewport.SetImage(bitmap, source); _status.Text = $"{bitmap.Width} × {bitmap.Height}  ·  Cuộn chuột để zoom · Kéo để di chuyển · ← → chuyển ảnh · Esc đóng";
             await ShowLocationAsync(item.File, onlySaved: true);
         }
         catch (OperationCanceledException) when (selection.IsCancellationRequested) { }

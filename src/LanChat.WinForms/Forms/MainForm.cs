@@ -13,6 +13,8 @@ public sealed partial class MainForm : DpiForm
     internal void ApplyPreferences(UiPreferences preferences)
     {
         _appearance = preferences.Validated();
+        _timer.Interval = _appearance.SaveSystemResources ? 1500 : 500;
+        _attachmentActions.SetResourceSaving(_appearance.SaveSystemResources);
         _conversations.ApplyPreferences(_appearance);
         _chat.ApplyPreferences(_appearance);
     }
@@ -24,7 +26,7 @@ public sealed partial class MainForm : DpiForm
     private readonly ChatViewControl _chat = new();
     private readonly ConversationPanel _info = new();
     private readonly Panel _people = new() { Dock = DockStyle.Fill, Visible = false, BackColor = Theme.Surface };
-    private readonly PromptTextBox _userSearch = new() { Dock = DockStyle.Fill, PlaceholderText = "Tìm người dùng…" };
+    private readonly PromptTextBox _userSearch = new() { Dock = DockStyle.Fill, PlaceholderText = "Tìm theo tên hoặc đơn vị…", AccessibleName = "Tìm người dùng" };
     private readonly Label _peopleEmpty = Theme.Label("Chưa tìm thấy người dùng trong mạng này.");
     private readonly Panel _userRows = new BufferedPanel { Dock = DockStyle.Fill, AutoScroll = true };
     private readonly Dictionary<Guid, UserItemControl> _users = new();
@@ -82,6 +84,8 @@ public sealed partial class MainForm : DpiForm
     private Guid? _boundSearch;
     private Message[]? _boundOlder;
     private DateTime _lastPresence;
+    private bool PresenceRefreshDue => DateTime.UtcNow - _lastPresence >
+        TimeSpan.FromSeconds(_appearance.SaveSystemResources ? 15 : 4);
     private const int PageSize = 80;
     private IReadOnlyList<UserSummary> _contacts = [];
     private IReadOnlyList<ConversationSummary> _summaries = [];
@@ -396,7 +400,7 @@ public sealed partial class MainForm : DpiForm
         _ticking = true;
         try
         {
-            if (_revision != _store.Revision || _presenceRevision != _store.PresenceRevision || DateTime.UtcNow - _lastPresence > TimeSpan.FromSeconds(4))
+            if (_revision != _store.Revision || _presenceRevision != _store.PresenceRevision || PresenceRefreshDue)
                 await RefreshAsync();
             else await UpdateStatusAsync();
         }
@@ -417,8 +421,7 @@ public sealed partial class MainForm : DpiForm
             var anchor = _searchAnchor;
             var previous = _olderMessages;
             var changed = _revision != revision;
-            var presenceDue = DateTime.UtcNow - _lastPresence > TimeSpan.FromSeconds(4);
-            var refreshContacts = changed || _presenceRevision != presenceRevision || presenceDue;
+            var refreshContacts = changed || _presenceRevision != presenceRevision || PresenceRefreshDue;
             IncomingMessageBatch? incoming = null;
             if (changed)
                 incoming = await Task.Run(() => _store.GetIncomingMessagesAsync(_incomingPosition, ct), ct);

@@ -61,6 +61,7 @@ public sealed class MessageBubbleControl : UserControl
     internal void ApplyPreferences(UiPreferences preferences)
     {
         _appearance = preferences;
+        foreach (AttachmentItemControl item in _pictures.Controls) item.SetResourceSaving(preferences.SaveSystemResources);
         _body.Font = Theme.GetFont(preferences.MessageFontSize, false);
         UpdateLayout();
     }
@@ -401,6 +402,7 @@ public sealed class MessageBubbleControl : UserControl
         foreach (var file in files)
         {
             var item = new AttachmentItemControl(file, _images, _attachmentActions);
+            item.SetResourceSaving(_appearance.SaveSystemResources);
             item.Selected += f => FileRequested?.Invoke(f);
             item.CommandRequested += (f, command) => AttachmentCommandRequested?.Invoke(f, command);
             Theme.AddAtCurrentDpi(_images is not null && ChatImageService.IsImage(file) ? _pictures : _files, item);
@@ -776,10 +778,10 @@ public sealed partial class ChatInputControl : UserControl
     private const int PreviewHeight = 84;
     private const int MaxFiles = 20;
     private const int MaxPendingSends = 8;
-    private readonly PromptTextBox _text = new() { Multiline = true, Dock = DockStyle.Fill, MaxLength = 16000, ScrollBars = ScrollBars.Vertical,
+    private readonly PromptTextBox _text = new() { Multiline = true, Dock = DockStyle.Fill, MaxLength = 16000, ScrollBars = ScrollBars.Vertical, ShowColorEmoji = true,
         PlaceholderText = "Nhập tin nhắn…  Enter để gửi · Shift+Enter để xuống dòng" };
     private readonly Button _send = Theme.Button("Gửi", UiIcon.Send);
-    private readonly TableLayoutPanel _root = Theme.Stack(5);
+    private readonly TableLayoutPanel _root = Theme.Stack(6);
     private readonly LinkLabel _feedback = new() { Dock = DockStyle.Fill, Font = Theme.GetFont(9, false), Margin = new Padding(5, 1, 5, 1) };
     private readonly ToolTip _feedbackTip = new();
     private string _feedbackMessage = "";
@@ -791,6 +793,7 @@ public sealed partial class ChatInputControl : UserControl
     private readonly Button _pasteImage = Theme.Icon(UiIcon.Paste, "Dán ảnh");
     private readonly Button _captureImage = Theme.Icon(UiIcon.Capture, "Chụp vùng màn hình (ẩn LanChat)");
     private readonly Button _captureWithLanChat = Theme.Icon(UiIcon.Camera, "Chụp vùng màn hình (có LanChat)");
+    private readonly Button _windowsEmoji = Theme.Icon(UiIcon.Heart, "Chọn emoji Windows (Win + .)");
     private DraftImageStore? _draftImages;
     private CancellationToken _draftLifetime;
     private Guid? _replyTo, _editId;
@@ -802,7 +805,13 @@ public sealed partial class ChatInputControl : UserControl
     private bool _processingImage, _heightQueued;
     internal IEnumerable<string> FailedDraftFiles => _failedSends.SelectMany(item => item.Draft.AllFiles);
 
-    internal void SetComposerConversation(Guid? conversation) => _composerConversation = conversation ?? Guid.Empty;
+    internal void SetComposerConversation(Guid? conversation)
+    {
+        if (_composerConversation == (conversation ?? Guid.Empty)) return;
+        _composerConversation = conversation ?? Guid.Empty;
+        _draftGeneration++;
+        SetSuggestion(null, false);
+    }
     private int _requestedHeight, _editorHeight = EditorHeight;
     public event Func<ComposerSubmission, Task>? SendRequested;
     public event Action<int>? HeightRequested;
@@ -810,6 +819,7 @@ public sealed partial class ChatInputControl : UserControl
     internal void ApplyPreferences(UiPreferences preferences)
     {
         _text.Font = Theme.GetFont(preferences.MessageFontSize, false);
+        _gifSuggestion.SetResourceSaving(preferences.SaveSystemResources);
         QueueHeight();
     }
     internal bool IsWorking => _pendingSends > 0 || _processingImage;
@@ -820,7 +830,7 @@ public sealed partial class ChatInputControl : UserControl
         _text.Font.Height * 2 + _text.Margin.Vertical + SystemInformation.BorderSize.Height * 2);
     private int CompactEditorHeight => Math.Max(EditorHeight, (int)Math.Ceiling(CompactEditorPixels * 96d / this.LayoutDpi()));
     internal int MinimumHeight => Math.Max(BaseHeight, AttachmentBarHeight + (int)Math.Ceiling((CompactEditorPixels + Padding.Vertical + _root.Margin.Vertical) * 96d / this.LayoutDpi())) +
-        (_context.Text.Length > 0 ? ContextHeight : 0) + (_feedback.Text.Length > 0 ? ContextHeight : 0);
+        (_context.Text.Length > 0 ? ContextHeight : 0) + (_feedback.Text.Length > 0 ? ContextHeight : 0) + SuggestionHeight;
     public ChatInputControl()
     {
         Dock = DockStyle.Fill; Padding = new Padding(10, 6, 10, 6); BackColor = Theme.Surface;
@@ -828,13 +838,14 @@ public sealed partial class ChatInputControl : UserControl
         _root.RowStyles.Add(new RowStyle(SizeType.Absolute, 0));
         _root.RowStyles.Add(new RowStyle(SizeType.Absolute, 0));
         _root.RowStyles.Add(new RowStyle(SizeType.Absolute, this.ScalePixels(AttachmentBarHeight)));
+        _root.RowStyles.Add(new RowStyle(SizeType.Absolute, 0));
         _root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         var layout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1, Margin = Padding.Empty };
         layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         layout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         var attachmentBar = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false, Margin = Padding.Empty };
-        Button[] attachmentButtons = [_addFiles, _addFolder, _pasteImage, _captureImage, _captureWithLanChat];
+        Button[] attachmentButtons = [_addFiles, _addFolder, _pasteImage, _captureImage, _captureWithLanChat, _windowsEmoji];
         var toolTips = new ToolTip();
         foreach (var button in attachmentButtons)
         {
@@ -851,7 +862,8 @@ public sealed partial class ChatInputControl : UserControl
         _root.Controls.Add(_previews, 0, 1);
         _root.Controls.Add(_feedback, 0, 2);
         _root.Controls.Add(attachmentBar, 0, 3);
-        _root.Controls.Add(layout, 0, 4);
+        _root.Controls.Add(_suggestions, 0, 4);
+        _root.Controls.Add(layout, 0, 5);
         Controls.Add(_root);
         void FitButtons()
         {
@@ -880,6 +892,7 @@ public sealed partial class ChatInputControl : UserControl
         _pasteImage.Click += async (_, _) => await PasteImageAsync();
         _captureImage.Click += async (_, _) => await CaptureImageAsync(hideOwner: true);
         _captureWithLanChat.Click += async (_, _) => await CaptureImageAsync(hideOwner: false);
+        _windowsEmoji.Click += (_, _) => { if (_text.Focus()) WindowsEmoji.OpenPicker(); };
         Task PasteImageAsync() => PrepareImageAsync(() =>
             Clipboard.GetDataObject() is { } data ? ClipboardDraftImage.Read(data) : null, "Anh-dan", "Không có ảnh PNG hoặc bitmap trong bảng nhớ tạm.");
         Task CaptureImageAsync(bool hideOwner) => PrepareImageAsync(() =>
@@ -893,6 +906,7 @@ public sealed partial class ChatInputControl : UserControl
         _text.AccessibleName = "Nhập tin nhắn";
         _text.TryPasteImage = TryPasteImage;
         InitializeMentions();
+        InitializeSuggestions();
         _text.TextChanged += (_, _) => { UpdateButtons(); QueueHeight(); };
         _text.SizeChanged += (_, _) => QueueHeight();
         _text.FontChanged += (_, _) => QueueHeight();
@@ -922,7 +936,16 @@ public sealed partial class ChatInputControl : UserControl
         catch (System.Runtime.InteropServices.ExternalException) { return false; }
     }
 
-    private async Task PrepareImageAsync(Func<Bitmap?> read, string prefix, string? missing = null)
+    private Task PrepareImageAsync(Func<Bitmap?> read, string prefix, string? missing = null) =>
+        PrepareDraftImageAsync(async store =>
+        {
+            using var image = read();
+            return image is null
+                ? ((string Path, Bitmap Thumbnail)?)null
+                : await store.StageAsync(image, prefix, _draftLifetime);
+        }, missing);
+
+    private async Task PrepareDraftImageAsync(Func<DraftImageStore, Task<(string Path, Bitmap Thumbnail)?>> stage, string? missing = null)
     {
         if (!CanAttach || _draftImages is not { } store) return;
         if (_paths.Count >= MaxFiles)
@@ -936,13 +959,12 @@ public sealed partial class ChatInputControl : UserControl
         UpdateButtons();
         try
         {
-            using var image = read();
-            if (image is null)
+            var result = await stage(store);
+            if (result is not { } staged)
             {
                 if (missing is not null) ShowImageIssue(missing);
                 return;
             }
-            var staged = await store.StageAsync(image, prefix, _draftLifetime);
             if (IsDisposed || _draftLifetime.IsCancellationRequested || generation != _draftGeneration || !Enabled)
             {
                 store.Discard(staged.Path, staged.Thumbnail);
@@ -1006,6 +1028,7 @@ public sealed partial class ChatInputControl : UserControl
         _pasteImage.Enabled = _captureImage.Enabled = _captureWithLanChat.Enabled = canAttach && _draftImages is not null;
         _send.Enabled = !_processingImage && _pendingSends < MaxPendingSends && (!string.IsNullOrWhiteSpace(_text.Text) || (!_editId.HasValue && _paths.Count > 0));
         _send.Text = _editId.HasValue ? "Lưu sửa" : "Gửi";
+        QueueSuggestions();
     }
 
     private void SelectFolder()
@@ -1132,6 +1155,12 @@ public sealed partial class ChatInputControl : UserControl
         var feedbackHeight = this.ScalePixels(_feedback.Text.Length > 0 ? ContextHeight : 0);
         if (_root.RowStyles[0].Height != contextHeight) _root.RowStyles[0].Height = contextHeight;
         if (_root.RowStyles[2].Height != feedbackHeight) _root.RowStyles[2].Height = feedbackHeight;
+        var suggestionHeight = this.ScalePixels(SuggestionHeight);
+        if (_root.RowStyles[4].Height != suggestionHeight) _root.RowStyles[4].Height = suggestionHeight;
+        var suggestionSize = new Size(this.ScalePixels(48), this.ScalePixels(34));
+        if (_emojiSuggestion.Size != suggestionSize) _emojiSuggestion.Size = suggestionSize;
+        suggestionSize.Width = this.ScalePixels(64);
+        if (_gifSuggestion.Size != suggestionSize) _gifSuggestion.Size = suggestionSize;
         var lines = _text.IsHandleCreated ? Math.Max(1, _text.GetLineFromCharIndex(_text.TextLength) + 1) : 1;
         var lineHeight = (int)Math.Ceiling(_text.Font.GetHeight() * 96d / this.LayoutDpi());
         var compact = CompactEditorHeight;
@@ -1145,7 +1174,7 @@ public sealed partial class ChatInputControl : UserControl
     {
         // When the chat caps our height, keep the attachments reachable and let
         // the text scroll instead of squeezing the preview strip down to zero.
-        var available = Math.Max(0, _root.ClientSize.Height - (int)(_root.RowStyles[0].Height + _root.RowStyles[2].Height + _root.RowStyles[3].Height) - this.ScalePixels(CompactEditorHeight));
+        var available = Math.Max(0, _root.ClientSize.Height - (int)(_root.RowStyles[0].Height + _root.RowStyles[2].Height + _root.RowStyles[3].Height + _root.RowStyles[4].Height) - this.ScalePixels(CompactEditorHeight));
         var height = _paths.Count > 0 ? Math.Min(this.ScalePixels(PreviewHeight), available) : 0;
         if (_root.RowStyles[1].Height != height) _root.RowStyles[1].Height = height;
     }

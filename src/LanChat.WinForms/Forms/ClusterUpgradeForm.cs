@@ -15,7 +15,9 @@ public sealed class ClusterUpgradeForm : DpiForm
         for (var i = 0; i < 4; i++) layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         var introduction = Theme.Label("Dữ liệu hiện tại sẽ được giữ nguyên.\nChọn một máy tạo mã nâng cấp cho cả mạng chat. Các máy khác nhập cùng mã đó.\nMã mới bật kết nối mã hóa và cơ chế tự chuyển máy điều phối.");
         UiInteraction.Wrap(introduction, layout); layout.Controls.Add(introduction, 0, 0);
-        var code = new TextBox { Dock = DockStyle.Fill, Multiline = true, AcceptsReturn = true, ScrollBars = ScrollBars.Vertical, AccessibleName = "Mã nâng cấp" }; layout.Controls.Add(code, 0, 1);
+        var code = new PromptTextBox { Dock = DockStyle.Fill, Multiline = true, AcceptsReturn = true, ScrollBars = ScrollBars.Vertical,
+            AccessibleName = "Mã nâng cấp", PlaceholderText = "Dán mã nâng cấp đã tạo trên một máy trong mạng chat này." };
+        layout.Controls.Add(code, 0, 1);
         var create = Theme.Button("Tạo mã nâng cấp trên máy này", UiIcon.Key); layout.Controls.Add(create, 0, 2);
         var apply = Theme.Button("Áp dụng mã nâng cấp", UiIcon.Check); layout.Controls.Add(apply, 0, 3);
         var status = Theme.Label(""); UiInteraction.Wrap(status, layout); layout.Controls.Add(status, 0, 4);

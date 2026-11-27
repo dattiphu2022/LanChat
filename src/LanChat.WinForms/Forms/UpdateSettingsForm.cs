@@ -16,7 +16,8 @@ internal sealed class UpdateSettingsForm : DpiForm
     private readonly ComboBox _network = new() { Dock = DockStyle.Top, DropDownStyle = ComboBoxStyle.DropDownList, AccessibleName = "Mạng chứa máy nguồn" };
     private readonly ComboBox _peer = new() { Dock = DockStyle.Top, DropDownStyle = ComboBoxStyle.DropDownList, AccessibleName = "Máy nguồn" };
     private readonly CheckBox _manual = new() { AutoSize = true, Text = "Nhập IP và cổng (nâng cao)" };
-    private readonly PromptTextBox _ip = new() { Dock = DockStyle.Top, PlaceholderText = "IPv4 máy nguồn", AccessibleName = "IP máy nguồn" };
+    private readonly PromptTextBox _ip = new() { Dock = DockStyle.Top, PlaceholderText = "IPv4 máy nguồn, ví dụ 192.168.1.20",
+        AccessibleName = "IP máy nguồn" };
     private readonly NumericUpDown _port = new() { Minimum = 1, Maximum = 65535, Value = 54546, Dock = DockStyle.Top, AccessibleName = "Cổng máy nguồn" };
     private readonly CheckBox _share = new() { AutoSize = true, Text = "Máy này cung cấp cập nhật qua LAN" };
     private readonly CheckedListBox _allowed = new() { Dock = DockStyle.Top, Height = 100, CheckOnClick = true, IntegralHeight = false, AccessibleName = "Mạng được phép nhận cập nhật" };
@@ -28,7 +29,7 @@ internal sealed class UpdateSettingsForm : DpiForm
     private readonly Button _pick = Theme.Secondary("Chọn bộ cài EXE…", UiIcon.Folder);
     private readonly CancellationTokenSource _lifetime = new();
     private readonly Panel _body = new() { Dock = DockStyle.Fill, AutoScroll = true };
-    private readonly TableLayoutPanel _lan = Theme.Stack(7), _local = Theme.Stack(3), _sharing = Theme.Stack(2);
+    private readonly TableLayoutPanel _lan = Theme.Stack(8), _local = Theme.Stack(3), _sharing = Theme.Stack(2);
     private UpdatePackage? _package;
     private PeerEndpoint? _verified;
     private string _verifiedName = "";
@@ -46,7 +47,7 @@ internal sealed class UpdateSettingsForm : DpiForm
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize)); root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         var content = Theme.Stack(7); content.Dock = DockStyle.Top; content.AutoSize = true; content.AutoSizeMode = AutoSizeMode.GrowAndShrink;
         for (var i = 0; i < 7; i++) content.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        for (var i = 0; i < 7; i++) _lan.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        for (var i = 0; i < 8; i++) _lan.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         for (var i = 0; i < 3; i++) _local.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         for (var i = 0; i < 2; i++) _sharing.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         foreach (var group in new[] { _lan, _local, _sharing }) { group.Dock = DockStyle.Top; group.AutoSize = true; group.AutoSizeMode = AutoSizeMode.GrowAndShrink; group.Margin = new Padding(0, 8, 0, 8); }
@@ -59,7 +60,9 @@ internal sealed class UpdateSettingsForm : DpiForm
         _share.Checked = settings.Sharing; _ip.Text = settings.Address; _port.Value = settings.Port is >= 1 and <= 65535 ? settings.Port : 54546;
         _manual.Checked = false;
         _lan.Controls.Add(Theme.Label("Mạng chứa máy nguồn"), 0, 0); _lan.Controls.Add(_network, 0, 1); _lan.Controls.Add(_peer, 0, 2);
-        _lan.Controls.Add(_manual, 0, 3); _lan.Controls.Add(_ip, 0, 4); _lan.Controls.Add(_port, 0, 5); _lan.Controls.Add(_verify, 0, 6);
+        var portLabel = Theme.Label("Cổng dịch vụ LanChat trên máy nguồn");
+        _lan.Controls.Add(_manual, 0, 3); _lan.Controls.Add(_ip, 0, 4); _lan.Controls.Add(portLabel, 0, 5);
+        _lan.Controls.Add(_port, 0, 6); _lan.Controls.Add(_verify, 0, 7);
         var explanation = Theme.Label("LAN dùng bộ cài do máy bạn chọn cung cấp. Chỉ nhận từ máy cùng mạng chat; không tự chuyển sang GitHub khi LAN lỗi.", 9);
         UiInteraction.Wrap(explanation, content); UiInteraction.Wrap(_packageInfo, content); UiInteraction.Wrap(_status, root);
         _local.Controls.Add(_pick, 0, 0); _local.Controls.Add(_packageInfo, 0, 1);
@@ -81,7 +84,7 @@ internal sealed class UpdateSettingsForm : DpiForm
             var busy = _operation is not null;
             _lan.Visible = _source.SelectedIndex == (int)UpdateSourceKind.Lan;
             _local.Visible = _source.SelectedIndex == (int)UpdateSourceKind.Local || _share.Checked;
-            _sharing.Visible = _share.Checked; _ip.Visible = _port.Visible = _manual.Checked;
+            _sharing.Visible = _share.Checked; _ip.Visible = portLabel.Visible = _port.Visible = _manual.Checked;
             _peer.Enabled = !_manual.Checked; _save.Enabled = !busy && !updates.State.Busy && _source.SelectedIndex >= 0;
             _body.Enabled = !busy; cancelOperation.Visible = _progress.Visible = busy;
             const string busyReason = "Đang có tác vụ cập nhật. Hoàn tất hoặc hủy tác vụ đó trước khi lưu nguồn mới.";

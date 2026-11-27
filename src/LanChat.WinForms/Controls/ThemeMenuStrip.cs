@@ -47,3 +47,29 @@ internal sealed class ThemeMenuStrip : ContextMenuStrip
         public override Color SeparatorLight => Theme.Surface;
     }
 }
+
+internal sealed class BadgeMenuItem(string text, Image image) : ToolStripMenuItem(text, image)
+{
+    private bool _showBadge;
+    internal bool ShowBadge
+    {
+        get => _showBadge;
+        set
+        {
+            if (_showBadge == value) return;
+            _showBadge = value;
+            Invalidate();
+        }
+    }
+
+    protected override void OnPaint(PaintEventArgs e)
+    {
+        base.OnPaint(e);
+        if (!_showBadge) return;
+        var dpi = Owner?.DeviceDpi ?? 96;
+        int Scale(int pixels) => (int)Math.Round(pixels * dpi / 96d);
+        var diameter = Scale(8);
+        var x = RightToLeft == RightToLeft.Yes ? Width - Scale(16) - diameter : Scale(16);
+        UnreadBadge.PaintDot(e.Graphics, new Rectangle(x, Scale(3), diameter, diameter), true);
+    }
+}

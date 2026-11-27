@@ -5,7 +5,8 @@ namespace LanChat.WinForms.Controls;
 
 internal sealed class ConversationPanel : UserControl
 {
-    private readonly PromptTextBox _search = new() { Dock = DockStyle.Fill, PlaceholderText = "Tìm trong hội thoại…" };
+    private readonly PromptTextBox _search = new() { Dock = DockStyle.Fill, PlaceholderText = "Nhập từ khóa trong tin nhắn…",
+        AccessibleName = "Tìm trong hội thoại" };
     private readonly SearchResultListBox _results = new() { Dock = DockStyle.Fill, AccessibleName = "Kết quả trong hội thoại hiện tại",
         Describe = item => item is SearchRow row ? ($"Hội thoại hiện tại · {new DateTime(row.Item.CreatedAtTicks, DateTimeKind.Utc).ToLocalTime():dd/MM HH:mm}", row.Item.Text) : ("",item.ToString() ?? "") };
     private readonly Button _stopSearch = Theme.Secondary("Dừng", UiIcon.Stop);

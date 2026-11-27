@@ -9,7 +9,9 @@ internal sealed class SelectionForm : DpiForm
     public SelectionForm(string title, IEnumerable<SelectionItem> items)
     {
         Text = title; ClientSize = new Size(520, 420); MinimumSize = new Size(380, 300); StartPosition = FormStartPosition.CenterParent;
-        var all = items.ToArray(); var search = new PromptTextBox { Dock = DockStyle.Fill, PlaceholderText = "Tìm…" };
+        var all = items.ToArray();
+        var search = new PromptTextBox { Dock = DockStyle.Fill, AccessibleName = "Tìm trong danh sách",
+            PlaceholderText = "Tìm theo tên hoặc đơn vị…" };
         Icon = AppIcon.Value;
         var layout = Theme.Stack(4); layout.Padding = new Padding(12);
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 38)); layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
@@ -36,12 +38,13 @@ internal sealed class SelectionForm : DpiForm
         Controls.Add(layout); AcceptButton = select;
         Shown += (_, _) => { _list.SelectedIndex = -1; search.Focus(); };
     }
-    public static string? Prompt(IWin32Window owner, string title, string initial = "", int maxLength = 120, Func<string, Task>? save = null)
+    public static string? Prompt(IWin32Window owner, string title, string placeholder, string initial = "", int maxLength = 120, Func<string, Task>? save = null)
     {
         using var dialog = new DpiForm { Text = title, Icon = AppIcon.Value, ClientSize = new Size(500, 170), StartPosition = FormStartPosition.CenterParent };
         var layout = Theme.Stack(3); layout.Padding = new Padding(12);
         layout.RowStyles.Add(new RowStyle(SizeType.AutoSize)); layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100)); layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        var text = new TextBox { Text = initial, MaxLength = maxLength, Dock = DockStyle.Top, TabIndex = 0 };
+        var text = new PromptTextBox { Text = initial, MaxLength = maxLength, Dock = DockStyle.Top, TabIndex = 0,
+            AccessibleName = title, PlaceholderText = placeholder };
         var feedback = Theme.Label(""); feedback.ForeColor = Color.Firebrick; UiInteraction.Wrap(feedback, layout);
         var ok = Theme.Button("Lưu", UiIcon.Save);
         var buttons = Theme.Toolbar(); buttons.FlowDirection = FlowDirection.RightToLeft;

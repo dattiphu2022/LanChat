@@ -13,6 +13,40 @@ public sealed class FileTransferTests
         Path.Combine(node.Options.DataDirectory, "Attachments", "Open", file.Id.ToString("N"), file.FileName);
 
     [Fact]
+    public async Task SuggestedGifTransfersWithAllFramesAndLoadsForGalleryPlayback()
+    {
+        var cluster = Guid.NewGuid(); var secret = FrameworkIO.RandomBytes(32);
+        await using var sender = new TestNode(cluster, secret, "A");
+        await using var recipient = new TestNode(cluster, secret, "B");
+        await sender.InitializeAsync(true); await recipient.InitializeAsync(true);
+        await sender.Store.RememberPeerAsync(await recipient.Store.GetNodeInfoAsync(), "127.0.0.1");
+        await recipient.Store.RememberPeerAsync(await sender.Store.GetNodeInfoAsync(), "127.0.0.1");
+
+        var suggestion = LanChat.WinForms.Controls.ComposerSuggestion.Match("yêu", 3, [])!.Value.Item;
+        using var draft = new LanChat.WinForms.Controls.DraftImageStore(sender.Options.DataDirectory);
+        var staged = await draft.StageGifAsync(suggestion, CancellationToken.None);
+        draft.Keep(staged.Path, staged.Thumbnail);
+        var original = File.ReadAllBytes(staged.Path);
+        var imported = await Files(sender).ImportLocalAsync(staged.Path);
+        var conversation = await sender.Store.OpenDirectAsync((await recipient.Store.GetIdentityAsync()).UserId);
+        var storeA = sender.Host.Services.GetRequiredService<IDistributedStore>();
+        var storeB = recipient.Host.Services.GetRequiredService<IDistributedStore>();
+        await storeA.SendToConversationAsync(conversation, "yêu", attachments: [imported]);
+        await storeB.ImportEventsAsync(await storeA.GetEventRangeAsync(new((await sender.Store.GetIdentityAsync()).NodeId, 0)));
+
+        var received = Assert.Single(await storeB.GetAttachmentsAsync(conversation));
+        Assert.Equal("image/gif", received.MimeType);
+        Assert.Equal(original, File.ReadAllBytes(await Files(recipient).DownloadAsync(received)));
+        var images = new LanChat.WinForms.Controls.ChatImageService(Files(recipient));
+        using var thumbnail = await images.LoadAsync(received, thumbnail: true, CancellationToken.None);
+        Assert.False(System.Drawing.ImageAnimator.CanAnimate(thumbnail));
+        var (bitmap, source) = await images.LoadGalleryAsync(received, CancellationToken.None, null);
+        using (source)
+        using (bitmap)
+            Assert.Equal(16, bitmap.GetFrameCount(System.Drawing.Imaging.FrameDimension.Time));
+    }
+
+    [Fact]
     public async Task FolderTransfersOverTlsAndRestoresNestedFilesAndEmptyDirectories()
     {
         var cluster = Guid.NewGuid(); var secret = FrameworkIO.RandomBytes(32);

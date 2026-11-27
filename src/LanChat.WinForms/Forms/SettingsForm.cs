@@ -4,8 +4,10 @@ namespace LanChat.WinForms.Forms;
 
 public sealed class SettingsForm : DpiForm
 {
-    private readonly TextBox _name = new() { Dock = DockStyle.Top, MaxLength = 100, AccessibleName = "Tên" };
-    private readonly TextBox _department = new() { Dock = DockStyle.Top, MaxLength = 200, AccessibleName = "Đơn vị" };
+    private readonly PromptTextBox _name = new() { Dock = DockStyle.Top, MaxLength = 100, AccessibleName = "Tên",
+        PlaceholderText = "Tên hiển thị trong LanChat" };
+    private readonly PromptTextBox _department = new() { Dock = DockStyle.Top, MaxLength = 200, AccessibleName = "Đơn vị",
+        PlaceholderText = "Ví dụ: Phòng Kế toán (không bắt buộc)" };
     private readonly CheckBox _startup = new() { Dock = DockStyle.Fill, Text = "Khởi động cùng hệ thống", AutoSize = true };
 
     private readonly CheckBox _runAsAdministrator = new()
@@ -20,7 +22,7 @@ public sealed class SettingsForm : DpiForm
         Icon = AppIcon.Value;
         Text = "Cài đặt LanChat";
         StartPosition = FormStartPosition.CenterParent;
-        ClientSize = preferences is null ? new Size(400, 270) : new Size(480, saveRunAsAdministrator is null ? 580 : 612);
+        ClientSize = preferences is null ? new Size(400, 270) : new Size(480, saveRunAsAdministrator is null ? 612 : 644);
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MinimizeBox = MaximizeBox = false;
         ShowInTaskbar = false;
@@ -59,6 +61,9 @@ public sealed class SettingsForm : DpiForm
         theme.SelectedIndex = (int)initialPreferences.Theme;
         var reminder = new CheckBox { Text = "Nhắc lại khi còn tin chưa đọc", AutoSize = true, Dock = DockStyle.Top,
             Checked = initialPreferences.RemindUnreadMessages };
+        var saveResources = new CheckBox { Text = "Tiết kiệm tài nguyên hệ thống", AutoSize = true, Dock = DockStyle.Top,
+            Checked = initialPreferences.SaveSystemResources,
+            AccessibleDescription = "Làm mới giao diện ít thường xuyên hơn, dùng ảnh tĩnh cho gợi ý GIF và mở ảnh trong lịch sử theo yêu cầu." };
         var minutes = new NumericUpDown { Minimum = 1, Maximum = UiPreferences.MaxReminderMinutes,
             Value = initialPreferences.UnreadReminderMinutes, Enabled = reminder.Checked, AccessibleName = "Khoảng nhắc (phút)" };
         reminder.CheckedChanged += (_, _) => minutes.Enabled = reminder.Checked;
@@ -67,13 +72,14 @@ public sealed class SettingsForm : DpiForm
         reminderInterval.Controls.Add(minutes);
         UiPreferences Appearance() => initialPreferences with { MessageFontSize = sizes[Math.Max(0,fontSize.SelectedIndex)],
             Density = (UiDensity)Math.Max(0,density.SelectedIndex), HideNotificationContent = privacy.Checked, Theme = (UiTheme)theme.SelectedIndex,
-            RemindUnreadMessages = reminder.Checked, UnreadReminderMinutes = (int)minutes.Value };
-        var appearance = Theme.Stack(9); appearance.Dock = DockStyle.Top; appearance.AutoSize = true; appearance.AutoSizeMode = AutoSizeMode.GrowAndShrink;
-        for(var i=0;i<9;i++) appearance.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            RemindUnreadMessages = reminder.Checked, UnreadReminderMinutes = (int)minutes.Value, SaveSystemResources = saveResources.Checked };
+        var appearance = Theme.Stack(10); appearance.Dock = DockStyle.Top; appearance.AutoSize = true; appearance.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+        for(var i=0;i<10;i++) appearance.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         appearance.Controls.Add(Theme.Label("Cỡ chữ tin nhắn"),0,0); appearance.Controls.Add(fontSize,0,1);
         appearance.Controls.Add(Theme.Label("Mật độ hiển thị"),0,2); appearance.Controls.Add(density,0,3); appearance.Controls.Add(privacy,0,4);
         appearance.Controls.Add(Theme.Label("Giao diện"),0,5); appearance.Controls.Add(theme,0,6);
         appearance.Controls.Add(reminder,0,7); appearance.Controls.Add(reminderInterval,0,8);
+        appearance.Controls.Add(saveResources,0,9);
         layout.Controls.Add(appearance,0,6); appearance.Visible = preferences is not null;
         var feedback = Theme.Label("");
         feedback.ForeColor = Color.Firebrick; UiInteraction.Wrap(feedback, layout);

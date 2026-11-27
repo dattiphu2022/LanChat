@@ -70,10 +70,26 @@ public sealed partial class WindowsUiTests
         files.Finish.SetResult(true); await Until(()=>!actions.IsBusy(file.Id)); Assert.False(network.IsCancellationRequested);
     });
 
+    [Fact]
+    public Task ResourceSavingDefersAutomaticImageThumbnailsUntilDisabled() => OnUi(async host =>
+    {
+        var files = new HeldPreparation();
+        var file = new AttachmentDto(Guid.NewGuid(), Guid.NewGuid(), "Ảnh.gif", "image/gif", 2048, new string('a', 64));
+        using var thumbnail = new ImageThumbnailControl(file, new ChatImageService(files));
+        thumbnail.SetResourceSaving(true);
+        host.Controls.Add(thumbnail);
+        thumbnail.EnsureLoaded();
+        Assert.False(files.DownloadStarted);
+        Assert.Contains(Children(thumbnail).OfType<Label>(), label => label.Text == "Bấm để xem ảnh");
+        thumbnail.SetResourceSaving(false);
+        await Until(() => files.DownloadStarted);
+    });
+
     private sealed class HeldPreparation : IFileTransferService
     {
         internal TaskCompletionSource<bool> Started {get;}=Signal(); internal TaskCompletionSource<bool> Finish {get;}=Signal();
         internal CancellationToken Token;
+        internal bool DownloadStarted { get; private set; }
         public FileProgress? GetPreparationState(Guid id)=>Started.Task.IsCompleted&&!Finish.Task.IsCompleted?new(10,100,AttachmentPhase.Downloading):null;
         public async Task<string> PrepareOpenAsync(AttachmentDto file,IProgress<FileProgress>? progress=null,CancellationToken ct=default)
         { Token=ct; Started.TrySetResult(true); progress?.Report(new(10,100)); await Wait(Finish.Task,ct); return "prepared"; }
@@ -81,7 +97,8 @@ public sealed partial class WindowsUiTests
         public Task<AttachmentDto> ImportLocalAsync(string path,CancellationToken ct=default)=>throw new NotSupportedException();
         public Task<AttachmentDto> ImportFolderAsync(string path,IProgress<string>? progress=null,CancellationToken ct=default)=>throw new NotSupportedException();
         public Task<string?> GetLocalPathAsync(string sha256,CancellationToken ct=default)=>throw new NotSupportedException();
-        public Task<string> DownloadAsync(AttachmentDto file,IProgress<FileProgress>? progress=null,CancellationToken ct=default)=>throw new NotSupportedException();
+        public Task<string> DownloadAsync(AttachmentDto file,IProgress<FileProgress>? progress=null,CancellationToken ct=default)
+        { DownloadStarted = true; throw new NotSupportedException(); }
         public Task<string> SaveLocalAsync(AttachmentDto file,string destination,bool overwrite=false,IProgress<FileProgress>? progress=null,CancellationToken ct=default)=>throw new NotSupportedException();
         public Task RelinkLocalAsync(AttachmentDto file,string path,CancellationToken ct=default)=>throw new NotSupportedException();
         public Task<string> RestoreLocalAsync(AttachmentDto file,IProgress<FileProgress>? progress=null,CancellationToken ct=default)=>throw new NotSupportedException();

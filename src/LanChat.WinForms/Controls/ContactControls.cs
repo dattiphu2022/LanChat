@@ -203,7 +203,8 @@ public sealed class ConversationItemControl : UserControl
 
 public sealed class ConversationListControl : UserControl
 {
-    private readonly PromptTextBox _search = new() { Dock = DockStyle.Top, PlaceholderText = "Tìm tên người…", AccessibleName = "Tìm tên người", Margin = new Padding(8, 8, 4, 0) };
+    private readonly PromptTextBox _search = new() { Dock = DockStyle.Top, PlaceholderText = "Tìm theo tên hoặc đơn vị…",
+        AccessibleName = "Tìm tên người", Margin = new Padding(8, 8, 4, 0) };
     private readonly Button _clearSearch = Theme.Icon(UiIcon.Close, "Xóa nội dung tìm kiếm");
     private readonly Panel _items = new BufferedPanel { Dock = DockStyle.Fill, AutoScroll = true, BackColor = Theme.Surface };
     private readonly Dictionary<Guid, ConversationItemControl> _rows = [];

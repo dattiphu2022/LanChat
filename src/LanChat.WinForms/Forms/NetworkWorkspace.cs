@@ -42,11 +42,9 @@ internal sealed partial class NetworkWorkspace : DpiForm
         updates.ResolveNetwork = id => _updateNetworks.TryGetValue(id, out var services) ? services : null;
         Icon = AppIcon.Value;
         _updates.Changed += RefreshWindowTitle;
-        RefreshWindowTitle();
         ClientSize = new Size(1260, 840); MinimumSize = new Size(660, 450);
         StartPosition = FormStartPosition.CenterScreen;
-        var root = Theme.Stack(4);
-        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        var root = Theme.Stack(3);
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
@@ -55,6 +53,8 @@ internal sealed partial class NetworkWorkspace : DpiForm
         void Compact(Button button)
         { button.Font = Theme.GetFont(9, false); button.MinimumSize = new Size(0, 28); button.Padding = new Padding(6, 1, 6, 1); button.Margin = new Padding(2, 1, 2, 1); }
         Compact(_scanButton);
+        Compact(_updateButton);
+        Compact(_cancelUpdateButton);
         var actionTips = new ToolTip();
         actionTips.SetToolTip(_scanButton, "Tìm lại máy trên tất cả mạng chat đang mở; bấm lần nữa để dừng quét.");
         Disposed += (_, _) => actionTips.Dispose();
@@ -79,17 +79,23 @@ internal sealed partial class NetworkWorkspace : DpiForm
         _restoreDefaultButton.Visible = _catalog.CanRestoreDefaultNetwork && !_catalog.Entries.Any(_catalog.IsDefault);
         AddAction("Cài đặt", UiIcon.Settings, SettingsAsync);
         var moreMenu = new ThemeMenuStrip();
-        moreMenu.Items.Add("Giới thiệu và cập nhật…", UiIcons.ForMenu(UiIcon.Info), async (_, _) => await RunAsync(ShowAboutAsync));
+        moreMenu.Items.Add(_aboutMenuItem);
+        _aboutMenuItem.Click += async (_, _) => await RunAsync(ShowAboutAsync);
         moreMenu.Items.Add("Cài đặt cập nhật…", UiIcons.ForMenu(UiIcon.Settings), async (_, _) => await RunAsync(() => { ShowUpdateSettings(); return Task.CompletedTask; }));
         moreMenu.Items.Add("Hướng dẫn bắt đầu…", UiIcons.ForMenu(UiIcon.Book), async (_, _) => await RunAsync(ShowGettingStartedAsync));
         _moreButton = (IconButton)AddAction("Thêm", UiIcon.More, () =>
         { moreMenu.Show(_moreButton!, new Point(0, _moreButton!.Height)); return Task.CompletedTask; });
         _moreButton.ContextMenuStrip = moreMenu;
         _moreButton.AccessibleName = "Thêm: giới thiệu, cập nhật và hướng dẫn";
+        RefreshWindowTitle();
         actionTips.SetToolTip(_moreButton, _moreButton.AccessibleName);
+        actions.Controls.Add(_cancelUpdateButton);
+        actions.Controls.Add(_updateButton);
+        _updateButton.Click += async (_, _) => await ApplyToolbarUpdateAsync();
+        _cancelUpdateButton.Click += (_, _) => _updates.CancelDownload();
         Disposed += (_, _) => moreMenu.Dispose();
         root.Controls.Add(actions, 0, 0); root.Controls.Add(_feedback, 0, 1);
-        root.Controls.Add(CreateUpdateBar(), 0, 2); root.Controls.Add(_tabs, 0, 3);
+        root.Controls.Add(_tabs, 0, 2);
         Controls.Add(root);
         var trayMenu = new ThemeMenuStrip();
         trayMenu.Items.Add("Mở LanChat", UiIcons.ForMenu(UiIcon.Open), (_, _) => RestoreWindow());
@@ -155,6 +161,7 @@ internal sealed partial class NetworkWorkspace : DpiForm
             button.Enabled = !_busy && !_installing && !_exiting && (_scan is null || !_networkActions.Contains(button));
         _scanButton.Enabled = !_exiting && !_installing && (_scan is not null || (!_busy && _running.Count > 0));
         _tabs.Enabled = !_installing && !_exiting;
+        RefreshUpdateButton();
     }
 
     internal void ExitApplication() { _exitRequested = true; Close(); }

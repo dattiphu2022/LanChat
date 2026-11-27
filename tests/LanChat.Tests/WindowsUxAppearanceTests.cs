@@ -14,7 +14,7 @@ public sealed partial class WindowsUiTests
     public async Task DisplayPreferencesRoundTripInIsolatedLocalConfiguration()
     {
         var directory=Temp(); var catalog=new NetworkCatalog(new NodeOptions {DataDirectory=directory});
-        var preferences=new UiPreferences(14,UiDensity.Comfortable,true,true,UiTheme.Dark, false, 12);
+        var preferences=new UiPreferences(14,UiDensity.Comfortable,true,true,UiTheme.Dark, false, 12, SaveSystemResources: true);
         await catalog.SaveUiPreferencesAsync(preferences);
         var reloaded=new NetworkCatalog(new NodeOptions {DataDirectory=directory}); await reloaded.LoadAsync();
         Assert.Equal(preferences,reloaded.UiPreferences);
@@ -30,6 +30,7 @@ public sealed partial class WindowsUiTests
         Assert.Equal(12, preferences.MessageFontSize);
         Assert.True(preferences.HideNotificationContent);
         Assert.True(preferences.RemindUnreadMessages);
+        Assert.False(preferences.SaveSystemResources);
         Assert.Equal(5, preferences.UnreadReminderMinutes);
         Assert.Equal(5, (preferences with { UnreadReminderMinutes = 0 }).Validated().UnreadReminderMinutes);
     }
@@ -140,9 +141,13 @@ public sealed partial class WindowsUiTests
         Assert.Equal(5, minutes.Value);
         minutes.Value = 12;
         reminder.Checked = false;
+        var saveResources = Children(settings).OfType<CheckBox>().Single(c => c.Text == "Tiết kiệm tài nguyên hệ thống");
+        Assert.False(saveResources.Checked);
+        saveResources.Checked = true;
         Assert.False(minutes.Enabled);
         Button(settings,"Lưu").PerformClick(); await Until(()=>saved is not null); Assert.Equal(14,saved!.MessageFontSize); Assert.True(saved.HideNotificationContent);
         Assert.False(saved.RemindUnreadMessages);
+        Assert.True(saved.SaveSystemResources);
         Assert.Equal(12, saved.UnreadReminderMinutes);
         using var guide=new GettingStartedForm(()=>"Người thử nghiệm",()=>false,()=>Task.CompletedTask,()=>Task.CompletedTask,()=>Task.CompletedTask);
         guide.Show(host); using var guideFonts=SimulateDpi(guide,dpi); await Task.Delay(30);

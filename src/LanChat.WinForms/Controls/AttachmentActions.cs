@@ -33,6 +33,8 @@ internal sealed class AttachmentActions : IDisposable
             if (++_idleTicks % 4 == 0) PollIdle?.Invoke();
         };
     }
+    internal void SetResourceSaving(bool enabled) => _watchTimer.Interval = enabled ? 1000 : 500;
+
     internal void Watch(Guid id)
     {
         if (_disposed) return;

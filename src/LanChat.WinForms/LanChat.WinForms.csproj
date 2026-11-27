@@ -20,6 +20,7 @@
     <Reference Include="System.Net.Http" />
     <InternalsVisibleTo Include="LanChat.Tests" />
     <EmbeddedResource Include="Assets/DonationQr.png" LogicalName="LanChat.DonationQr" />
+    <EmbeddedResource Include="Assets/Suggestions/*.gif" LogicalName="LanChat.Suggestions.%(Filename)%(Extension)" />
     <EmbeddedResource Include="../../docs/HUONG_DAN_SU_DUNG.md" LogicalName="LanChat.UserGuide" />
     <EmbeddedResource Include="../../LICENSE" LogicalName="LanChat.License" />
     <Content Include="../../docs/QRCoder-LICENSE.txt" Link="QRCoder-LICENSE.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />

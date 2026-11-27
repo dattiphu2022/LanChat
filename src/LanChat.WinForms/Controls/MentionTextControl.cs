@@ -1,4 +1,5 @@
 using LanChat.Application;
+using System.Text.RegularExpressions;
 
 namespace LanChat.WinForms.Controls;
 
@@ -7,6 +8,7 @@ internal sealed class MentionTextControl : RichTextBox
     private string? _signature;
     private Color _foreground;
     private (int Start, int Length)[] _ranges = [];
+    private Match[] _emoji = [];
     internal MentionTextControl()
     {
         ReadOnly = true; BorderStyle = BorderStyle.None; DetectUrls = false; ScrollBars = RichTextBoxScrollBars.None;
@@ -24,6 +26,7 @@ internal sealed class MentionTextControl : RichTextBox
         var ranges = highlights.Length == 0 ? null : new List<(int, int)>(highlights.Length);
         // RichEdit normalizes CRLF to LF. Stored offsets stay in the original text.
         var display = (prefix + text).Replace("\r\n", "\n").Replace('\r', '\n');
+        _emoji = WindowsEmoji.Sequences.Matches(display).Cast<Match>().ToArray();
         Text = display; BackColor = background;
         SelectAll(); SelectionColor = foreground; SelectionBackColor = background;
         SelectionAlignment = center ? HorizontalAlignment.Center : HorizontalAlignment.Left;
@@ -57,4 +60,15 @@ internal sealed class MentionTextControl : RichTextBox
             SelectionBackColor = Theme.Adapt(Color.FromArgb(218, 235, 255));
         }
     }
+
+    protected override void WndProc(ref System.Windows.Forms.Message m)
+    {
+        base.WndProc(ref m);
+        if (_emoji is not { Length: > 0 } || !WindowsEmojiGlyphs.IsPaintMessage(m.Msg)) return;
+        WindowsEmojiGlyphs.PaintTextBox(this, m.WParam, _emoji, EmojiColors);
+    }
+
+    private (Color Foreground, Color Background) EmojiColors(Match emoji) =>
+        _ranges.Any(range => range.Start <= emoji.Index && range.Start + range.Length >= emoji.Index + emoji.Length)
+            ? (Theme.Blue, Theme.Adapt(Color.FromArgb(218, 235, 255))) : (Theme.Adapt(_foreground), BackColor);
 }

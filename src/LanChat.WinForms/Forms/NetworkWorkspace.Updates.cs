@@ -5,23 +5,43 @@ namespace LanChat.WinForms.Forms;
 internal sealed partial class NetworkWorkspace
 {
     private readonly UpdateCoordinator _updates;
+    private readonly IconButton _updateButton = Theme.Button("Tải và Cài đặt", UiIcon.Download);
+    private readonly Button _cancelUpdateButton = Theme.Secondary("Hủy tải", UiIcon.Close);
+    private readonly BadgeMenuItem _aboutMenuItem = new("Giới thiệu và cập nhật…", UiIcons.ForMenu(UiIcon.Info));
     private bool _installRequested, _installing;
     internal VerifiedInstaller? PendingInstaller { get; private set; }
 
-    private Control CreateUpdateBar()
+    private void RefreshUpdateButton()
     {
-        var panel = new UpdatePanel(_updates, showCheck: false, compact: true) { Padding = new Padding(6, 0, 6, 0) };
-        panel.InstallRequested += async () => await InstallUpdateAsync();
-        return panel;
+        var state = _updates.State;
+        _updateButton.Visible = state.Release is not null;
+        _updateButton.Enabled = !_busy && !_installing && !_exiting && !state.Busy;
+        _updateButton.Icon = state.Ready ? UiIcon.Install : UiIcon.Download;
+        _updateButton.AccessibleDescription = state.Message;
+        _cancelUpdateButton.Visible = state.Downloading;
+        _cancelUpdateButton.Enabled = !_exiting && !state.Message.StartsWith("Đang hủy", StringComparison.Ordinal);
+    }
+
+    private async Task ApplyToolbarUpdateAsync()
+    {
+        if (_busy || _installing || _exiting) return;
+        var state = _updates.State;
+        if (state.Busy || state.Release is null) return;
+        if (!state.Ready) await _updates.DownloadAsync();
+        if (!IsDisposed && !_updates.State.Busy && _updates.State.Ready && _updates.State.Release == state.Release)
+            await InstallUpdateAsync();
     }
 
     private void RefreshWindowTitle()
     {
         if (IsDisposed) return;
         var state = _updates.State;
+        RefreshUpdateButton();
+        _aboutMenuItem.ShowBadge = state.Release is not null;
+        _aboutMenuItem.AccessibleDescription = state.Release is not null ? state.Message : null;
         if (_moreButton is not null)
         {
-            _moreButton.ShowBadge = state.Release is not null;
+            _moreButton.ShowBadge = _aboutMenuItem.ShowBadge;
             _moreButton.AccessibleDescription = state.Ready ? "Bản cập nhật đã tải xong, sẵn sàng cài đặt." :
                 state.Release is not null ? "Có bản cập nhật mới. " + state.Message : "Mở menu Thêm để xem giới thiệu, cập nhật và hướng dẫn.";
         }

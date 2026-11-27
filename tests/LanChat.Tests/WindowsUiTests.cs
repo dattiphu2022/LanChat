@@ -132,19 +132,31 @@ public sealed partial class WindowsUiTests
         using var workspace = new NetworkWorkspace(new NetworkCatalog(new NodeOptions { DataDirectory = directory }, service.Packages), new WindowsStartup(directory), service);
         workspace.Show(host);
         var controller = (UpdateCoordinator)typeof(NetworkWorkspace).GetField("_updates", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(workspace)!;
+        var toolbarUpdate = Button(workspace, "Tải và Cài đặt");
+        var more = (IconButton)Button(workspace, "Thêm");
+        var aboutItem = Assert.Single(more.ContextMenuStrip!.Items.OfType<BadgeMenuItem>());
+        Assert.False(more.ShowBadge);
+        Assert.False(aboutItem.ShowBadge);
+        Assert.False(toolbarUpdate.Visible);
         await controller.CheckAsync(true); await controller.DownloadAsync(); Assert.True(controller.State.Ready);
+        Assert.True(toolbarUpdate.Visible);
+        Assert.True(more.ShowBadge);
+        Assert.True(aboutItem.ShowBadge);
+        Assert.StartsWith("Giới thiệu và cập nhật", aboutItem.Text);
+        Assert.Same(Button(workspace, "Thêm").Parent, toolbarUpdate.Parent);
+        Assert.Same(toolbarUpdate, toolbarUpdate.Parent!.Controls.Cast<Control>().Last());
         using (var reader = service.Packages.OpenPackage(network, package.Id))
         {
-            Button(workspace, "Cài đặt ngay").PerformClick(); await Task.Delay(50);
+            toolbarUpdate.PerformClick(); await Task.Delay(50);
             Assert.Null(workspace.PendingInstaller); Assert.Contains("đang cung cấp", controller.State.Message);
         }
         string cache;
         using (var verified = await service.DownloadAsync(controller.State.Release!, new Progress<long>(), default)) cache = verified.Path;
         File.WriteAllText(cache, "bad"); File.WriteAllText(service.Packages.PackagePath(package), "bad");
-        Button(workspace, "Cài đặt ngay").PerformClick(); await Until(() => !controller.State.Busy && !controller.State.Ready);
+        toolbarUpdate.PerformClick(); await Until(() => !controller.State.Busy && !controller.State.Ready);
         Assert.Null(workspace.PendingInstaller); Assert.Equal(package, service.Packages.GetPackage(network));
-        File.WriteAllText(service.Packages.PackagePath(package), "fixture"); await controller.DownloadAsync(); Assert.True(controller.State.Ready);
-        Button(workspace, "Cài đặt ngay").PerformClick(); await Until(() => workspace.PendingInstaller is not null);
+        File.WriteAllText(service.Packages.PackagePath(package), "fixture");
+        toolbarUpdate.PerformClick(); await Until(() => workspace.PendingInstaller is not null);
         Assert.Null(service.Packages.GetPackage(network)); workspace.PendingInstaller!.Dispose();
     });
 
@@ -229,7 +241,7 @@ public sealed partial class WindowsUiTests
             }
             catch (Exception ex) { driver.TrySetException(ex); prompt?.Dispose(); }
         }));
-        var name = SelectionForm.Prompt(host, "Tên thử nghiệm", maxLength: 60, save: _ =>
+        var name = SelectionForm.Prompt(host, "Tên thử nghiệm", "Ví dụ: Văn phòng chính", maxLength: 60, save: _ =>
             ++calls == 1 ? Task.FromException(new IOException("Thử lưu lại")) : Task.CompletedTask);
         await driver.Task;
         Assert.Equal("Tên mới cần giữ", name); Assert.Equal(2, calls);

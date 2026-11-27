@@ -8,7 +8,7 @@ internal sealed class GroupMembersControl : UserControl
     private readonly PersonNameCheckedListBox _list = new(item => ((SelectionItem)item).DisplayName)
         { Dock = DockStyle.Fill, CheckOnClick = true, IntegralHeight = false, AccessibleName = "Thành viên nhóm" };
     private SelectionItem[] _allRows = [];
-    private readonly PromptTextBox _search = new() { Dock = DockStyle.Fill, PlaceholderText = "Tìm thành viên…", AccessibleName = "Tìm thành viên nhóm" };
+    private readonly PromptTextBox _search = new() { Dock = DockStyle.Fill, PlaceholderText = "Tìm thành viên theo tên hoặc đơn vị…", AccessibleName = "Tìm thành viên nhóm" };
     private readonly Label _hint = Theme.Label("");
     private readonly IconButton _save = Theme.Button("Lưu thành viên", UiIcon.Save);
     private readonly Dictionary<Guid, Dictionary<Guid, bool>> _drafts = [];

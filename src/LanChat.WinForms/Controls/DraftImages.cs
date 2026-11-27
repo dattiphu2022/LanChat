@@ -17,7 +17,7 @@ internal sealed class DraftImageStore : IDisposable
             ? Environment.WorkingSet * 0.05 * 1024 * 1024  // 5% RAM nếu thấp hơn 50MB
             : 50L * 1024 * 1024); // Tối đa 50MB
     
-    private readonly Dictionary<string, (Bitmap Thumbnail, long Size)> _thumbnails = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, Bitmap?> _thumbnails = new(StringComparer.OrdinalIgnoreCase);
 
     public DraftImageStore(string dataDirectory)
     {
@@ -56,42 +56,64 @@ internal sealed class DraftImageStore : IDisposable
 
     public Bitmap? Thumbnail(string path) 
     {
-        if (_thumbnails.TryGetValue(path, out var item)) return item.Thumbnail;
+        if (_thumbnails.TryGetValue(path, out var thumbnail)) return thumbnail;
         return null;
     }
 
-    public void Keep(string path, Bitmap thumbnail) => _thumbnails.Add(path, (thumbnail, 0));
-
-    public void Discard(string path, Bitmap thumbnail)
+    internal Task<(string Path, Bitmap Thumbnail)> StageGifAsync(ComposerSuggestion suggestion, CancellationToken ct) => Task.Run(() =>
     {
-        thumbnail.Dispose();
+        var directory = Path.Combine(_session, $"Anh-dong-{Guid.NewGuid():N}");
+        var path = Path.Combine(directory, $"{suggestion.Gif}.gif");
+        try
+        {
+            ct.ThrowIfCancellationRequested();
+            Directory.CreateDirectory(directory);
+            using (var input = suggestion.OpenGif())
+            using (var output = new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+                input.CopyTo(output);
+            ct.ThrowIfCancellationRequested();
+            using var gif = Image.FromFile(path);
+            return (path, new Bitmap(gif, new Size(64, 64)));
+        }
+        catch
+        {
+            Delete(path);
+            throw;
+        }
+    }, ct);
+
+    public void Keep(string path, Bitmap thumbnail) => _thumbnails.Add(path, thumbnail);
+
+    public void Discard(string path, Bitmap? thumbnail)
+    {
+        thumbnail?.Dispose();
         Delete(path);
     }
 
     private void EnforceMemoryLimit()
     {
-        // Thêm delay để tránh chiếm CPU cao khi dọn dẹp bộ nhớ
-        var totalSize = _thumbnails.Values.Sum(v => 0L); // Không tracking size vì StageAsync không trả về
-        
-        while (totalSize > MaxThumbnailMemoryBytes || _thumbnails.Count > MaxThumbnailCount)
+        var cached = _thumbnails.Where(item => item.Value is not null).ToArray();
+        var totalSize = cached.Sum(item => SizeOf(item.Value!));
+        var remaining = cached.Length;
+        foreach (var item in cached)
         {
-            var firstKey = _thumbnails.Keys.First();
-            if (_thumbnails.TryGetValue(firstKey, out var item))
-            {
-                item.Thumbnail.Dispose();
-                _thumbnails.Remove(firstKey);
-                // Delay 10ms để tránh chiếm CPU cao
-                Thread.Sleep(10);
-            }
+            if (totalSize <= MaxThumbnailMemoryBytes && remaining <= MaxThumbnailCount) break;
+            var bitmap = item.Value!;
+            totalSize -= SizeOf(bitmap);
+            remaining--;
+            bitmap.Dispose();
+            _thumbnails[item.Key] = null;
         }
     }
+
+    private static long SizeOf(Bitmap bitmap) => (long)bitmap.Width * bitmap.Height * 4;
 
     public void Prune(IEnumerable<string> draftFiles)
     {
         var retained = new HashSet<string>(draftFiles, StringComparer.OrdinalIgnoreCase);
         foreach (var path in _thumbnails.Keys.Where(path => !retained.Contains(path)).ToArray())
         {
-            Discard(path, _thumbnails[path].Thumbnail);
+            Discard(path, _thumbnails[path]);
             _thumbnails.Remove(path);
         }
         EnforceMemoryLimit();
@@ -105,7 +127,12 @@ internal sealed class DraftImageStore : IDisposable
 
     private static void Delete(string path)
     {
-        try { File.Delete(path); }
+        try
+        {
+            File.Delete(path);
+            if (Path.GetExtension(path).Equals(".gif", StringComparison.OrdinalIgnoreCase))
+                Directory.Delete(Path.GetDirectoryName(path));
+        }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
     }
 
