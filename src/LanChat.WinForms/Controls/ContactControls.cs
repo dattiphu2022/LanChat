@@ -203,7 +203,8 @@ public sealed class ConversationItemControl : UserControl
 
 public sealed class ConversationListControl : UserControl
 {
-    private readonly PromptTextBox _search = new() { Dock = DockStyle.Top, PlaceholderText = "Tìm cuộc trò chuyện…", Margin = new Padding(8) };
+    private readonly PromptTextBox _search = new() { Dock = DockStyle.Top, PlaceholderText = "Tìm tên người…", AccessibleName = "Tìm tên người", Margin = new Padding(8, 8, 4, 0) };
+    private readonly Button _clearSearch = Theme.Icon(UiIcon.Close, "Xóa nội dung tìm kiếm");
     private readonly Panel _items = new BufferedPanel { Dock = DockStyle.Fill, AutoScroll = true, BackColor = Theme.Surface };
     private readonly Dictionary<Guid, ConversationItemControl> _rows = [];
     private Guid? _activeKey;
@@ -237,10 +238,42 @@ public sealed class ConversationListControl : UserControl
     public ConversationListControl()
     {
         Dock = DockStyle.Fill; Padding = new Padding(8);
-        _search.AccessibleName = "Tìm hội thoại hoặc người dùng";
-        _search.PlaceholderText = "Tìm hội thoại, người dùng…";
-        _search.TextChanged += (_, _) => SearchChanged?.Invoke(this, EventArgs.Empty);
-        _search.KeyDown += (_, e) => { if ((e.KeyCode == Keys.Down || e.KeyCode == Keys.Enter) && _rows.Count > 0) { _items.Controls.OfType<ConversationItemControl>().Last().Focus(); e.SuppressKeyPress = true; } };
+        _clearSearch.Enabled = false;
+        _clearSearch.Margin = new Padding(0, 4, 8, 0);
+        _clearSearch.Click += (_, _) => { _search.Focus(); _search.Clear(); };
+        var toolTips = new ToolTip();
+        toolTips.SetToolTip(_clearSearch, _clearSearch.AccessibleName);
+        Disposed += (_, _) => toolTips.Dispose();
+        _search.TextChanged += (_, _) =>
+        {
+            _clearSearch.Enabled = _search.TextLength > 0;
+            SearchChanged?.Invoke(this, EventArgs.Empty);
+        };
+        _search.PreviewKeyDown += (_, e) =>
+        {
+            if (!_search.IsComposing && (e.KeyData == Keys.Enter || e.KeyData == Keys.Escape)) e.IsInputKey = true;
+        };
+        _search.KeyDown += (_, e) =>
+        {
+            if (_search.IsComposing || e.Modifiers != Keys.None) return;
+            if (e.KeyCode == Keys.Escape)
+            {
+                e.SuppressKeyPress = true;
+                _search.Clear();
+                return;
+            }
+            if (e.KeyCode != Keys.Down && e.KeyCode != Keys.Enter) return;
+            e.SuppressKeyPress = true;
+            if (_visible.Length == 0) return;
+            var first = _visible[0];
+            if (e.KeyCode == Keys.Down) _rows[Key(first)].Focus();
+            else SelectConversation(first);
+        };
+        var searchBar = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1, Margin = Padding.Empty };
+        searchBar.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        searchBar.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        searchBar.Controls.Add(_search, 0, 0);
+        searchBar.Controls.Add(_clearSearch, 1, 0);
         var layout = Theme.Stack(4);
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 45)); layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 38));
         layout.RowStyles.Add(new RowStyle(SizeType.AutoSize)); layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
@@ -255,7 +288,7 @@ public sealed class ConversationListControl : UserControl
             filters.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, new[] { 20f, 32f, 20f, 28f }[index])); filters.Controls.Add(button, index, 0);
             return button;
         }).ToArray();
-        layout.Controls.Add(Theme.Label("Tin nhắn", 16, true), 0, 0); layout.Controls.Add(_search, 0, 1); layout.Controls.Add(filters, 0, 2);
+        layout.Controls.Add(Theme.Label("Tin nhắn", 16, true), 0, 0); layout.Controls.Add(searchBar, 0, 1); layout.Controls.Add(filters, 0, 2);
         layout.Controls.Add(_items, 0, 3); Controls.Add(layout);
         _empty.Dock = DockStyle.Top; _empty.Padding = new Padding(10); _items.Controls.Add(_empty);
     }
@@ -280,7 +313,7 @@ public sealed class ConversationListControl : UserControl
             if (!_rows.TryGetValue(Key(c), out var row))
             {
                 row = new ConversationItemControl();
-                row.Selected += x => { SetActive(Key(x)); Selected?.Invoke(x); };
+                row.Selected += SelectConversation;
                 row.ActionRequested += (x, a) => ActionRequested?.Invoke(x, a);
                 _rows.Add(Key(c), row);
                 Theme.AddAtCurrentDpi(_items, row);
@@ -297,5 +330,11 @@ public sealed class ConversationListControl : UserControl
         _empty.Text = _filter != 0 ? "Không có hội thoại trong bộ lọc này." : SearchText.Length == 0 ? "Chưa có cuộc trò chuyện.\nMở Danh bạ để bắt đầu." : "Không tìm thấy kết quả.";
         _empty.Visible = conversations.Count == 0; _items.ResumeLayout();
         _activeKey = activeId;
+    }
+
+    private void SelectConversation(ConversationSummary conversation)
+    {
+        SetActive(Key(conversation));
+        Selected?.Invoke(conversation);
     }
 }

@@ -25,12 +25,12 @@ internal sealed class RegionCaptureForm : Form
         DoubleBuffered = true;
     }
 
-    public static Bitmap? CaptureRegion(Form owner)
+    public static Bitmap? CaptureRegion(Form owner, bool hideOwner)
     {
-        var wasVisible = owner.Visible;
+        var restoreOwner = hideOwner && owner.Visible;
         try
         {
-            if (wasVisible)
+            if (restoreOwner)
             {
                 owner.Hide();
                 DwmFlush();
@@ -48,7 +48,7 @@ internal sealed class RegionCaptureForm : Form
         }
         finally
         {
-            if (wasVisible && !owner.IsDisposed && !owner.Disposing)
+            if (restoreOwner && !owner.IsDisposed && !owner.Disposing)
             {
                 owner.Show();
                 owner.Activate();

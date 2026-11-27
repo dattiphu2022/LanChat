@@ -27,7 +27,7 @@ Mở **Giới thiệu → Hướng dẫn sử dụng** để đọc hướng d�
 
 ## Nhắn tin, gửi ảnh và tệp
 
-- **Enter** gửi tin, **Shift+Enter** xuống dòng, **Ctrl+K** tìm hội thoại và **Ctrl+F** tìm tin. Bấm khung trích dẫn để đến tin gốc, rồi chọn **Quay về tin nhắn mới** để trở lại cuối hội thoại.
+- Trong ô soạn, **Enter** gửi tin và **Shift+Enter** xuống dòng. **Ctrl+F** hoặc **Ctrl+K** mở ô tìm tên người trong **Tin nhắn**. Nhấn **Enter** trong ô tìm để mở kết quả đầu tiên. Bấm **Tìm tin** trong hội thoại để tìm theo nội dung. Bấm khung trích dẫn để đến tin gốc, rồi chọn **Quay về tin nhắn mới** để trở lại cuối hội thoại.
 - Ô soạn tự giãn theo các dòng hiển thị, tối đa 8 dòng và khoảng 45% vùng chat; nội dung dài hơn cuộn trong ô nhập. Bản nháp và vị trí đang đọc lịch sử được giữ khi ô soạn đổi chiều cao.
 - Dùng **Dán ảnh**, **Chụp vùng** hoặc kéo tệp vào ô soạn tin. LanChat tạm ẩn khi chụp vùng và hiện lại khi chụp xong hoặc nhấn **Esc**.
 - Nội dung nhập cùng ảnh là chú thích chung cho lần gửi. Bấm ảnh để mở khung xem lớn. Dùng **Trước/Sau** hoặc phím mũi tên để chuyển ảnh, cuộn chuột để phóng to và **Esc** để đóng.

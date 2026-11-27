@@ -769,7 +769,8 @@ internal sealed record ComposerDraft(string Text, string[] Files, Guid? Reply, G
 
 public sealed partial class ChatInputControl : UserControl
 {
-    internal const int BaseHeight = 72;
+    private const int AttachmentBarHeight = 34;
+    internal const int BaseHeight = 72 + AttachmentBarHeight;
     private const int ContextHeight = 26;
     private const int EditorHeight = 60;
     private const int PreviewHeight = 84;
@@ -778,14 +779,18 @@ public sealed partial class ChatInputControl : UserControl
     private readonly PromptTextBox _text = new() { Multiline = true, Dock = DockStyle.Fill, MaxLength = 16000, ScrollBars = ScrollBars.Vertical,
         PlaceholderText = "Nhập tin nhắn…  Enter để gửi · Shift+Enter để xuống dòng" };
     private readonly Button _send = Theme.Button("Gửi", UiIcon.Send);
-    private readonly TableLayoutPanel _root = Theme.Stack(4);
+    private readonly TableLayoutPanel _root = Theme.Stack(5);
     private readonly LinkLabel _feedback = new() { Dock = DockStyle.Fill, Font = Theme.GetFont(9, false), Margin = new Padding(5, 1, 5, 1) };
     private readonly ToolTip _feedbackTip = new();
     private string _feedbackMessage = "";
     private readonly FlowLayoutPanel _previews = new BufferedFlowLayoutPanel { Dock = DockStyle.Fill, AutoScroll = true, WrapContents = false };
     private readonly LinkLabel _context = new IconLinkLabel(UiIcon.Close) { Dock = DockStyle.Fill, AutoEllipsis = true, AutoSize = false };
     private readonly List<string> _paths = [];
-    private readonly Button _attach = Theme.Icon(UiIcon.Add, "Đính kèm tệp, thư mục, ảnh hoặc chụp vùng");
+    private readonly Button _addFiles = Theme.Icon(UiIcon.File, "Thêm tệp");
+    private readonly Button _addFolder = Theme.Icon(UiIcon.Folder, "Thêm thư mục");
+    private readonly Button _pasteImage = Theme.Icon(UiIcon.Paste, "Dán ảnh");
+    private readonly Button _captureImage = Theme.Icon(UiIcon.Capture, "Chụp vùng màn hình (ẩn LanChat)");
+    private readonly Button _captureWithLanChat = Theme.Icon(UiIcon.Camera, "Chụp vùng màn hình (có LanChat)");
     private DraftImageStore? _draftImages;
     private CancellationToken _draftLifetime;
     private Guid? _replyTo, _editId;
@@ -811,10 +816,10 @@ public sealed partial class ChatInputControl : UserControl
     internal bool IsImeComposing => _text.IsComposing;
     internal void FocusEditor() { if (_text.CanFocus && !_processingImage) _text.Focus(); }
     private bool CanAttach => Enabled && !_processingImage && !_editId.HasValue;
-    private int CompactEditorPixels => Math.Max(_attach.GetPreferredSize(Size.Empty).Height + _attach.Margin.Vertical,
-        Math.Max(_send.GetPreferredSize(Size.Empty).Height + _send.Margin.Vertical, _text.Font.Height * 2 + _text.Margin.Vertical + SystemInformation.BorderSize.Height * 2));
+    private int CompactEditorPixels => Math.Max(_send.GetPreferredSize(Size.Empty).Height + _send.Margin.Vertical,
+        _text.Font.Height * 2 + _text.Margin.Vertical + SystemInformation.BorderSize.Height * 2);
     private int CompactEditorHeight => Math.Max(EditorHeight, (int)Math.Ceiling(CompactEditorPixels * 96d / this.LayoutDpi()));
-    internal int MinimumHeight => Math.Max(BaseHeight, (int)Math.Ceiling((CompactEditorPixels + Padding.Vertical + _root.Margin.Vertical) * 96d / this.LayoutDpi())) +
+    internal int MinimumHeight => Math.Max(BaseHeight, AttachmentBarHeight + (int)Math.Ceiling((CompactEditorPixels + Padding.Vertical + _root.Margin.Vertical) * 96d / this.LayoutDpi())) +
         (_context.Text.Length > 0 ? ContextHeight : 0) + (_feedback.Text.Length > 0 ? ContextHeight : 0);
     public ChatInputControl()
     {
@@ -822,57 +827,64 @@ public sealed partial class ChatInputControl : UserControl
         _root.RowStyles.Add(new RowStyle(SizeType.Absolute, 0));
         _root.RowStyles.Add(new RowStyle(SizeType.Absolute, 0));
         _root.RowStyles.Add(new RowStyle(SizeType.Absolute, 0));
+        _root.RowStyles.Add(new RowStyle(SizeType.Absolute, this.ScalePixels(AttachmentBarHeight)));
         _root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        var layout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1, Margin = Padding.Empty };
+        var layout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1, Margin = Padding.Empty };
         layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        layout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         layout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-        _attach.AccessibleName = "Đính kèm tệp, thư mục, ảnh hoặc chụp vùng";
+        var attachmentBar = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false, Margin = Padding.Empty };
+        Button[] attachmentButtons = [_addFiles, _addFolder, _pasteImage, _captureImage, _captureWithLanChat];
         var toolTips = new ToolTip();
-        toolTips.SetToolTip(_attach, _attach.AccessibleName);
-        _attach.Anchor = AnchorStyles.Top | AnchorStyles.Left;
-        layout.Controls.Add(_attach, 0, 0);
+        foreach (var button in attachmentButtons)
+        {
+            button.AutoSize = false;
+            toolTips.SetToolTip(button, button.AccessibleName);
+            attachmentBar.Controls.Add(button);
+        }
         _send.Anchor = AnchorStyles.Top | AnchorStyles.Left;
         _send.AccessibleName = "Gửi tin nhắn";
-        layout.Controls.Add(_text, 1, 0); layout.Controls.Add(_send, 2, 0);
+        layout.Controls.Add(_text, 0, 0); layout.Controls.Add(_send, 1, 0);
         _feedback.AutoSize = false; _feedback.AutoEllipsis = true; _feedback.UseMnemonic = false;
         _feedback.ForeColor = Theme.Error; _feedback.AccessibleRole = AccessibleRole.StatusBar;
-        _root.Controls.Add(_context, 0, 0); _root.Controls.Add(_previews, 0, 1); _root.Controls.Add(_feedback, 0, 2); _root.Controls.Add(layout, 0, 3); Controls.Add(_root);
+        _root.Controls.Add(_context, 0, 0);
+        _root.Controls.Add(_previews, 0, 1);
+        _root.Controls.Add(_feedback, 0, 2);
+        _root.Controls.Add(attachmentBar, 0, 3);
+        _root.Controls.Add(layout, 0, 4);
+        Controls.Add(_root);
         void FitButtons()
         {
             var compact = _root.ClientSize.Width < this.ScalePixels(360);
-            FitAction(_attach, "");
             _send.MinimumSize = new Size(this.ScalePixels(compact ? 56 : 80), this.ScalePixels(32));
+        }
 
-            void FitAction(Button button, string caption)
+        void FitAttachmentBar()
+        {
+            _root.RowStyles[3].Height = this.ScalePixels(AttachmentBarHeight);
+            foreach (var button in attachmentButtons)
             {
-                button.Text = compact ? "" : caption;
                 button.MinimumSize = new Size(this.ScalePixels(32), this.ScalePixels(29));
-                button.Margin = new Padding(0, 0, this.ScalePixels(4), this.ScalePixels(2));
-                button.Padding = new Padding(this.ScalePixels(compact ? 3 : 6), 0, this.ScalePixels(compact ? 3 : 6), 0);
+                button.Size = button.MinimumSize;
+                button.Margin = new Padding(0, 0, this.ScalePixels(4), 0);
             }
         }
         _root.SizeChanged += (_, _) => { FitButtons(); FitPreviews(); QueueHeight(); };
-        DpiChangedAfterParent += (_, _) => { FitButtons(); UpdateLayoutHeight(); };
-        var attachments = new ThemeMenuStrip();
-        attachments.Items.Add("Thêm tệp…", UiIcons.ForMenu(UiIcon.File), (_, _) =>
+        DpiChangedAfterParent += (_, _) => { FitButtons(); FitAttachmentBar(); UpdateLayoutHeight(); };
+        _addFiles.Click += (_, _) =>
         {
             using var dialog = new OpenFileDialog { Multiselect = true, Title = "Chọn tệp đính kèm", Filter = "Tất cả tệp|*.*" };
             if (dialog.ShowDialog(this) == DialogResult.OK) AddFiles(dialog.FileNames);
-        });
-        attachments.Items.Add("Thêm thư mục…", UiIcons.ForMenu(UiIcon.Folder), (_, _) => SelectFolder());
-        attachments.Items.Add("Dán ảnh", UiIcons.ForMenu(UiIcon.Paste), async (_, _) => await PasteImageAsync());
-        attachments.Items.Add("Chụp vùng màn hình…", UiIcons.ForMenu(UiIcon.Capture), async (_, _) => await CaptureImageAsync());
-        attachments.Opening += (_, _) =>
-        { attachments.Items[2].Enabled = attachments.Items[3].Enabled = _draftImages is not null && CanAttach; };
-        _attach.ContextMenuStrip = attachments;
-        _attach.Click += (_, _) => { if (CanAttach) attachments.Show(_attach, new Point(0, _attach.Height)); };
+        };
+        _addFolder.Click += (_, _) => SelectFolder();
+        _pasteImage.Click += async (_, _) => await PasteImageAsync();
+        _captureImage.Click += async (_, _) => await CaptureImageAsync(hideOwner: true);
+        _captureWithLanChat.Click += async (_, _) => await CaptureImageAsync(hideOwner: false);
         Task PasteImageAsync() => PrepareImageAsync(() =>
             Clipboard.GetDataObject() is { } data ? ClipboardDraftImage.Read(data) : null, "Anh-dan", "Không có ảnh PNG hoặc bitmap trong bảng nhớ tạm.");
-        Task CaptureImageAsync() => PrepareImageAsync(() =>
-            (TopLevelControl as Form ?? FindForm()) is { } owner ? RegionCaptureForm.CaptureRegion(owner) : null, "Anh-chup");
-        Disposed += (_, _) => { attachments.Dispose(); toolTips.Dispose(); _feedbackTip.Dispose(); };
+        Task CaptureImageAsync(bool hideOwner) => PrepareImageAsync(() =>
+            (TopLevelControl as Form ?? FindForm()) is { } owner ? RegionCaptureForm.CaptureRegion(owner, hideOwner) : null, "Anh-chup");
+        Disposed += (_, _) => { toolTips.Dispose(); _feedbackTip.Dispose(); };
         _context.LinkClicked += (_, _) => ResetContext();
         _feedback.LinkClicked += (_, _) => RestoreFailedSend();
         InstallDrop(this); InstallDrop(_text); InstallDrop(_previews);
@@ -887,6 +899,7 @@ public sealed partial class ChatInputControl : UserControl
         _text.HandleCreated += (_, _) => QueueHeight();
         _text.KeyDown += async (_, e) => { if (e.KeyCode == Keys.Enter && !e.Shift && !_text.IsComposing) { e.SuppressKeyPress = true; await SendAsync(); } };
         FitButtons();
+        FitAttachmentBar();
         UpdateButtons();
     }
 
@@ -989,7 +1002,8 @@ public sealed partial class ChatInputControl : UserControl
     private void UpdateButtons()
     {
         var canAttach = !_processingImage && !_editId.HasValue;
-        _attach.Enabled = canAttach;
+        _addFiles.Enabled = _addFolder.Enabled = canAttach;
+        _pasteImage.Enabled = _captureImage.Enabled = _captureWithLanChat.Enabled = canAttach && _draftImages is not null;
         _send.Enabled = !_processingImage && _pendingSends < MaxPendingSends && (!string.IsNullOrWhiteSpace(_text.Text) || (!_editId.HasValue && _paths.Count > 0));
         _send.Text = _editId.HasValue ? "Lưu sửa" : "Gửi";
     }
@@ -1131,7 +1145,7 @@ public sealed partial class ChatInputControl : UserControl
     {
         // When the chat caps our height, keep the attachments reachable and let
         // the text scroll instead of squeezing the preview strip down to zero.
-        var available = Math.Max(0, _root.ClientSize.Height - (int)(_root.RowStyles[0].Height + _root.RowStyles[2].Height) - this.ScalePixels(CompactEditorHeight));
+        var available = Math.Max(0, _root.ClientSize.Height - (int)(_root.RowStyles[0].Height + _root.RowStyles[2].Height + _root.RowStyles[3].Height) - this.ScalePixels(CompactEditorHeight));
         var height = _paths.Count > 0 ? Math.Min(this.ScalePixels(PreviewHeight), available) : 0;
         if (_root.RowStyles[1].Height != height) _root.RowStyles[1].Height = height;
     }

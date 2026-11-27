@@ -22,6 +22,7 @@ internal enum UiIcon
     Photo = 0xE91B,
     Paste = 0xE77F,
     Capture = 0xE7A8,
+    Camera = 0xE722,
     Reply = 0x201C,
     Heart = 0xEB51,
     More = 0xE712,

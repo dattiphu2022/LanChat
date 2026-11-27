@@ -16,7 +16,7 @@ Mỗi tab tương ứng với một mạng. Khi gỡ mạng rồi nhập lại �
 
 ## Nhắn tin riêng và theo nhóm
 
-1. Chọn người dùng trong **Danh bạ** hoặc mở tin nhắn từ danh sách hội thoại. Dùng **Ctrl+K** để tới ô tìm hội thoại.
+1. Chọn người dùng trong **Danh bạ** hoặc mở tin nhắn từ danh sách hội thoại. Dùng **Ctrl+F** hoặc **Ctrl+K** để tới ô tìm tên người trong **Tin nhắn**.
 2. Nhập tin, nhấn **Enter** để gửi hoặc **Shift+Enter** để xuống dòng. Ô nhập tự giãn theo chữ quấn và xuống dòng, tối đa 8 dòng; khi cửa sổ nhỏ hoặc nội dung dài, cuộn trong ô nhập. Tin được lưu trên máy và sẽ tiếp tục gửi khi kết nối trở lại.
 3. Để tạo nhóm chat, mở **Nhóm → Nhóm mới**, tích chọn thành viên rồi bấm **Tạo nhóm**.
 4. Trong **Nhóm**, chọn nhóm để xem dấu tích cạnh từng thành viên ở cột **Thành viên nhóm**. Bạn cũng có thể mở **Tin nhắn → chọn nhóm → Thông tin → Thành viên**. Ở cả hai nơi, chủ nhóm có thể tích để thêm, bỏ tích để bớt rồi bấm **Lưu thành viên**. Thay đổi thành viên cần đủ số máy điều phối của mạng.
@@ -48,7 +48,7 @@ Nhấp phải hội thoại để ghim, tắt thông báo hoặc **Xóa hội th
 - Bấm khung trích dẫn trong tin trả lời để tới tin gốc. Có thể chọn khung bằng bàn phím rồi nhấn **Enter**. Với tin gốc đã thu hồi hoặc bị xóa phía bạn, khung báo trạng thái của tin.
 - Bấm **Quay về tin nhắn mới** để trở lại cuối hội thoại. Bản nháp được giữ khi bạn xem tin cũ.
 - Khi **Sửa** tin nhắn, bản nháp trước đó được giữ, gồm cả ảnh, tệp và tin đang trả lời. Hủy sửa hoặc lưu sửa thành công sẽ khôi phục bản nháp đó. Nếu gửi lỗi, nội dung vẫn còn để thử lại.
-- Dùng **Tìm tin** hoặc **Ctrl+F** trong hội thoại. Chọn một kết quả để mở vị trí của tin trong lịch sử.
+- Bấm **Tìm tin** trong hội thoại. Chọn một kết quả để mở vị trí của tin trong lịch sử.
 
 ## Gửi ảnh, tệp và thư mục
 
@@ -120,7 +120,7 @@ Các mục Giới thiệu, cập nhật và hướng dẫn bắt đầu nằm tr
 - Danh sách có **Tất cả / Chưa đọc / @ Tôi / Đã ghim**. Từ khóa tìm tên và bộ lọc được giữ khi dữ liệu cập nhật.
 - Dùng nút **+** cạnh ô nhập để thêm tệp, thư mục, dán ảnh hoặc chụp vùng. **Enter** gửi, **Shift+Enter** xuống dòng, **Ctrl+V** dán, **Esc** hủy trả lời/sửa phù hợp.
 - **Tệp** mở trung tâm theo dõi của mạng hiện tại: hội thoại, kích thước, trạng thái và tiến độ có dữ liệu. Chọn tệp rồi **Mở**, **Lưu về máy** hoặc **Chuẩn bị / Thử lại**. Đóng cửa sổ này vẫn tiếp tục tải nền; không có nút hủy truyền.
-- **Ctrl+K** tìm nhanh tên/hội thoại; **Ctrl+F** tìm trong hội thoại đang mở; **Ctrl+Shift+F** tìm trong toàn bộ lịch sử được phép truy cập. Chọn kết quả để đến đúng tin. Nút **Dừng** chỉ dừng tìm kiếm.
+- **Ctrl+F** hoặc **Ctrl+K** đưa con trỏ vào ô tìm tên người. Nhấn **Enter** để mở kết quả đầu tiên hoặc bấm **×** để xóa từ khóa. Khi tìm theo nội dung tin nhắn, chọn kết quả để đến đúng tin hoặc bấm **Dừng** để dừng tìm kiếm.
 - Menu **Kết nối** ở cuối cửa sổ cho phép quét **mạng hiện tại**, kiểm tra mạng và xem chẩn đoán. **Quét tất cả** trên thanh công cụ áp dụng cho mọi mạng đang mở. Thiếu máy điều phối không đồng nghĩa mất khả năng nhắn tin.
 - **Cài đặt** cho đổi cỡ chữ tin nhắn (10/11/12/14 pt), mật độ (Gọn/Tiêu chuẩn/Thoải mái), giao diện (Sáng/Tối/Theo Windows) và ẩn nội dung trên thông báo. Các thay đổi áp dụng khi lưu và chỉ lưu trên máy này. Một số thành phần do Windows vẽ, như thanh tiêu đề, thanh cuộn và hộp thoại hệ thống, có thể giữ màu hệ thống.
 - Cửa sổ QR có **Sao chép văn bản**, giữ nguyên cả xuống dòng và Unicode; **Xuất PNG** vẫn tuân thủ giới hạn 500 byte UTF-8.

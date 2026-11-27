@@ -120,6 +120,18 @@ internal sealed partial class NetworkWorkspace : DpiForm
         FormClosing += ClosingAsync;
     }
 
+    protected override bool ProcessCmdKey(ref System.Windows.Forms.Message msg, Keys keyData)
+    {
+        if ((keyData == (Keys.Control | Keys.F) || keyData == (Keys.Control | Keys.K)) &&
+            _tabs.Enabled && _tabs.SelectedTab?.Tag is Guid id && _running.TryGetValue(id, out var item))
+        {
+            item.View.FocusConversationSearch();
+            return true;
+        }
+
+        return base.ProcessCmdKey(ref msg, keyData);
+    }
+
     private void RestoreWindow()
     {
         if (_exiting) return;

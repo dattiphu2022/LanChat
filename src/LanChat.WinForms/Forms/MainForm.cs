@@ -266,16 +266,20 @@ public sealed partial class MainForm : DpiForm
 
     protected override bool ProcessCmdKey(ref System.Windows.Forms.Message msg, Keys keyData)
     {
-        if (keyData == (Keys.Control | Keys.K)) { ShowPeople(false); _conversations.FocusSearch(); return true; }
-        if (keyData == (Keys.Control | Keys.Shift | Keys.F)) { _ = RunUiAsync(() => RunDialogAsync("search", SearchMessagesAsync)); return true; }
-        if (keyData == (Keys.Control | Keys.F))
+        if (keyData == (Keys.Control | Keys.F) || keyData == (Keys.Control | Keys.K))
         {
-            _ = RunUiAsync(() => _activeConversation.HasValue ? OpenPanelAsync(true) : RunDialogAsync("search", SearchMessagesAsync));
+            FocusConversationSearch();
             return true;
         }
         if (keyData == (Keys.Alt | Keys.Left) && _showCompactChat) { ShowPeople(false); return true; }
         if (keyData == Keys.Escape && _panelOpen) { SetPanel(false); return true; }
         return base.ProcessCmdKey(ref msg, keyData);
+    }
+
+    internal void FocusConversationSearch()
+    {
+        ShowPeople(false);
+        _conversations.FocusSearch();
     }
 
     private void ShowPeople(bool value, bool showList = true)
