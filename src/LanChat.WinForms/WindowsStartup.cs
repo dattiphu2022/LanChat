@@ -17,6 +17,20 @@ internal sealed class WindowsStartup
             _command += " --data-dir \"" + data + "\"";
     }
 
+    public bool RunAsAdministrator
+    {
+        get
+        {
+            using var key = Registry.CurrentUser.OpenSubKey(@"Software\LanChat");
+            return key?.GetValue("RunAsAdministrator") is 1;
+        }
+        set
+        {
+            using var key = Registry.CurrentUser.CreateSubKey(@"Software\LanChat");
+            key.SetValue("RunAsAdministrator", value ? 1 : 0, RegistryValueKind.DWord);
+        }
+    }
+
     public bool Enabled
     {
         get

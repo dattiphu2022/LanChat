@@ -26,6 +26,9 @@ internal sealed partial class NetworkWorkspace : DpiForm
     private readonly List<Button> _actions = [];
     private readonly List<Button> _networkActions = [];
     private bool _busy, _exiting, _closed, _exitRequested;
+    private bool _restartAsAdministrator;
+    internal bool RestartAsAdministrator { get; private set; }
+
     private FormWindowState _restoreState;
     private (Guid NetworkId, Guid ConversationId, Guid? MessageId)? _notificationTarget;
     private (Guid NetworkId, Guid ConversationId, Guid? MessageId)? _pendingNotification;
@@ -286,6 +289,13 @@ internal sealed partial class NetworkWorkspace : DpiForm
         catch (OperationCanceledException) { }
         catch (Exception ex) { UiInteraction.Warn(this, ex.Message); }
         finally { _busy = false; if (!IsDisposed) UpdateActionState(); }
+        if (_restartAsAdministrator)
+        {
+            _restartAsAdministrator = false;
+            ExitApplication();
+            RestartAsAdministrator = _exiting;
+            if (_exiting) return;
+        }
         if (_installRequested) { _installRequested = false; await InstallUpdateAsync(); }
         await OpenPendingNotificationAsync();
     }
@@ -342,6 +352,7 @@ internal sealed partial class NetworkWorkspace : DpiForm
     private Task SettingsAsync()
     {
         var profile = _catalog.Profile;
+        var runAsAdministrator = _startup.RunAsAdministrator;
         using var dialog = new SettingsForm(profile.Name, profile.Department, _startup.Enabled, async (name, department, startup) =>
         {
             if (_startup.NeedsUpdate(startup)) _startup.SetEnabled(startup);
@@ -357,6 +368,10 @@ internal sealed partial class NetworkWorkspace : DpiForm
             UpdateReminderTimer(restart: true);
             await ApplyConfiguredThemeAsync();
             foreach (var network in _running.Values) network.View.ApplyPreferences(preferences);
+        }, runAsAdministrator, enabled =>
+        {
+            if (enabled != runAsAdministrator) _startup.RunAsAdministrator = enabled;
+            _restartAsAdministrator = enabled && !Program.IsAdministrator();
         });
         UiInteraction.ShowDialog(dialog, this);
         return Task.CompletedTask;

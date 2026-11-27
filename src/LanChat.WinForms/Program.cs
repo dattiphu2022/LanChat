@@ -3,7 +3,9 @@ using LanChat.Infrastructure;
 using LanChat.WinForms.Controls;
 using LanChat.WinForms.Forms;
 using Microsoft.Extensions.DependencyInjection;
+using System.ComponentModel;
 using System.Diagnostics;
+using System.Text.RegularExpressions;
 using System.Security.AccessControl;
 using System.Security.Principal;
 
@@ -17,7 +19,15 @@ internal static class Program
         System.Windows.Forms.Application.EnableVisualStyles();
         System.Windows.Forms.Application.SetCompatibleTextRenderingDefault(false);
         VerifiedInstaller? pending;
-        try { pending = Run(args); }
+        try
+        {
+            pending = Run(args, allowElevation: true, out var elevate);
+            if (elevate)
+            {
+                if (TryStartAsAdministrator(args)) return;
+                pending = Run(args, allowElevation: false, out _);
+            }
+        }
         catch (Exception ex)
         {
             MessageBox.Show(UiText.HideIpAddresses(ex.Message), "Không khởi động được LanChat", MessageBoxButtons.OK, MessageBoxIcon.Error);
@@ -38,8 +48,49 @@ internal static class Program
         }
     }
 
-    private static VerifiedInstaller? Run(string[] args)
+    internal static bool IsAdministrator()
     {
+        using var identity = WindowsIdentity.GetCurrent();
+        return new WindowsPrincipal(identity).IsInRole(WindowsBuiltInRole.Administrator);
+    }
+
+    private static bool TryStartAsAdministrator(string[] args)
+    {
+        try
+        {
+            using var process = Process.Start(new ProcessStartInfo
+            {
+                FileName = System.Windows.Forms.Application.ExecutablePath,
+                Arguments = string.Join(" ", args.Select(QuoteArgument)),
+                WorkingDirectory = Environment.CurrentDirectory,
+                UseShellExecute = true,
+                Verb = "runas"
+            });
+            if (process is not null) return true;
+            throw new InvalidOperationException("Windows không mở được tiến trình LanChat.");
+        }
+        catch (Win32Exception ex) when (ex.NativeErrorCode == 1223)
+        {
+            return false;
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(UiText.HideIpAddresses(ex.Message), "Không chạy được LanChat với quyền quản trị viên",
+                MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return false;
+        }
+    }
+
+    private static string QuoteArgument(string argument)
+    {
+        // Double backslashes before a quoted character or the closing quote.
+        return "\"" + Regex.Replace(argument, @"(\\*)(""|\z)", match =>
+            new string('\\', match.Groups[1].Length * 2 + match.Groups[2].Length) + match.Groups[2].Value) + "\"";
+    }
+
+    private static VerifiedInstaller? Run(string[] args, bool allowElevation, out bool elevate)
+    {
+        elevate = false;
         var options = new NodeOptions();
         string? verification = null;
 #if DEBUG
@@ -79,6 +130,12 @@ internal static class Program
             return null;
         }
         ServiceRegistration.ValidateDataDirectory(options.DataDirectory);
+        var windowsStartup = new WindowsStartup(options.DataDirectory);
+        if (allowElevation && verification is null && windowsStartup.RunAsAdministrator && !IsAdministrator())
+        {
+            elevate = true;
+            return null;
+        }
         Directory.CreateDirectory(options.DataDirectory);
         using var dataLock = new FileStream(Path.Combine(options.DataDirectory, "instance.lock"), FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
 #if DEBUG
@@ -89,7 +146,7 @@ internal static class Program
         }
 #endif
         using var updates = new UpdateService(options.DataDirectory);
-        using var window = new NetworkWorkspace(new NetworkCatalog(options, updates.Packages), new WindowsStartup(options.DataDirectory), updates);
+        using var window = new NetworkWorkspace(new NetworkCatalog(options, updates.Packages), windowsStartup, updates);
         window.Shown += async (_, _) =>
         {
             try { await window.StartAsync(); }
@@ -101,6 +158,7 @@ internal static class Program
             }
         };
         System.Windows.Forms.Application.Run(window);
+        elevate = window.RestartAsAdministrator;
         return window.PendingInstaller;
     }
 
